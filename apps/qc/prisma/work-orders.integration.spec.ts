@@ -115,11 +115,11 @@ describe('work orders against a real database', () => {
 
     const first = await submit(order);
     expect((await prisma.workOrder.findUniqueOrThrow({ where: { id: order.id } })).status).toBe('REVIEWING');
-    await submissions.reviewSubmission(first.id, { decision: 'REJECT_REWORK', comment: 'Blurred', itemReviews: [{ itemId, result: 'REJECTED' }] }, ACTOR);
+    await submissions.reviewSubmission(first.id, { decision: 'REJECT_REWORK', comment: 'Blurred', itemReviews: [{ itemId, result: 'REJECTED' }] }, ACTOR, GLOBAL);
     expect((await prisma.workOrder.findUniqueOrThrow({ where: { id: order.id } })).status).toBe('RECTIFYING');
 
     const second = await submit(order);
-    await submissions.reviewSubmission(second.id, { decision: 'APPROVE', itemReviews: [{ itemId, result: 'APPROVED' }] }, ACTOR);
+    await submissions.reviewSubmission(second.id, { decision: 'APPROVE', itemReviews: [{ itemId, result: 'APPROVED' }] }, ACTOR, GLOBAL);
     const done = await prisma.workOrder.findUniqueOrThrow({ where: { id: order.id } });
     expect(done).toMatchObject({ status: 'COMPLETED', currentAttemptNo: 2, currentSubmissionId: second.id });
     expect(done.actualCompletionAt).not.toBeNull();

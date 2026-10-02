@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PrismaClient } from '@prisma-clients/qc';
+import type { AuthzScope } from '@ipms/authz';
 import { uuidv7 } from '@ipms/contracts';
 import type { MediaClient } from '../src/submissions/media.client.js';
 import { SubmissionService } from '../src/submissions/submission.service.js';
@@ -10,6 +11,7 @@ import { ACTOR, resetDb, seedPublishedTemplate, seedWorkOrder, type SeededWorkOr
 let db: Awaited<ReturnType<typeof startTestDb>>;
 let prisma: PrismaClient;
 let service: SubmissionService;
+const GLOBAL: AuthzScope = { global: true, projectIds: [], siteIds: [] };
 const noGeofence = { fetch: async () => null } as unknown as SiteGeofenceClient;
 const DAY = 86_400_000;
 // A media that finds every file usable, reporting kinds from `kinds`.
@@ -94,7 +96,7 @@ describe('createSubmission against its work order', () => {
     const { versionId, itemId, templateId } = await seedPublishedTemplate(prisma);
     const task = await assignTask(templateId);
     const first = await submitFor(task, versionId, itemId);
-    await service.reviewSubmission(first.id, { decision: 'REJECT_REWORK', comment: 'Blurred', itemReviews: [{ itemId, result: 'REJECTED' }] }, ACTOR);
+    await service.reviewSubmission(first.id, { decision: 'REJECT_REWORK', comment: 'Blurred', itemReviews: [{ itemId, result: 'REJECTED' }] }, ACTOR, GLOBAL);
     const second = await submitFor(task, versionId, itemId);
     expect(second.attemptNo).toBe(2);
 
@@ -216,5 +218,40 @@ describe('getSubmission scope', () => {
     const submission = await submit(versionId, itemId);
     await expect(service.getSubmission(submission.id, { global: false, projectIds: [submission.projectId], siteIds: [] })).resolves.toMatchObject({ id: submission.id });
     await expect(service.getSubmission(submission.id, { global: false, projectIds: [uuidv7()], siteIds: [] })).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe('reviewSubmission scope', () => {
+  const approve = (itemId: string) => ({ decision: 'APPROVE' as const, itemReviews: [{ itemId, result: 'APPROVED' as const }] });
+
+  it('answers 404 outside the caller’s scope and writes nothing', async () => {
+    const { versionId, itemId } = await seedPublishedTemplate(prisma);
+    const submission = await submit(versionId, itemId);
+    const outboxBefore = await prisma.outboxEvent.count();
+    const timelineBefore = await prisma.workOrderEvent.count();
+
+    await expect(service.reviewSubmission(submission.id, approve(itemId), ACTOR, { global: false, projectIds: [uuidv7()], siteIds: [uuidv7()] }))
+      .rejects.toMatchObject({ status: 404 });
+    await expect(service.reviewSubmission(submission.id, approve(itemId), ACTOR, { global: false, projectIds: [], siteIds: [] }))
+      .rejects.toMatchObject({ status: 404 });
+
+    expect(await prisma.submission.findUniqueOrThrow({ where: { id: submission.id } })).toMatchObject({ status: 'SUBMITTED', reviewedBy: null, reviewedAt: null });
+    expect(await prisma.itemResponse.findMany({ where: { submissionId: submission.id } })).toEqual([expect.objectContaining({ reviewResult: 'PENDING', reviewedBy: null })]);
+    expect(await prisma.reviewDecision.count({ where: { submissionId: submission.id } })).toBe(0);
+    expect((await prisma.workOrder.findUniqueOrThrow({ where: { id: submission.taskId } })).status).toBe('REVIEWING');
+    expect(await prisma.outboxEvent.count()).toBe(outboxBefore);
+    expect(await prisma.workOrderEvent.count()).toBe(timelineBefore);
+  });
+
+  it('reviews within the caller’s scope, reached by project or by site', async () => {
+    const { versionId, itemId } = await seedPublishedTemplate(prisma);
+    const byProject = await submit(versionId, itemId);
+    await expect(service.reviewSubmission(byProject.id, approve(itemId), ACTOR, { global: false, projectIds: [byProject.projectId], siteIds: [] }))
+      .resolves.toMatchObject({ id: byProject.id, status: 'APPROVED' });
+
+    const bySite = await submit(versionId, itemId);
+    await expect(service.reviewSubmission(bySite.id, approve(itemId), ACTOR, { global: false, projectIds: [], siteIds: [bySite.siteId] }))
+      .resolves.toMatchObject({ id: bySite.id, status: 'APPROVED' });
+    expect((await prisma.workOrder.findUniqueOrThrow({ where: { id: bySite.taskId } })).status).toBe('COMPLETED');
   });
 });

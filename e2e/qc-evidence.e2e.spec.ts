@@ -28,10 +28,12 @@ let admin: string;
 let qc: string;
 let engineer: string;
 let engineerId: string;
+let qcId: string;
 beforeAll(async () => {
   await waitForReady();
   [admin, qc, engineer] = await Promise.all([login('admin'), login('qc'), login('engineer')]);
   engineerId = (await api<{ items: { id: string }[] }>('/api/v1/users?search=engineer', { token: admin })).body.items[0]!.id;
+  qcId = (await api<{ items: { id: string; email: string }[] }>('/api/v1/users?search=qc@ipms.local', { token: admin })).body.items.find((user) => user.email === 'qc@ipms.local')!.id;
 }, 90_000);
 
 async function upload(workOrderId: string, itemId: string, kind: 'PHOTO' | 'VIDEO', bytes: Buffer, poster?: Buffer): Promise<string> {
@@ -68,7 +70,9 @@ describe('QC evidence', () => {
     const projectId = (await api<{ id: string }>('/api/v1/projects', { method: 'POST', token: admin, body: { code: `EV-${stamp}`, name: 'Evidence e2e' } })).body.id;
     const siteId = (await api<{ id: string }>(`/api/v1/projects/${projectId}/sites`, { method: 'POST', token: admin, body: { siteCode: 'KOS121', name: 'KOS121' } })).body.id;
     const scope = { level: 'PROJECT', projectId };
+    // The engineer submits and qc reviews; each only on sites its scope reaches.
     await api(`/api/v1/users/${engineerId}/projects`, { method: 'POST', token: admin, body: scope });
+    await api(`/api/v1/users/${qcId}/projects`, { method: 'POST', token: admin, body: scope });
     let workOrderId = '';
     try {
       await sleep(1500); // scope replicates to project over NATS
@@ -108,7 +112,7 @@ describe('QC evidence', () => {
       expect((await api(`/api/v1/work-orders/${workOrderId}/draft`, { token: engineer })).status).toBe(409); // REVIEWING: closed to drafts
 
       const review = (id: string, decision: string, result: string) => api(`/api/v1/qc/submissions/${id}/review`, { method: 'POST', token: qc, body: { decision, comment: 'e2e', itemReviews: [{ itemId, result }] } });
-      await review(first.body.id, 'REJECT_REWORK', 'REJECTED');
+      expect((await review(first.body.id, 'REJECT_REWORK', 'REJECTED')).status).toBe(201);
 
       // Rework: the draft is pre-filled with the same files; replace the photo, keep the video.
       const prefill = await api<{ version: number; responses: { mediaIds: string[] }[] }>(`/api/v1/work-orders/${workOrderId}/draft`, { token: engineer });
@@ -119,21 +123,21 @@ describe('QC evidence', () => {
       const second = await submit([newPhoto, video], 'any-device');
       expect(second.status).toBe(201);
       expect(second.body.attemptNo).toBe(2);
-      await review(second.body.id, 'APPROVE', 'APPROVED');
+      expect((await review(second.body.id, 'APPROVE', 'APPROVED')).status).toBe(201);
 
       type Detail = { responses: { media: { mediaId: string; kind: string; sequence: number }[] }[] };
-      const firstDetail = await api<Detail>(`/api/v1/qc/submissions/${first.body.id}`, { token: admin });
-      const secondDetail = await api<Detail>(`/api/v1/qc/submissions/${second.body.id}`, { token: admin });
+      const firstDetail = await api<Detail>(`/api/v1/qc/submissions/${first.body.id}`, { token: qc });
+      const secondDetail = await api<Detail>(`/api/v1/qc/submissions/${second.body.id}`, { token: qc });
       expect(firstDetail.body.responses[0]!.media.map((m) => [m.mediaId, m.kind])).toEqual([[photo, 'PHOTO'], [video, 'VIDEO']]);
       expect(secondDetail.body.responses[0]!.media.map((m) => [m.mediaId, m.kind])).toEqual([[newPhoto, 'PHOTO'], [video, 'VIDEO']]);
 
       // Reviewers can open the files.
-      const link = await api<{ signedUrl: string }>(`/api/v1/media/${video}/url?variant=thumbnail`, { token: admin });
+      const link = await api<{ signedUrl: string }>(`/api/v1/media/${video}/url?variant=thumbnail`, { token: qc });
       expect(link.status).toBe(200);
       expect((await fetch(link.body.signedUrl)).status).toBe(200);
 
       // Download link carries an attachment disposition.
-      const dl = await api<{ signedUrl: string }>(`/api/v1/media/${photo}/url?variant=original&download=1`, { token: admin });
+      const dl = await api<{ signedUrl: string }>(`/api/v1/media/${photo}/url?variant=original&download=1`, { token: qc });
       expect(dl.status).toBe(200);
       expect((await fetch(dl.body.signedUrl)).headers.get('content-disposition')).toMatch(/^attachment;/);
 
@@ -141,6 +145,7 @@ describe('QC evidence', () => {
       expect(events).toEqual(['CREATED', 'STARTED', 'SUBMITTED', 'REJECTED', 'SUBMITTED', 'APPROVED']);
     } finally {
       await api(`/api/v1/users/${engineerId}/projects`, { method: 'DELETE', token: admin, body: scope });
+      await api(`/api/v1/users/${qcId}/projects`, { method: 'DELETE', token: admin, body: scope });
     }
   }, 120_000);
 

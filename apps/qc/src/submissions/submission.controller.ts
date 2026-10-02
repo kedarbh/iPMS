@@ -21,7 +21,10 @@ export class SubmissionController {
   }
 
   @Post(':id/review') @RequirePermission('qc_review.approve')
-  review(@Param('id') id: string, @Body() body: unknown, @Req() req: { user: AuthzUser }) {
-    return this.service.reviewSubmission(UuidSchema.parse(id), ReviewSubmissionSchema.parse(body), req.user.id);
+  async review(@Param('id') id: string, @Body() body: unknown, @Req() req: { user: AuthzUser; headers: Record<string, string | undefined> }) {
+    const parsed = UuidSchema.parse(id);
+    const dto = ReviewSubmissionSchema.parse(body);
+    // Scoped like `get`: a reviewer cannot decide a submission on a site they cannot see.
+    return this.service.reviewSubmission(parsed, dto, req.user.id, required(await this.projects.scope(req.headers['authorization'] ?? ''), 'Scope'));
   }
 }

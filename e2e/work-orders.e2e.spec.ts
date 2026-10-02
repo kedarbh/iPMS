@@ -14,12 +14,15 @@ let admin: string;
 let qc: string;
 let engineer: string;
 let engineerId: string;
+let qcId: string;
 
 beforeAll(async () => {
   await waitForReady();
   [admin, qc, engineer] = await Promise.all([login('admin'), login('qc'), login('engineer')]);
   const users = await api<{ items: { id: string }[] }>('/api/v1/users?search=engineer', { token: admin });
   engineerId = users.body.items[0]!.id;
+  const qcUsers = await api<{ items: { id: string; email: string }[] }>('/api/v1/users?search=qc@ipms.local', { token: admin });
+  qcId = qcUsers.body.items.find((user) => user.email === 'qc@ipms.local')!.id;
 }, 90_000);
 
 /** qc moves a work order in the same transaction as the submission or review, so one read is enough. */
@@ -42,9 +45,11 @@ describe('work orders', () => {
     const power = await project(`PWR-${stamp}`);
     const [antennaSite, powerSite] = await Promise.all([site(antenna), site(power)]);
     const scope = { level: 'PROJECT', projectId: antenna };
+    // qc reviews submissions only on sites its scope reaches, and the seeded qc user holds none of a fresh project.
     await api(`/api/v1/users/${engineerId}/projects`, { method: 'POST', token: admin, body: scope });
+    await api(`/api/v1/users/${qcId}/projects`, { method: 'POST', token: admin, body: scope });
     // project-scope.e2e asserts the seeded engineer starts with no projects, and
-    // the stack's database outlives the run, so hand the grant back either way.
+    // the stack's database outlives the run, so hand the grants back either way.
     try {
       await sleep(1500); // scope replicates to project over NATS
 
@@ -75,12 +80,12 @@ describe('work orders', () => {
       const first = await submit();
       expect(first.status).toBe(201);
       expect(await statusOf(id)).toBe('REVIEWING');
-      await review(first.body.id, 'REJECT_REWORK', 'REJECTED');
+      expect((await review(first.body.id, 'REJECT_REWORK', 'REJECTED')).status).toBe(201);
       expect(await statusOf(id)).toBe('RECTIFYING');
       const second = await submit();
       expect(second.status).toBe(201);
       expect(await statusOf(id)).toBe('REVIEWING');
-      await review(second.body.id, 'APPROVE', 'APPROVED');
+      expect((await review(second.body.id, 'APPROVE', 'APPROVED')).status).toBe(201);
       expect(await statusOf(id)).toBe('COMPLETED');
 
       const detail = await api<{ actualCompletionAt: string | null; events: { kind: string }[] }>(`/api/v1/work-orders/${id}`, { token: admin });
@@ -96,6 +101,7 @@ describe('work orders', () => {
       expect((await api(`/api/v1/sites/${antennaSite}`, { method: 'DELETE', token: admin })).status).toBe(409);
     } finally {
       await api(`/api/v1/users/${engineerId}/projects`, { method: 'DELETE', token: admin, body: scope });
+      await api(`/api/v1/users/${qcId}/projects`, { method: 'DELETE', token: admin, body: scope });
     }
   }, 60_000);
 

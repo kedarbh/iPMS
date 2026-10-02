@@ -43,8 +43,11 @@ const pendingOf = (taskId: string) => ({
 });
 
 /** Thrown when the live submission turns out to be this request's own: the caller answers with it. */
-class AlreadySubmitted {
-  constructor(readonly id: string) {}
+class AlreadySubmitted extends Error {
+  constructor(readonly id: string) {
+    super(`Submission ${id} already exists for this idempotency key`);
+    this.name = 'AlreadySubmitted';
+  }
 }
 
 function assertNoneLive(pending: { id: string; idempotencyKey: string; status: string } | null, idempotencyKey: string): void {
@@ -208,8 +211,9 @@ export class SubmissionService {
     }
   }
 
-  async reviewSubmission(id: string, dto: ReviewSubmissionDto, actorId: string) {
-    const submission = await this.prisma.submission.findUnique({ where: { id }, include: { responses: { include: { item: true } } } });
+  /** Scoped like `getSubmission`: a submission outside the caller's scope reads as not found, before anything is written. */
+  async reviewSubmission(id: string, dto: ReviewSubmissionDto, actorId: string, scope: AuthzScope) {
+    const submission = await this.prisma.submission.findFirst({ where: { AND: [{ id }, scopeWhere(scope)] }, include: { responses: { include: { item: true } } } });
     if (!submission) throw new NotFoundException('Submission not found');
     if (submission.status !== 'SUBMITTED' && submission.status !== 'UNDER_REVIEW') throw new ConflictException('Only submitted work can be reviewed');
     const reviews = new Map(dto.itemReviews.map((review) => [review.itemId, review]));

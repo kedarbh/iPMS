@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { scopeWhere, type AuthzScope } from '@ipms/authz';
 import { SubmissionService } from './submission.service.js';
 
 describe('SubmissionService', () => {
@@ -213,9 +214,10 @@ describe('SubmissionService', () => {
     const itemId = '0192f7a0-0000-7000-8000-000000000003';
     const taskId = '0192f7a0-0000-7000-8000-000000000004';
     const projectId = '0192f7a0-0000-7000-8000-000000000005';
+    const scope: AuthzScope = { global: false, projectIds: [projectId], siteIds: [] };
 
     beforeEach(() => {
-      prisma.submission.findUnique.mockResolvedValue({
+      prisma.submission.findFirst.mockResolvedValue({
         id: submissionId,
         status: 'SUBMITTED',
         taskId,
@@ -240,6 +242,27 @@ describe('SubmissionService', () => {
       prisma.workOrder.findUnique.mockResolvedValue({ id: taskId });
     });
 
+    it('looks the submission up within the caller’s scope', async () => {
+      const dto = { decision: 'APPROVE' as const, itemReviews: [{ itemId, result: 'APPROVED' as const }] };
+      await service.reviewSubmission(submissionId, dto, actorId, scope);
+      expect(prisma.submission.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+        where: { AND: [{ id: submissionId }, scopeWhere(scope)] },
+      }));
+    });
+
+    it('answers 404 for a submission outside the caller’s scope, before writing anything', async () => {
+      prisma.submission.findFirst.mockResolvedValue(null);
+      const dto = { decision: 'APPROVE' as const, itemReviews: [{ itemId, result: 'APPROVED' as const }] };
+      await expect(service.reviewSubmission(submissionId, dto, actorId, { global: false, projectIds: [], siteIds: [] }))
+        .rejects.toMatchObject({ status: 404 });
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.itemResponse.update).not.toHaveBeenCalled();
+      expect(prisma.reviewDecision.create).not.toHaveBeenCalled();
+      expect(prisma.submission.update).not.toHaveBeenCalled();
+      expect(prisma.workOrder.updateMany).not.toHaveBeenCalled();
+      expect(prisma.outboxEvent.create).not.toHaveBeenCalled();
+    });
+
     it('rejects approval when an item review is REJECTED', async () => {
       const dto = {
         decision: 'APPROVE' as const,
@@ -252,7 +275,7 @@ describe('SubmissionService', () => {
         ],
       };
 
-      await expect(service.reviewSubmission(submissionId, dto as any, actorId)).rejects.toThrow(
+      await expect(service.reviewSubmission(submissionId, dto as any, actorId, scope)).rejects.toThrow(
         'A submission with rejected items cannot be approved',
       );
     });
@@ -269,7 +292,7 @@ describe('SubmissionService', () => {
         ],
       };
 
-      await service.reviewSubmission(submissionId, dto as any, actorId);
+      await service.reviewSubmission(submissionId, dto as any, actorId, scope);
       expect(prisma.reviewDecision.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ decision: 'APPROVE' }),
@@ -304,7 +327,7 @@ describe('SubmissionService', () => {
         reviewedAt: new Date(),
       });
 
-      await service.reviewSubmission(submissionId, dto as any, actorId);
+      await service.reviewSubmission(submissionId, dto as any, actorId, scope);
       expect(prisma.workOrder.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ status: 'RECTIFYING' }),
