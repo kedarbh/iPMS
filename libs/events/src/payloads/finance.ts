@@ -60,3 +60,14 @@ export interface FinanceAdvanceCashReturned extends FinanceEventBase {
   returnedAmount: string;
   outstandingAfter: string;
 }
+
+/**
+ * An approver or Finance nudged the requester to settle an overdue advance.
+ * `dueOn` is the advance's settle-by day (`YYYY-MM-DD`); `outstanding` is what
+ * is still unsettled. `actorId` is who sent the reminder.
+ */
+export interface FinanceAdvanceSettlementReminder extends FinanceEventBase {
+  dueOn: string;
+  daysLate: number;
+  outstanding: string;
+}

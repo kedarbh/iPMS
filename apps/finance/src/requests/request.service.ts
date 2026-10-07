@@ -7,6 +7,7 @@ import { asJson, recordAudit } from '../audit.js';
 import { inScope, notFound, requirePermission, type Actor, type ProjectRef, type Tx } from '../common.js';
 import { emit, factsOf, recordAction } from '../events.js';
 import { compareMoney, sumMoney } from '../money.js';
+import { findDuplicates, repeatsWithin, type BillKey } from '../duplicates.js';
 import { loadBalance } from '../ledger.js';
 import { serializeDetail } from '../serialize.js';
 import type { InvoiceFiles } from '../directory/media.client.js';
@@ -108,8 +109,10 @@ export class RequestService {
       const row = await this.own(tx, id, actor);
       requireCreatePermission(actor, row);
       if (!isEditable(row.status)) throw new ConflictException('Only a draft or returned request can be submitted');
-      if (row.kind !== 'ADVANCE' && (await tx.requestInvoice.count({ where: { requestId: id } })) === 0) {
-        throw new UnprocessableEntityException('Add at least one invoice before submitting');
+      if (row.kind !== 'ADVANCE') {
+        const bills = await tx.requestInvoice.findMany({ where: { requestId: id } });
+        if (bills.length === 0) throw new UnprocessableEntityException('Add at least one invoice before submitting');
+        await refuseReusedNumbers(tx, id, bills.map((b): BillKey => ({ vendor: b.vendor, invoiceNumber: b.invoiceNumber, invoiceDate: b.invoiceDate, amount: b.amount.toFixed(2) })));
       }
       if (row.kind === 'SETTLEMENT' && row.advanceId) {
         const balance = await loadBalance(tx, row.advanceId);
@@ -198,5 +201,20 @@ export class RequestService {
     const key = `${NUMBER_PREFIX[kind]}-${new Date().getUTCFullYear()}`;
     const counter = await tx.numberCounter.upsert({ where: { key }, create: { key, value: 1 }, update: { value: { increment: 1 } } });
     return `${key}-${String(counter.value).padStart(4, '0')}`;
+  }
+}
+
+/**
+ * A supplier's invoice number is used once a fiscal year, so the same vendor and number
+ * in the same year is a bill claimed twice, here or on another request. Bills
+ * with no number, or a number last seen in another year, are only flagged to
+ * approvers (see the detail read), since a supplier may have restarted at 1.
+ */
+async function refuseReusedNumbers(tx: Pick<PrismaClient, 'requestInvoice'>, requestId: string, bills: readonly BillKey[]): Promise<void> {
+  const twice = repeatsWithin(bills);
+  if (twice) throw new UnprocessableEntityException(`Invoice ${twice.invoiceNumber} from ${twice.vendor} is listed more than once on this request`);
+  const reused = (await findDuplicates(tx, requestId, bills)).find((h) => h.reason === 'SAME_NUMBER');
+  if (reused) {
+    throw new UnprocessableEntityException(`Invoice ${reused.invoiceNumber} from ${reused.vendor} is already claimed on ${reused.number}`);
   }
 }

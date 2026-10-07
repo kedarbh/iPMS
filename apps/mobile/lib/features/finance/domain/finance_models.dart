@@ -203,6 +203,35 @@ class ApprovalEntry {
   }
 }
 
+/// Another live request holding a bill like one of this request's.
+class DuplicateHit {
+  const DuplicateHit({required this.requestId, required this.number, required this.status, required this.vendor, this.invoiceNumber, required this.reason});
+
+  factory DuplicateHit.fromJson(Map<String, dynamic> json) => DuplicateHit(
+        requestId: json['requestId'].toString(),
+        number: json['number'].toString(),
+        status: json['status'].toString(),
+        vendor: json['vendor']?.toString() ?? '',
+        invoiceNumber: json['invoiceNumber']?.toString(),
+        reason: json['reason']?.toString() ?? 'SAME_BILL',
+      );
+
+  final String requestId;
+  final String number;
+  final String status;
+  final String vendor;
+  final String? invoiceNumber;
+
+  /// SAME_NUMBER, SAME_BILL or NUMBER_OTHER_YEAR.
+  final String reason;
+
+  String get explanation => switch (reason) {
+        'SAME_NUMBER' => 'invoice $invoiceNumber from $vendor is on it too',
+        'NUMBER_OTHER_YEAR' => 'invoice $invoiceNumber from $vendor, dated in another year (numbering may have restarted)',
+        _ => 'a bill from $vendor with the same date and amount',
+      };
+}
+
 class RequestPayment {
   const RequestPayment({
     required this.kind,
@@ -314,6 +343,9 @@ class FinanceRequest {
     this.balance,
     this.settlementDueOn,
     this.vatAmount,
+    this.duplicates = const [],
+    this.updatedAt,
+    this.entryStatus,
   });
 
   factory FinanceRequest.fromJson(Map<String, dynamic> json) {
@@ -344,6 +376,9 @@ class FinanceRequest {
       balance: balance is Map<String, dynamic> ? AdvanceBalance.fromJson(balance) : null,
       settlementDueOn: _calendarDay(json['settlementDueOn']),
       vatAmount: json['vatAmount']?.toString(),
+      duplicates: list('duplicates', DuplicateHit.fromJson),
+      updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? '')?.toLocal(),
+      entryStatus: json['entryStatus'] as String?,
     );
   }
 
@@ -376,6 +411,17 @@ class FinanceRequest {
 
   /// The VAT inside a settlement's or reimbursement's VAT bills; on the list only.
   final String? vatAmount;
+
+  /// Other live requests with a bill like one of these.
+  final List<DuplicateHit> duplicates;
+
+  /// When it last changed, which for a request waiting on someone is when it reached them.
+  final DateTime? updatedAt;
+
+  /// Where it entered approval: PENDING_DIRECTOR when a project manager raised it.
+  final String? entryStatus;
+
+  bool get raisedByManager => entryStatus == 'PENDING_DIRECTOR';
 
   /// Where the advance stands against its settlement window as of [now]; null
   /// when it is not on the clock (not a paid advance, or nothing left to
@@ -455,7 +501,7 @@ class FinanceNotification {
 
   /// ok, warn or err: the dot's colour on the feed.
   String get tone => switch (type) {
-        'FINANCE_REQUEST_REJECTED' || 'FINANCE_REQUEST_CANCELLED' => 'err',
+        'FINANCE_REQUEST_REJECTED' || 'FINANCE_REQUEST_CANCELLED' || 'FINANCE_SETTLEMENT_REMINDER' => 'err',
         'FINANCE_REQUEST_RETURNED' || 'FINANCE_APPROVAL_NEEDED' || 'FINANCE_PAYMENT_DUE' => 'warn',
         _ => 'ok',
       };

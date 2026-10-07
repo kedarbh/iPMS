@@ -93,8 +93,11 @@ export const PaymentDetailsSchema = z.object({
 });
 export type PaymentDetailsDto = z.infer<typeof PaymentDetailsSchema>;
 
-/** Every field optional: a settlement with no payout needs none. The service demands them when money moves. */
-export const PayRequestSchema = PaymentDetailsSchema.partial();
+/**
+ * Every field optional: a settlement with no payout needs none. The service demands them when money moves.
+ * `balanceReceived` on a settlement also records the unspent balance the engineer handed over, closing the advance.
+ */
+export const PayRequestSchema = PaymentDetailsSchema.partial().extend({ balanceReceived: z.boolean().optional() });
 
 export const CashReturnSchema = PaymentDetailsSchema.extend({ amount: MoneySchema });
 export type CashReturnDto = z.infer<typeof CashReturnSchema>;
@@ -106,8 +109,8 @@ export const CategoryCreateSchema = z.object({
 export const CategoryUpdateSchema = z.object({ name: TextSchema(100).optional(), disabled: z.boolean().optional() }).strict();
 
 export const ListRequestsQuerySchema = PaginationSchema.extend({
-  /** mine: my own. awaiting: waiting for my approval or payment. all: everything in my project scope. */
-  view: z.enum(['mine', 'awaiting', 'all']).default('mine'),
+  /** mine: my own. awaiting: waiting for my approval or payment. all: everything in my project scope. handled: others' requests I have already acted on, latest first. */
+  view: z.enum(['mine', 'awaiting', 'all', 'handled']).default('mine'),
   status: RequestStatusSchema.optional(),
   kind: RequestKindSchema.optional(),
   projectId: UuidSchema.optional(),

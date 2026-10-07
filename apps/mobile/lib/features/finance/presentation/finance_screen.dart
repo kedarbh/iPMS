@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../domain/approver_overview.dart';
 import '../domain/finance_models.dart';
 import '../domain/finance_overview.dart';
 import '../domain/finance_rules.dart';
 import '../domain/finance_view.dart';
 import '../providers/finance_providers.dart';
 import 'advance_form_screen.dart';
+import 'approver_finance.dart';
 import 'expenses_form_screen.dart';
 import 'finance_widgets.dart';
 import 'notifications_screen.dart';
@@ -15,10 +17,10 @@ import 'records_tab.dart';
 import 'request_detail_screen.dart';
 import 'statement_screen.dart';
 
-enum _Segment { overview, records, approvals }
+enum _Segment { overview, records }
 
-/// The Finance tab: header, then Overview, Records and, for approvers, the
-/// requests waiting on them.
+/// The Finance tab. An engineer (or anyone who only raises requests) gets Overview and
+/// Records over their own; an approver gets the approver dashboard instead.
 class FinanceScreen extends ConsumerStatefulWidget {
   const FinanceScreen({super.key});
 
@@ -121,15 +123,16 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     final canView = viewer.can('finance_request.view');
     final canCreate = viewer.raisesRequests;
     final mine = ref.watch(myFinanceRequestsProvider);
-    final awaiting = ref.watch(awaitingFinanceRequestsProvider);
-    final names = ref.watch(financeUserNamesProvider).value ?? const <String, String>{};
     final unread = (ref.watch(financeNotificationsProvider).value ?? const []).where((n) => !n.isRead).length;
-    final awaitingCount = awaiting.value?.length ?? 0;
-    final segment = (_segment == _Segment.approvals && !viewer.hasApprovals) ? _Segment.overview : _segment;
+    final approver = viewer.hasApprovals && canView;
+    final segment = _segment;
+    final roleLine = [if ((user?.displayName ?? '').isNotEmpty) user!.displayName!, approverRoleOf(viewer).label].join(' · ');
     final now = DateTime.now();
 
     Future<void> refresh() async {
       ref.invalidate(awaitingFinanceRequestsProvider);
+      ref.invalidate(scopeFinanceRequestsProvider);
+      ref.invalidate(handledFinanceRequestsProvider);
       ref.invalidate(financeNotificationsProvider);
       await ref.refresh(myFinanceRequestsProvider.future).then((_) {}, onError: (_) {});
     }
@@ -151,19 +154,19 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Finance', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, letterSpacing: -0.5)),
-                            SizedBox(height: 3),
-                            Text('Your advances, settlements and reimbursements', style: TextStyle(fontSize: 13, color: Color(0xFF737983), height: 1.35)),
+                            const Text('Finance', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, letterSpacing: -0.5)),
+                            const SizedBox(height: 3),
+                            Text(approver ? roleLine : 'Your advances, settlements and reimbursements', style: const TextStyle(fontSize: 13, color: Color(0xFF737983), height: 1.35)),
                           ],
                         ),
                       ),
                       const SizedBox(width: 12),
                       _Bell(unread: unread, onTap: () => _go(const NotificationsScreen())),
-                      if (canCreate) ...[
+                      if (canCreate && !approver) ...[
                         const SizedBox(width: 8),
                         SizedBox(
                           height: 44,
@@ -194,6 +197,13 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                       ),
                     ),
                   )
+                else if (approver)
+                  ApproverFinance(
+                    viewer: viewer,
+                    onOpen: _open,
+                    onSettle: (advance) => _go(ExpensesFormScreen(kind: RequestKind.settlement, advance: advance)),
+                    onNew: canCreate ? () => _newRequest(mine.value ?? const []) : null,
+                  )
                 else ...[
                   Container(
                     margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
@@ -203,31 +213,10 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                       children: [
                         _SegmentButton('Overview', segment == _Segment.overview, () => _show(_Segment.overview)),
                         _SegmentButton('Records', segment == _Segment.records, () => _show(_Segment.records)),
-                        if (viewer.hasApprovals)
-                          _SegmentButton(
-                            awaitingCount > 0 ? 'Approvals ($awaitingCount)' : 'Approvals',
-                            segment == _Segment.approvals,
-                            () => _show(_Segment.approvals),
-                          ),
                       ],
                     ),
                   ),
-                  if (segment == _Segment.approvals)
-                    _list(awaiting, ref, (rows) {
-                      final views = [for (final r in rows) viewOf(r, rows, now)];
-                      return RecordsTab(
-                        views: views,
-                        query: _query,
-                        filter: _filter,
-                        onQuery: (q) => setState(() => _query = q),
-                        onFilter: (f) => setState(() => _filter = f),
-                        onOpen: _open,
-                        requesterNames: names,
-                        emptyMessage: 'Nothing is waiting for you.',
-                      );
-                    })
-                  else
-                    _list(mine, ref, (all) {
+                  _list(mine, ref, (all) {
                       if (segment == _Segment.records) {
                         final views = [for (final r in all) viewOf(r, all, now)];
                         return RecordsTab(

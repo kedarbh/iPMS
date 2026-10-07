@@ -5,7 +5,7 @@ import type {
 } from '@ipms/events';
 import {
   approvalNeededContent, approvedContent, cancelledContent, cashReturnedContent, formatNpr, paidContent,
-  paymentDueContent, rejectedContent, returnedContent, settledContent,
+  paymentDueContent, rejectedContent, returnedContent, settledContent, settlementReminderContent,
 } from './finance-content.js';
 
 const base = {
@@ -96,6 +96,15 @@ describe('finance notification content', () => {
     });
     expect(cashReturnedContent({ ...p, outstandingAfter: '0.00' }).body)
       .toBe('Finance recorded NPR 3,000.00 returned against advance ADV-2026-0007. The advance is now fully settled.');
+  });
+});
+
+describe('settlement reminder', () => {
+  it('tells the engineer how late the advance is and what is still outstanding', () => {
+    const p = { ...base, dueOn: '2026-10-12', daysLate: 8, outstanding: '10000.00' };
+    expect(settlementReminderContent(p)).toMatchObject({ type: 'FINANCE_SETTLEMENT_REMINDER', title: 'Settlement overdue', actionUrl: URL });
+    expect(settlementReminderContent(p).body).toContain('NPR 10,000.00 outstanding) is 8 days past');
+    expect(settlementReminderContent({ ...p, daysLate: 1 }).body).toContain('is 1 day past');
   });
 });
 

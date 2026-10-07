@@ -20,6 +20,16 @@ final awaitingFinanceRequestsProvider = FutureProvider<List<FinanceRequest>>((re
   return ref.watch(financeRepositoryProvider).awaitingMe();
 });
 
+/// Everyone's requests in the approver's project scope.
+final scopeFinanceRequestsProvider = FutureProvider<List<FinanceRequest>>((ref) {
+  return ref.watch(financeRepositoryProvider).inMyScope();
+});
+
+/// Others' requests the approver has already acted on.
+final handledFinanceRequestsProvider = FutureProvider<List<FinanceRequest>>((ref) {
+  return ref.watch(financeRepositoryProvider).handledByMe();
+});
+
 /// Finance notifications, newest first.
 final financeNotificationsProvider = FutureProvider<List<FinanceNotification>>((ref) {
   return ref.watch(financeRepositoryProvider).notifications();

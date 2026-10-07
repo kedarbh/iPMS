@@ -62,6 +62,17 @@ describe('list', () => {
     expect((await queries.list(ACTORS.engineer, scopes.project, { view: 'awaiting', page: 1, limit: 20 })).items).toEqual([]);
   });
 
+  it('lists what the caller has already acted on, not their own and not others\' untouched ones', async () => {
+    const acted = await make(ACTORS.engineer);
+    await make(ACTORS.otherEngineer);                        // never touched by the PM
+    const own = await make(ACTORS.pm);                       // the PM's own request
+    await approvals.approve(acted.id, {}, ACTORS.otherPm, scopes.project);
+    const page = await queries.list(ACTORS.otherPm, scopes.project, { view: 'handled', page: 1, limit: 20 });
+    expect(page.items.map((i) => i.id)).toEqual([acted.id]);
+    expect(page.items.map((i) => i.id)).not.toContain(own.id);
+    expect((await queries.list(ACTORS.engineer, scopes.project, { view: 'handled', page: 1, limit: 20 })).items).toEqual([]);
+  });
+
   it('returns nothing for awaiting when the caller lacks view_all, even with an approval permission', async () => {
     await make(ACTORS.engineer);
     const noViewAll = { ...ACTORS.pm, permissions: ACTORS.pm.permissions.filter((p) => p !== 'finance_request.view_all') };

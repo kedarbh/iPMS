@@ -15,7 +15,7 @@ import { finalStatus } from '../workflow.js';
 const FINANCE = 'finance_payment.record';
 
 /** The pay route's body: every payment detail optional (a settlement with no payout needs none), and present-but-undefined allowed. */
-type PayBody = Partial<{ [K in keyof PaymentDetailsDto]: PaymentDetailsDto[K] | undefined }>;
+type PayBody = Partial<{ [K in keyof PaymentDetailsDto]: PaymentDetailsDto[K] | undefined }> & { balanceReceived?: boolean | undefined };
 
 /**
  * Finance's step: pay an approved advance or reimbursement, settle a
@@ -37,17 +37,21 @@ export class PaymentService {
       const approved = row.approvedAmount!.toFixed(2);
       let applied: string | null = null;
       let payout = approved;
+      /** What the engineer still owes back once this settlement is applied; zero unless it used less than the advance. */
+      let unspent = '0.00';
 
       if (row.kind === 'SETTLEMENT') {
         // The balance is read and then written against: lock the advance so two settlements cannot both see the same room.
         await lockAdvance(tx, row.advanceId!);
         const balance = await loadBalance(tx, row.advanceId!);
         ({ applied, payout } = planSettlement(approved, balance.outstanding));
+        unspent = compareMoney(balance.outstanding, applied) > 0 ? fromMinor(toMinor(balance.outstanding) - toMinor(applied)) : '0.00';
       }
 
       // Validate before any write, then take the conditional write first so a concurrent loser gets a 409
       // rather than waiting on the winner's payout and failing the one-payout-per-request unique index.
-      const details = compareMoney(payout, '0') > 0 ? PaymentDetailsSchema.safeParse(body) : null;
+      const returning = body.balanceReceived === true && compareMoney(unspent, '0') > 0;
+      const details = compareMoney(payout, '0') > 0 || returning ? PaymentDetailsSchema.safeParse(body) : null;
       if (details && !details.success) throw new UnprocessableEntityException('Payment details are required: mode, reference and date');
 
       const status = finalStatus(row.kind as 'ADVANCE' | 'SETTLEMENT' | 'REIMBURSEMENT');
@@ -57,7 +61,8 @@ export class PaymentService {
       });
       if (moved.count !== 1) throw new ConflictException('The request changed; reload and try again');
 
-      if (details?.success) await this.writePayment(tx, id, 'PAYOUT', payout, details.data, actor);
+      if (details?.success && compareMoney(payout, '0') > 0) await this.writePayment(tx, id, 'PAYOUT', payout, details.data, actor);
+      if (details?.success && returning) await this.receiveBalance(tx, row.advanceId!, unspent, details.data, actor);
 
       await recordAction(tx, { requestId: id, revision: row.revision, step: 'FINANCE', action: 'PAID', actorId: actor.id, amount: payout });
       const after = await tx.financeRequest.findUniqueOrThrow({ where: { id } });
@@ -94,6 +99,17 @@ export class PaymentService {
       await recordAudit(tx, { actorId: actor.id, action: 'finance.advance.cash_returned', objectId: advanceId, previousState: { outstanding: balance.outstanding }, newState: { returned: dto.amount, outstanding: outstandingAfter } });
     });
     return this.detail(advanceId);
+  }
+
+  /** The balance an engineer hands over as their settlement closes, recorded against the advance like any other cash return. */
+  private async receiveBalance(tx: Tx, advanceId: string, amount: string, details: PaymentDetailsDto, actor: Actor): Promise<void> {
+    const advance = await tx.financeRequest.findUniqueOrThrow({ where: { id: advanceId } });
+    await this.writePayment(tx, advanceId, 'CASH_RETURN', amount, details, actor);
+    await recordAction(tx, { requestId: advanceId, revision: advance.revision, step: 'FINANCE', action: 'CASH_RETURNED', actorId: actor.id, amount });
+    const outstandingAfter = (await loadBalance(tx, advanceId)).outstanding;
+    const returned: FinanceAdvanceCashReturned = { ...factsOf(advance, actor.id, null), returnedAmount: amount, outstandingAfter };
+    await emit(tx, SUBJECTS.FINANCE_ADVANCE_CASH_RETURNED, returned, actor.id);
+    await recordAudit(tx, { actorId: actor.id, action: 'finance.advance.cash_returned', objectId: advanceId, previousState: {}, newState: { returned: amount, outstanding: outstandingAfter } });
   }
 
   private async writePayment(tx: Tx, requestId: string, kind: 'PAYOUT' | 'CASH_RETURN', amount: string, d: PaymentDetailsDto, actor: Actor): Promise<void> {

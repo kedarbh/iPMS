@@ -80,6 +80,10 @@ describe('payments', () => {
   it('allows an empty body for pay, since a settlement may need no payout', () => {
     expect(PayRequestSchema.parse({})).toEqual({});
   });
+  it('takes balanceReceived on a settlement payment, and only as a boolean', () => {
+    expect(PayRequestSchema.parse({ balanceReceived: true })).toEqual({ balanceReceived: true });
+    expect(PayRequestSchema.safeParse({ balanceReceived: 'yes' }).success).toBe(false);
+  });
   it('refuses a mode we do not support', () => {
     expect(PaymentDetailsSchema.safeParse({ ...details, mode: 'BITCOIN' }).success).toBe(false);
   });

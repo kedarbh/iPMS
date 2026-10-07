@@ -42,8 +42,6 @@ class RecordsTab extends StatefulWidget {
     required this.onQuery,
     required this.onFilter,
     required this.onOpen,
-    this.requesterNames,
-    this.emptyMessage = 'No records match.',
   });
 
   final List<RecordView> views;
@@ -52,10 +50,6 @@ class RecordsTab extends StatefulWidget {
   final ValueChanged<String> onQuery;
   final ValueChanged<int> onFilter;
   final ValueChanged<FinanceRequest> onOpen;
-
-  /// On the approvals list, to name whose request each card is.
-  final Map<String, String>? requesterNames;
-  final String emptyMessage;
 
   @override
   State<RecordsTab> createState() => _RecordsTabState();
@@ -83,7 +77,6 @@ class _RecordsTabState extends State<RecordsTab> {
   Widget build(BuildContext context) {
     final views = widget.views, query = widget.query, filter = widget.filter;
     final onQuery = widget.onQuery, onFilter = widget.onFilter, onOpen = widget.onOpen;
-    final requesterNames = widget.requesterNames, emptyMessage = widget.emptyMessage;
     final matches = recordFilters[filter].$2;
     final shown = views.where((v) => matches(v.stage) && matchesSearch(v, query)).toList();
     return Column(
@@ -151,14 +144,10 @@ class _RecordsTabState extends State<RecordsTab> {
               if (shown.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 40),
-                  child: Center(child: Text(emptyMessage, style: const TextStyle(fontSize: 14, color: FC.muted))),
+                  child: Center(child: Text('No records match.', style: const TextStyle(fontSize: 14, color: FC.muted))),
                 ),
               for (final v in shown) ...[
-                RecordCard(
-                  view: v,
-                  requester: requesterNames?[v.request.requesterId],
-                  onTap: () => onOpen(v.request),
-                ),
+                RecordCard(view: v, onTap: () => onOpen(v.request)),
                 const SizedBox(height: 12),
               ],
             ],

@@ -8,6 +8,7 @@ import '../domain/finance_rules.dart';
 import '../domain/finance_view.dart';
 import '../providers/finance_providers.dart';
 import 'advance_form_screen.dart';
+import 'approver_widgets.dart';
 import 'expenses_form_screen.dart';
 import 'finance_action_sheets.dart';
 import 'finance_widgets.dart';
@@ -58,7 +59,7 @@ List<ProgressStep> progressSteps(FinanceRequest r, Stage stage, Map<String, Stri
     'Submitted',
     if (includesPm) 'Project manager approval',
     'Project director approval',
-    r.kind == RequestKind.settlement ? 'Finance closure' : 'Finance disbursal',
+    r.kind == RequestKind.settlement ? 'Finance closure' : 'Finance payment',
     if (r.isAdvance) 'Settlement',
   ];
   final stepKeys = <String>[
@@ -231,7 +232,11 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
     final view = viewOf(r, [...all.where((x) => x.id != r.id), r], now);
     final isSettlement = r.kind == RequestKind.settlement;
     final advance = isSettlement && r.advanceId != null ? ref.watch(financeRequestProvider(r.advanceId!)).value : null;
-    final actions = availableActions(r, viewer);
+    // An advance is settled once, until that settlement is decided: while one is
+    // under review, or the balance is closed, there is nothing to settle.
+    final actions = availableActions(r, viewer)
+        .where((a) => a != FinanceAction.settle || view.stage == Stage.paid)
+        .toList();
     const mine = {FinanceAction.edit, FinanceAction.submit, FinanceAction.cancel, FinanceAction.settle};
     final approverActions = actions.where((a) => !mine.contains(a)).toList();
     final steps = progressSteps(r, view.stage, names);
@@ -243,10 +248,20 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
     // The summary for a settlement: the advance, what was spent, VAT, and the balance.
     int spent = paisa(r.requestedAmount);
     final advanced = advance == null ? null : paisa(advance.approvedAmount ?? advance.requestedAmount);
-    final diff = advanced == null ? 0 : advanced - spent;
     final vat = r.invoices.fold<int>(0, (t, i) => t + paisa(i.vatAmount));
 
-    final (primary, onPrimary, secondary, onSecondary, destructive) = _bar(r, actions);
+    final approverView = r.requesterId != viewer.id && viewer.hasApprovals;
+    final scope = approverView ? ref.watch(scopeFinanceRequestsProvider).value ?? const <FinanceRequest>[] : const <FinanceRequest>[];
+    final openAdvances = scope.where((x) => x.requesterId == r.requesterId && x.isAdvance && x.status == 'PAID' && !(x.balance?.isClosed ?? false)).length;
+    // A settlement still under review is measured against what is outstanding, not what was first paid.
+    final basis = (advance?.balance != null && r.status != 'SETTLED') ? paisa(advance!.balance!.outstanding) : advanced;
+    final settleDiff = isSettlement && basis != null ? basis - spent : null;
+    final canRemind = approverView && viewer.can('finance_request.view_all') && r.isAdvance && r.status == 'PAID' && view.stage == Stage.paid && (window?.overdue ?? false);
+
+    var (primary, onPrimary, secondary, onSecondary, destructive) = _bar(r, actions);
+    if (approverView) {
+      (primary, onPrimary, secondary, onSecondary, destructive) = _approverBar(r, approverActions, canRemind: canRemind, advance: advance, diff: settleDiff, names: names);
+    }
 
     return Column(
       children: [
@@ -272,18 +287,31 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                     child: Text(view.hint, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: view.hintColor)),
                   ),
                 const SizedBox(height: 14),
+                if (r.duplicates.isNotEmpty) ...[
+                  _duplicateWarning(r.duplicates),
+                  const SizedBox(height: 14),
+                ],
+                if (approverView) ...[
+                  _requesterCard(r, names, openAdvances),
+                  const SizedBox(height: 14),
+                ],
                 if (isSettlement) ...[
                   FCard(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     child: Column(children: [
-                      FactRow('Advance received', advanced == null ? '—' : formatMoney(_str(advanced))),
-                      FactRow('Spent', formatMoney(r.requestedAmount)),
+                      FactRow(approverView ? 'Advance paid${advance == null ? '' : ' · ${advance.number}'}' : 'Advance received', advanced == null ? '—' : formatMoney(_str(advanced))),
+                      FactRow(approverView ? 'Spent on invoices' : 'Spent', formatMoney(r.requestedAmount)),
                       FactRow('VAT on bills', formatMoney(_str(vat))),
                       FactRow(
-                        advanced == null ? 'Difference' : diff > 0 ? 'Balance returned' : diff < 0 ? 'Excess claimed' : 'Difference',
-                        advanced == null ? '—' : formatMoney(_str(diff.abs())),
+                        settleDiff == null
+                            ? 'Difference'
+                            : r.status == 'SETTLED'
+                                ? (settleDiff > 0 ? 'Balance returned' : settleDiff < 0 ? 'Excess claimed' : 'Difference')
+                                : (settleDiff > 0 ? 'Balance to return' : settleDiff < 0 ? 'Excess to pay' : 'Difference'),
+                        settleDiff == null ? '—' : formatMoney(_str(settleDiff.abs())),
                         bold: true,
                         last: true,
+                        valueColor: settleDiff == null ? null : settleDiff > 0 ? FC.green : settleDiff < 0 ? FC.amber : null,
                       ),
                     ]),
                   ),
@@ -349,16 +377,19 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Comments', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                      Text(approverView ? 'Activity' : 'Comments', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 12),
-                      if (comments.isEmpty) const Text('No comments yet.', style: TextStyle(fontSize: 13, color: FC.faint)),
-                      for (final c in comments) _comment(c, names),
+                      if (!approverView && comments.isEmpty) const Text('No comments yet.', style: TextStyle(fontSize: 13, color: FC.faint)),
+                      if (approverView)
+                        for (final c in r.history.reversed) _comment(c, names, kind: r.kind)
+                      else
+                        for (final c in comments) _comment(c, names, kind: r.kind),
                     ],
                   ),
                 ),
-                if (approverActions.isNotEmpty) ...[
+                if (approverActions.contains(FinanceAction.cashReturn)) ...[
                   const SizedBox(height: 14),
-                  ..._approverButtons(r, approverActions),
+                  _cashReturnButton(r),
                 ],
               ],
             ),
@@ -371,6 +402,33 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
   }
 
   static String _str(int paisaValue) => '${paisaValue ~/ 100}.${(paisaValue % 100).toString().padLeft(2, '0')}';
+
+  Widget _duplicateWarning(List<DuplicateHit> hits) {
+    return FCard(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(children: [
+            Icon(Icons.warning_amber_rounded, size: 18, color: FC.red),
+            SizedBox(width: 8),
+            Flexible(child: Text('Possible duplicate bill', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: FC.red))),
+          ]),
+          for (final h in hits)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: InkWell(
+                onTap: () => _open(RequestDetailScreen(requestId: h.requestId)),
+                child: Text.rich(TextSpan(children: [
+                  TextSpan(text: h.number, style: const TextStyle(fontWeight: FontWeight.w600, decoration: TextDecoration.underline)),
+                  TextSpan(text: ' — ${h.explanation}'),
+                ]), style: const TextStyle(fontSize: 13, height: 1.4)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
   Widget _expense(RequestInvoice i) {
     return FCard(
@@ -463,22 +521,29 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
     );
   }
 
-  Widget _comment(ApprovalEntry c, Map<String, String> names) {
+  static const Map<String, String> _verbs = {
+    'SUBMITTED': 'submitted',
+    'APPROVED': 'approved',
+    'RETURNED': 'returned for changes',
+    'REJECTED': 'rejected',
+    'CANCELLED': 'cancelled',
+    'PAID': 'recorded payment',
+    'CASH_RETURNED': 'confirmed balance received',
+    'REMINDED': 'sent a reminder',
+  };
+
+  Widget _comment(ApprovalEntry c, Map<String, String> names, {required String kind}) {
     final name = _who(names, c.actorId);
-    final initials = name.split(' ').where((w) => w.isNotEmpty).map((w) => w[0]).take(2).join().toUpperCase();
-    final role = switch (c.step) { 'PM' => 'Project manager', 'DIRECTOR' => 'Project director', 'FINANCE' => 'Finance', _ => 'Requester' };
+    var verb = _verbs[c.action] ?? c.action.toLowerCase();
+    if (c.action == 'PAID' && kind == RequestKind.settlement) verb = 'closed the settlement';
+    if (c.amount != null && const {'APPROVED', 'PAID', 'CASH_RETURNED'}.contains(c.action) && paisa(c.amount!) > 0) verb += ' ${formatRupees(paisa(c.amount!))}';
+    final hasComment = (c.comment ?? '').isNotEmpty;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: const BoxDecoration(color: Color(0xFFE8F1FD), shape: BoxShape.circle),
-            alignment: Alignment.center,
-            child: Text(initials, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: FC.link)),
-          ),
+          PersonAvatar(name),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -487,12 +552,15 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                 Text.rich(
                   TextSpan(children: [
                     TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    TextSpan(text: ' · $role · ${DateFormat('d MMM').format(c.at)}', style: const TextStyle(color: FC.faint)),
+                    TextSpan(text: ' $verb', style: const TextStyle(color: Color(0xFF5D636D))),
+                    TextSpan(text: ' · ${DateFormat('d MMM').format(c.at)}', style: const TextStyle(color: FC.faint)),
                   ]),
-                  style: const TextStyle(fontSize: 13),
+                  style: const TextStyle(fontSize: 13, height: 1.4),
                 ),
-                const SizedBox(height: 3),
-                Text(c.comment!, style: const TextStyle(fontSize: 14, height: 1.45, color: Color(0xFF2B3038))),
+                if (hasComment) ...[
+                  const SizedBox(height: 3),
+                  Text(c.comment!, style: const TextStyle(fontSize: 14, height: 1.45, color: Color(0xFF2B3038))),
+                ],
               ],
             ),
           ),
@@ -520,111 +588,171 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
     return (null, null, null, null, false);
   }
 
-  List<Widget> _approverButtons(FinanceRequest r, List<FinanceAction> actions) {
-    final repo = ref.read(financeRepositoryProvider);
-    final isSettlement = r.kind == RequestKind.settlement;
-    final primary = ElevatedButton.styleFrom(
-      backgroundColor: FC.navy,
-      foregroundColor: Colors.white,
-      minimumSize: const Size.fromHeight(50),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
-    );
-    final secondary = OutlinedButton.styleFrom(
-      minimumSize: const Size.fromHeight(50),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
-    );
-    final danger = secondary.copyWith(foregroundColor: const WidgetStatePropertyAll(FC.red));
-
-    Widget button(FinanceAction a) {
-      switch (a) {
-        case FinanceAction.approve:
-          return ElevatedButton.icon(
-            style: primary,
-            onPressed: _busy
-                ? null
-                : () async {
-                    final choice = await askApproval(context, r, setsAmount: r.status == 'PENDING_DIRECTOR');
-                    if (choice == null) return;
-                    await _run(() => repo.approve(r.id, amount: choice.amount, comment: choice.comment), 'Approved.');
-                  },
-            icon: const Icon(Icons.check_circle_outline, size: 18),
-            label: const Text('Approve', style: TextStyle(fontWeight: FontWeight.w700)),
-          );
-        case FinanceAction.pay:
-          return ElevatedButton.icon(
-            style: primary,
-            onPressed: _busy
-                ? null
-                : () async {
-                    final details = await askPaymentDetails(
-                      context,
-                      title: isSettlement ? 'Settle ${r.number}' : 'Record payment',
-                      subtitle: 'Approved amount ${formatMoney(r.approvedAmount ?? r.requestedAmount)}.'
-                          '${isSettlement ? ' Payment details are needed only if money is paid out.' : ''}',
-                      button: isSettlement ? 'Confirm settlement' : 'Record payment',
-                      detailsOptional: isSettlement,
-                    );
-                    if (details == null) return;
-                    await _run(() => repo.pay(r.id, details), isSettlement ? 'Settled.' : 'Payment recorded.');
-                  },
-            icon: const Icon(Icons.payments_outlined, size: 18),
-            label: Text(isSettlement ? 'Settle' : 'Record payment', style: const TextStyle(fontWeight: FontWeight.w700)),
-          );
-        case FinanceAction.cashReturn:
-          return OutlinedButton.icon(
-            style: secondary,
-            onPressed: _busy
-                ? null
-                : () async {
-                    final details = await askPaymentDetails(
-                      context,
-                      title: 'Record returned cash',
-                      subtitle: 'Outstanding ${formatMoney(r.balance?.outstanding)}.',
-                      button: 'Record cash return',
-                      withAmount: true,
-                    );
-                    if (details == null) return;
-                    await _run(() => repo.returnCash(r.id, details), 'Cash return recorded.');
-                  },
-            icon: const Icon(Icons.undo_rounded, size: 18),
-            label: const Text('Record returned cash'),
-          );
-        case FinanceAction.returnToRequester:
-          return OutlinedButton.icon(
-            style: secondary,
-            onPressed: _busy
-                ? null
-                : () async {
-                    final reason = await askForReason(context, title: 'Return to requester', hint: 'Why? The requester will see this.', button: 'Return to requester');
-                    if (reason == null) return;
-                    await _run(() => repo.returnToRequester(r.id, reason), 'Returned to the requester.');
-                  },
-            icon: const Icon(Icons.reply_rounded, size: 18),
-            label: const Text('Return to requester'),
-          );
-        case FinanceAction.reject:
-          return OutlinedButton.icon(
-            style: danger,
-            onPressed: _busy
-                ? null
-                : () async {
-                    final reason = await askForReason(context, title: 'Reject ${r.number}', hint: 'Why? This ends the request.', button: 'Reject', destructive: true);
-                    if (reason == null) return;
-                    await _run(() => repo.reject(r.id, reason), 'Rejected.');
-                  },
-            icon: const Icon(Icons.block_rounded, size: 18),
-            label: const Text('Reject'),
-          );
-        default:
-          return const SizedBox.shrink();
-      }
+  /// The approver's pinned bar: approve or pay on the right, return or reject on the left.
+  (String?, VoidCallback?, String?, VoidCallback?, bool) _approverBar(
+    FinanceRequest r,
+    List<FinanceAction> actions, {
+    required bool canRemind,
+    required FinanceRequest? advance,
+    required int? diff,
+    required Map<String, String> names,
+  }) {
+    final declines = actions.contains(FinanceAction.returnToRequester) || actions.contains(FinanceAction.reject);
+    final who = (names[r.requesterId] ?? '').isEmpty ? 'the engineer' : names[r.requesterId]!.split(' ').first;
+    if (actions.contains(FinanceAction.approve)) {
+      return ('Approve', () => _approve(r), declines ? 'Return or reject' : null, declines ? () => _decline(r, who) : null, false);
     }
+    if (actions.contains(FinanceAction.pay)) {
+      final isSettlement = r.kind == RequestKind.settlement;
+      final label = !isSettlement
+          ? 'Record payment'
+          : diff == null
+              ? 'Settle'
+              : diff > 0
+                  ? 'Confirm balance received'
+                  : diff < 0
+                      ? 'Pay excess'
+                      : 'Close settlement';
+      return (label, () => _pay(r, advance, diff, names), declines ? 'Return' : null, declines ? () => _decline(r, who) : null, false);
+    }
+    if (canRemind) return ('Send reminder', () => _remind(r), null, null, false);
+    return (null, null, null, null, false);
+  }
 
-    return [
-      for (var i = 0; i < actions.length; i++) ...[
-        if (i > 0) const SizedBox(height: 10),
-        button(actions[i]),
-      ],
-    ];
+  Future<void> _approve(FinanceRequest r) async {
+    final choice = await askApproval(context, r, setsAmount: r.status == 'PENDING_DIRECTOR');
+    if (choice == null) return;
+    final next = r.status == 'PENDING_PM' ? 'Approved. Sent to the project director.' : 'Approved. Sent to finance for payment.';
+    await _run(() => ref.read(financeRepositoryProvider).approve(r.id, amount: choice.amount, comment: choice.comment), next);
+  }
+
+  Future<void> _decline(FinanceRequest r, String who) async {
+    final choice = await askDecline(context, r, who: who);
+    if (choice == null) return;
+    final repo = ref.read(financeRepositoryProvider);
+    await _run(
+      () => choice.reject ? repo.reject(r.id, choice.reason) : repo.returnToRequester(r.id, choice.reason),
+      choice.reject ? 'Rejected. $who has been told.' : 'Returned to $who.',
+    );
+  }
+
+  Future<void> _remind(FinanceRequest r) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final sent = await ref.read(financeRepositoryProvider).remind(r.id);
+      _refresh();
+      _message(sent ? 'Reminder sent' : 'They were reminded earlier today');
+    } on ApiException catch (e) {
+      _message(e.message, error: true);
+    } catch (e) {
+      _message('$e', error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _pay(FinanceRequest r, FinanceRequest? advance, int? diff, Map<String, String> names) async {
+    final isSettlement = r.kind == RequestKind.settlement;
+    final amount = r.approvedAmount ?? r.requestedAmount;
+    final rows = <(String, String, bool)>[];
+    var need = DetailsNeed.required;
+    var modeLabel = 'Paid by';
+    var title = 'Record payment';
+    var button = 'Pay ${formatMoney(amount)}';
+    var done = 'Payment recorded.';
+    if (isSettlement) {
+      final paid = advance == null ? null : formatMoney(advance.approvedAmount ?? advance.requestedAmount);
+      if (paid != null) rows.add(('Advance paid', paid, false));
+      rows.add(('Spent on invoices', formatMoney(amount), false));
+      if (diff == null) {
+        need = DetailsNeed.optional;
+        title = 'Settle ${r.number}';
+        button = 'Confirm settlement';
+        done = 'Settled.';
+      } else if (diff > 0) {
+        rows.add(('Balance to receive', formatMoney(_str(diff)), true));
+        modeLabel = 'Received as';
+        title = 'Confirm balance received';
+        button = 'Confirm and close';
+        done = 'Settlement closed. The advance is settled.';
+      } else if (diff < 0) {
+        rows.add(('Excess to pay', formatMoney(_str(-diff)), true));
+        title = 'Pay excess';
+        button = 'Pay and close';
+        done = 'Excess paid. The advance is settled.';
+      } else {
+        need = DetailsNeed.none;
+        rows.add(('Difference', formatMoney('0.00'), true));
+        title = 'Close settlement';
+        button = 'Close settlement';
+        done = 'Settlement closed. The advance is settled.';
+      }
+    } else {
+      rows.add(('Pay to', (names[r.requesterId] ?? '').isEmpty ? '—' : names[r.requesterId]!, false));
+      rows.add(('Amount', formatMoney(amount), true));
+    }
+    final details = await askPaymentDetails(
+      context,
+      title: title,
+      subtitle: '${r.number} · approved ${formatMoney(amount)}',
+      button: button,
+      rows: rows,
+      need: need,
+      modeLabel: modeLabel,
+    );
+    if (details == null) return;
+    final body = {...details, if (isSettlement && diff != null && diff > 0) 'balanceReceived': true};
+    await _run(() => ref.read(financeRepositoryProvider).pay(r.id, body), done);
+  }
+
+  Widget _cashReturnButton(FinanceRequest r) {
+    return OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25))),
+      onPressed: _busy
+          ? null
+          : () async {
+              final details = await askPaymentDetails(
+                context,
+                title: 'Record returned cash',
+                subtitle: '${r.number} · outstanding ${formatMoney(r.balance?.outstanding)}',
+                button: 'Record cash return',
+                modeLabel: 'Received as',
+                withAmount: true,
+                rows: [('Outstanding', formatMoney(r.balance?.outstanding), true)],
+              );
+              if (details == null) return;
+              await _run(() => ref.read(financeRepositoryProvider).returnCash(r.id, details), 'Cash return recorded.');
+            },
+      icon: const Icon(Icons.undo_rounded, size: 18),
+      label: const Text('Record returned cash'),
+    );
+  }
+
+  /// Who raised it: their name, what they are, and how much cash they hold.
+  Widget _requesterCard(FinanceRequest r, Map<String, String> names, int openAdvances) {
+    final name = _who(names, r.requesterId);
+    return FCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          PersonAvatar(name, size: 40),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(
+                  '${r.raisedByManager ? 'Project manager' : 'Field engineer'} · ${openAdvances == 0 ? 'No open advances' : '$openAdvances open advance${openAdvances == 1 ? '' : 's'}'}',
+                  style: const TextStyle(fontSize: 12, color: FC.muted),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -16,6 +16,8 @@ class FinanceServer implements HttpClientAdapter {
   final List<RequestOptions> calls = [];
   List<Map<String, dynamic>> list = [];
   List<Map<String, dynamic>> awaiting = [];
+  List<Map<String, dynamic>> scope = [];
+  List<Map<String, dynamic>> handled = [];
   Map<String, Map<String, dynamic>> byId = {};
   List<Map<String, dynamic>> notifications = [];
 
@@ -29,7 +31,7 @@ class FinanceServer implements HttpClientAdapter {
         headers: {Headers.contentTypeHeader: [Headers.jsonContentType]});
     final path = options.path;
     if (path == '/api/v1/finance/requests' && options.method == 'GET') {
-      final rows = options.queryParameters['view'] == 'awaiting' ? awaiting : list;
+      final rows = switch (options.queryParameters['view']) { 'awaiting' => awaiting, 'all' => scope, 'handled' => handled, _ => list };
       return json(200, {'items': rows, 'total': rows.length, 'page': 1, 'limit': 100});
     }
     if (path == '/api/v1/finance/requests' && options.method == 'POST') {
@@ -60,6 +62,9 @@ class FinanceServer implements HttpClientAdapter {
     if (options.method == 'POST' && path.startsWith('/api/v1/notifications')) return json(200, {'updated': 1});
     if (options.method == 'POST' && ['/submit', '/cancel', '/approve', '/return', '/reject', '/pay', '/cash-return'].any(path.endsWith)) {
       return json(200, {});
+    }
+    if (options.method == 'POST' && path.endsWith('/remind')) {
+      return json(200, {'reminded': true, 'lastRemindedAt': DateTime.now().toIso8601String()});
     }
     final id = path.split('/').last;
     if (byId.containsKey(id)) return json(200, byId[id]!);
@@ -154,4 +159,12 @@ Future<void> settleNetwork(WidgetTester tester) async {
   await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 300));
+}
+
+/// Lets a button's request go out and come back, then redraws.
+Future<void> afterAction(WidgetTester tester) async {
+  await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 700)));
+  await tester.pump(const Duration(milliseconds: 500));
+  await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+  await tester.pump();
 }

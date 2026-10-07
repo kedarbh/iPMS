@@ -101,5 +101,6 @@ export function describeEntry(entry: { step: FinanceStep; action: string }): str
   if (entry.action === 'SUBMITTED') return 'Submitted';
   if (entry.action === 'CANCELLED') return 'Cancelled';
   if (entry.action === 'CASH_RETURNED') return 'Cash return recorded by finance';
+  if (entry.action === 'REMINDED') return `Settlement reminder sent by ${STEP_NAME[entry.step]}`;
   return `${VERB[entry.action] ?? entry.action} by ${STEP_NAME[entry.step]}`;
 }

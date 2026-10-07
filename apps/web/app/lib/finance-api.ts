@@ -39,8 +39,14 @@ export interface Payment {
 export interface AdvanceBalance {
   paid: string; applied: string; cashReturned: string; outstanding: string; status: 'PAID' | 'PARTIALLY_SETTLED' | 'CLOSED';
 }
+/** Another live request holding a bill like one of this request's. */
+export interface DuplicateHit {
+  requestId: string; number: string; status: RequestStatus; vendor: string; invoiceNumber: string | null;
+  reason: 'SAME_NUMBER' | 'SAME_BILL' | 'NUMBER_OTHER_YEAR';
+}
 export type FinanceRequestDetail = FinanceRequest & {
   invoices: RequestInvoice[]; actions: ApprovalAction[]; payments: Payment[]; balance?: AdvanceBalance;
+  duplicates?: DuplicateHit[];
   /** A paid advance's last day to settle (`YYYY-MM-DD`): a week after it was paid. */
   settlementDueOn?: string | null;
 };

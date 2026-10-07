@@ -19,6 +19,7 @@ import { PaymentService } from './payments/payment.service.js';
 import { PrismaService } from './prisma.service.js';
 import { QueryService } from './queries/query.service.js';
 import { ReportService } from './queries/report.service.js';
+import { ReminderService } from './reminders/reminder.service.js';
 import { RequestService } from './requests/request.service.js';
 
 // Least-permissive scope: no finance route passes a resource to check(), so scope is never consulted
@@ -69,6 +70,7 @@ const service = <T>(cls: new (db: PrismaService['db']) => T) => ({
     service(QueryService),
     service(CategoryService),
     service(ReportService),
+    service(ReminderService),
     {
       provide: EventBus,
       useFactory: async (): Promise<EventBus> => {

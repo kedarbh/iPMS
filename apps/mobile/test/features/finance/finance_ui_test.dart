@@ -5,6 +5,7 @@ import 'package:mobile/features/finance/domain/finance_models.dart';
 import 'package:mobile/features/finance/presentation/advance_form_screen.dart';
 import 'package:mobile/features/finance/presentation/expenses_form_screen.dart';
 import 'package:mobile/features/finance/presentation/finance_screen.dart';
+import 'package:mobile/features/finance/presentation/finance_widgets.dart';
 import 'package:mobile/features/finance/presentation/notifications_screen.dart';
 import 'package:mobile/features/finance/presentation/request_detail_screen.dart';
 import 'package:mobile/features/finance/presentation/statement_screen.dart';
@@ -29,14 +30,6 @@ Map<String, dynamic> _open(String id, {int due = 4, String purpose = 'Cable tray
 /// The page's own list, not the scrollables inside its text fields.
 Finder _page() => find.descendant(of: find.byType(ListView), matching: find.byType(Scrollable)).first;
 Finder _tab() => find.descendant(of: find.byType(SingleChildScrollView), matching: find.byType(Scrollable)).first;
-
-/// Lets a button's request go out and come back, then redraws.
-Future<void> afterAction(WidgetTester tester) async {
-  await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 700)));
-  await tester.pump(const Duration(milliseconds: 500));
-  await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
-  await tester.pump();
-}
 
 Future<void> scrollTo(WidgetTester tester, Finder f, {Finder? within}) async {
   await tester.scrollUntilVisible(f, 200, scrollable: within ?? _page());
@@ -205,19 +198,6 @@ void main() {
       expect(find.text('2'), findsOneWidget); // two unread finance ones; the QC one is not counted
       expect(find.textContaining('Approvals'), findsNothing);
     });
-
-    testWidgets('an approver gets a queue of what waits on them', (tester) async {
-      phoneScreen(tester);
-      server.awaiting = [record('q1', 'PENDING_PM', purpose: 'Fuel for survey', extra: {'requesterId': 'u-2'}, created: DateTime.now().toUtc().toIso8601String())];
-      await tester.pumpWidget(financeApp(server, const FinanceScreen(), user: _pm));
-      await settleNetwork(tester);
-
-      await tester.tap(find.textContaining('Approvals'));
-      await tester.pump();
-      expect(find.text('Fuel for survey'), findsOneWidget);
-      expect(find.textContaining('Sita Sharma'), findsOneWidget);
-      expect(find.text('New'), findsNothing);
-    });
   });
 
   group('a request\'s detail', () {
@@ -285,6 +265,45 @@ void main() {
       expect(find.textContaining('2 days late'), findsOneWidget);
     });
 
+    testWidgets('a request warns when a bill may already have been claimed, and links to the other request', (tester) async {
+      phoneScreen(tester);
+      server.byId = {
+        's1': record('s1', 'PENDING_PM', kind: 'SETTLEMENT', extra: {
+          'advanceId': 'a1',
+          'duplicates': [
+            {'requestId': 'r9', 'number': 'REI-2026-0009', 'status': 'PAID', 'vendor': 'Himal Fuel', 'invoiceNumber': '17', 'reason': 'SAME_NUMBER'},
+            {'requestId': 'r8', 'number': 'REI-2026-0008', 'status': 'PENDING_PM', 'vendor': 'Himal Fuel', 'invoiceNumber': null, 'reason': 'SAME_BILL'},
+          ],
+        }),
+        'a1': record('a1', 'PAID', approved: '50000.00', extra: {'balance': balance('50000.00', paid: '50000.00')}),
+        'r9': record('r9', 'PAID', kind: 'REIMBURSEMENT', number: 'REI-2026-0009'),
+      };
+      await tester.pumpWidget(financeApp(server, const RequestDetailScreen(requestId: 's1')));
+      await settleNetwork(tester);
+      await settleNetwork(tester);
+
+      expect(find.text('Possible duplicate bill'), findsOneWidget);
+      expect(find.textContaining('invoice 17 from Himal Fuel is on it too', findRichText: true), findsOneWidget);
+      expect(find.textContaining('same date and amount', findRichText: true), findsOneWidget);
+    });
+
+    testWidgets('an advance is not offered for settlement while its settlement is under review, or once closed', (tester) async {
+      phoneScreen(tester);
+      final advance = record('a1', 'PAID', approved: '50000.00', extra: {'balance': balance('50000.00', paid: '50000.00')});
+      server.byId = {'a1': advance};
+      server.list = [advance, record('s1', 'PENDING_PM', kind: 'SETTLEMENT', extra: {'advanceId': 'a1'})];
+      await tester.pumpWidget(financeApp(server, const RequestDetailScreen(requestId: 'a1')));
+      await settleNetwork(tester);
+      expect(find.text('Settle this advance'), findsNothing);
+
+      final closed = record('a2', 'PAID', approved: '1000.00', extra: {'balance': balance('0.00', status: 'CLOSED')});
+      server.byId = {'a2': closed};
+      server.list = [closed, record('s2', 'SETTLED', kind: 'SETTLEMENT', extra: {'advanceId': 'a2'})];
+      await tester.pumpWidget(financeApp(server, const RequestDetailScreen(requestId: 'a2')));
+      await settleNetwork(tester);
+      expect(find.text('Settle this advance'), findsNothing);
+    });
+
     testWidgets('a settlement shows the advance, what was spent, the VAT and the balance returned', (tester) async {
       phoneScreen(tester);
       server.byId = {
@@ -316,108 +335,208 @@ void main() {
   });
 
   group('approvals and payments', () {
-    FinanceServer withRequest(Map<String, dynamic> r) => server..byId = {'abc': r};
+    FinanceServer withRequests(Map<String, Map<String, dynamic>> byId) => server..byId = byId;
+    FinanceServer withRequest(Map<String, dynamic> r) => withRequests({'abc': r});
 
-    Future<void> tapButton(WidgetTester tester, Finder f) async {
-      await scrollTo(tester, f);
-      await tester.tap(f);
+    Future<void> open(WidgetTester tester, String id, AuthUser user) async {
+      phoneScreen(tester);
+      await tester.pumpWidget(financeApp(server, RequestDetailScreen(requestId: id), user: user));
+      await settleNetwork(tester);
+      await settleNetwork(tester);
+    }
+
+    /// The pinned bar's button, never the sheet's.
+    Finder bar(String label) => find.descendant(of: find.byType(ActionBar), matching: find.text(label));
+    Finder sheetButton(String label) => find.widgetWithText(ElevatedButton, label).last;
+
+    Future<void> submit(WidgetTester tester, Finder button) async {
+      await tester.ensureVisible(button);
+      await tester.pump();
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 700)));
+      await tester.pump();
     }
 
     testWidgets('the director approves with a lower amount, never more than asked', (tester) async {
-      phoneScreen(tester);
       withRequest(record('abc', 'PENDING_DIRECTOR', extra: {'requesterId': 'u-2'}));
-      await tester.pumpWidget(financeApp(server, const RequestDetailScreen(requestId: 'abc'), user: _director));
-      await settleNetwork(tester);
-      await tapButton(tester, find.widgetWithText(ElevatedButton, 'Approve'));
+      await open(tester, 'abc', _director);
+      await tester.tap(bar('Approve'));
       await tester.pumpAndSettle();
+      expect(find.text('Finance pays it next.'), findsOneWidget);
 
-      await tester.enterText(find.widgetWithText(TextField, 'Approved amount (NPR)'), '60000');
+      await tester.enterText(find.byKey(const Key('approve-amount')), '60000');
       await tester.pump();
-      expect(find.text('Cannot be more than NPR 50,000.00'), findsOneWidget);
-      expect(tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Approve').last).onPressed, isNull);
+      expect(find.text('Enter an amount up to NPR 50,000.00'), findsOneWidget);
+      expect(tester.widget<ElevatedButton>(sheetButton('Approve')).onPressed, isNull);
 
-      await tester.enterText(find.widgetWithText(TextField, 'Approved amount (NPR)'), '45000');
-      await tester.enterText(find.widgetWithText(TextField, 'Note (optional)'), 'Within budget');
+      await tester.enterText(find.byKey(const Key('approve-amount')), '45000');
+      await tester.enterText(find.byKey(const Key('sheet-comment')), 'Within budget');
       await tester.pump();
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Approve').last);
-      await tester.pumpAndSettle();
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 700)));
-      await tester.pump();
+      expect(find.text('Reduced from NPR 50,000.00'), findsOneWidget);
+      await submit(tester, sheetButton('Approve'));
       expect(server.posts('/abc/approve').single.data, {'amount': '45000', 'comment': 'Within budget'});
     });
 
-    testWidgets('the project manager approves without an amount field', (tester) async {
-      phoneScreen(tester);
+    testWidgets('the project manager approves without an amount field, and the director is next', (tester) async {
       withRequest(record('abc', 'PENDING_PM', extra: {'requesterId': 'u-2'}));
-      await tester.pumpWidget(financeApp(server, const RequestDetailScreen(requestId: 'abc'), user: _pm));
-      await settleNetwork(tester);
-      await tapButton(tester, find.widgetWithText(ElevatedButton, 'Approve'));
+      await open(tester, 'abc', _pm);
+      await tester.tap(bar('Approve'));
       await tester.pumpAndSettle();
-      expect(find.text('Approved amount (NPR)'), findsNothing);
+      expect(find.byKey(const Key('approve-amount')), findsNothing);
+      expect(find.text('The project director reviews next.'), findsOneWidget);
+      await submit(tester, sheetButton('Approve'));
+      expect(server.posts('/abc/approve').single.data, <String, dynamic>{});
     });
 
-    testWidgets('returning needs a reason', (tester) async {
-      phoneScreen(tester);
+    testWidgets('returning needs a reason, and rejecting is the same sheet', (tester) async {
       withRequest(record('abc', 'PENDING_PM', extra: {'requesterId': 'u-2'}));
-      await tester.pumpWidget(financeApp(server, const RequestDetailScreen(requestId: 'abc'), user: _pm));
-      await settleNetwork(tester);
-      await tapButton(tester, find.text('Return to requester'));
+      await open(tester, 'abc', _pm);
+      await tester.tap(bar('Return or reject'));
       await tester.pumpAndSettle();
-      expect(tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Return to requester')).onPressed, isNull);
-      await tester.enterText(find.byType(TextField), 'Attach the quotation');
+      expect(find.textContaining('can edit and resubmit'), findsOneWidget);
+      expect(tester.widget<ElevatedButton>(sheetButton('Return to engineer')).onPressed, isNull);
+      await tester.enterText(find.byKey(const Key('sheet-comment')), 'Attach the quotation');
       await tester.pump();
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Return to requester'));
-      await tester.pumpAndSettle();
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 700)));
-      await tester.pump();
+      await submit(tester, sheetButton('Return to engineer'));
       expect(server.posts('/abc/return').single.data, {'comment': 'Attach the quotation'});
     });
 
-    testWidgets('finance records a payment with its details', (tester) async {
-      phoneScreen(tester);
-      withRequest(record('abc', 'PENDING_FINANCE', approved: '45000.00', extra: {'requesterId': 'u-2'}));
-      await tester.pumpWidget(financeApp(server, const RequestDetailScreen(requestId: 'abc'), user: _finance));
-      await settleNetwork(tester);
-      await tapButton(tester, find.widgetWithText(ElevatedButton, 'Record payment'));
+    testWidgets('rejecting closes the request and says so', (tester) async {
+      withRequest(record('abc', 'PENDING_PM', extra: {'requesterId': 'u-2'}));
+      await open(tester, 'abc', _pm);
+      await tester.tap(bar('Return or reject'));
       await tester.pumpAndSettle();
-      expect(tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Record payment').last).onPressed, isNull);
+      await tester.tap(find.byKey(const Key('decline-reject')));
+      await tester.pump();
+      expect(find.textContaining('The request is closed'), findsOneWidget);
+      await tester.enterText(find.byKey(const Key('sheet-comment')), 'Not covered');
+      await tester.pump();
+      await submit(tester, sheetButton('Reject request'));
+      expect(server.posts('/abc/reject').single.data, {'comment': 'Not covered'});
+    });
 
-      await tester.tap(find.text('How was it paid?'));
+    testWidgets('finance records a payment with its details', (tester) async {
+      withRequest(record('abc', 'PENDING_FINANCE', approved: '45000.00', extra: {'requesterId': 'u-2'}));
+      await open(tester, 'abc', _finance);
+      await tester.tap(bar('Record payment'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Bank transfer').last);
-      await tester.pumpAndSettle();
-      await tester.enterText(find.widgetWithText(TextField, 'Reference'), 'TXN-1001');
+      expect(find.text('Sita Sharma'), findsWidgets);
+      expect(tester.widget<ElevatedButton>(sheetButton('Pay NPR 45,000.00')).onPressed, isNull);
+
+      await tester.tap(find.byKey(const Key('mode-BANK_TRANSFER')));
+      await tester.enterText(find.byKey(const Key('payment-reference')), 'TXN-1001');
       await tester.pump();
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Record payment').last);
-      await tester.pumpAndSettle();
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 700)));
-      await tester.pump();
+      await submit(tester, sheetButton('Pay NPR 45,000.00'));
       final data = server.posts('/abc/pay').single.data as Map<String, dynamic>;
       expect(data['mode'], 'BANK_TRANSFER');
       expect(data['reference'], 'TXN-1001');
+      expect(data.containsKey('balanceReceived'), isFalse);
+    });
+
+    Map<String, Map<String, dynamic>> settlementOf(String amount, {String outstanding = '18000.00'}) => {
+          's1': record('s1', 'PENDING_FINANCE', kind: 'SETTLEMENT', amount: amount, approved: amount, extra: {'requesterId': 'u-2', 'advanceId': 'a1'}),
+          'a1': record('a1', 'PAID', approved: '18000.00', extra: {'requesterId': 'u-2', 'balance': balance(outstanding, paid: '18000.00')}),
+        };
+
+    testWidgets('a settlement that leaves a balance is closed by confirming it was received', (tester) async {
+      withRequests(settlementOf('17250.00'));
+      await open(tester, 's1', _finance);
+      expect(find.text('Balance to return'), findsOneWidget);
+      await tester.tap(bar('Confirm balance received'));
+      await tester.pumpAndSettle();
+      expect(find.text('Balance to receive'), findsOneWidget);
+      expect(find.text('Received as'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('mode-CASH')));
+      await tester.enterText(find.byKey(const Key('payment-reference')), 'CV-2210');
+      await tester.pump();
+      await submit(tester, sheetButton('Confirm and close'));
+      final data = server.posts('/s1/pay').single.data as Map<String, dynamic>;
+      expect(data, containsPair('balanceReceived', true));
+      expect(data['mode'], 'CASH');
+    });
+
+    testWidgets('a settlement that overspends is closed by paying the excess', (tester) async {
+      withRequests(settlementOf('19800.00'));
+      await open(tester, 's1', _finance);
+      expect(find.text('Excess to pay'), findsOneWidget);
+      await tester.tap(bar('Pay excess'));
+      await tester.pumpAndSettle();
+      expect(find.text('Paid by'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('mode-BANK_TRANSFER')));
+      await tester.enterText(find.byKey(const Key('payment-reference')), 'NIC-1');
+      await tester.pump();
+      await submit(tester, sheetButton('Pay and close'));
+      final data = server.posts('/s1/pay').single.data as Map<String, dynamic>;
+      expect(data.containsKey('balanceReceived'), isFalse);
+      expect(data['reference'], 'NIC-1');
+    });
+
+    testWidgets('a settlement that uses the advance exactly needs no payment details', (tester) async {
+      withRequests(settlementOf('18000.00'));
+      await open(tester, 's1', _finance);
+      await tester.tap(bar('Close settlement'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('payment-reference')), findsNothing);
+      await submit(tester, sheetButton('Close settlement'));
+      expect(server.posts('/s1/pay').single.data, <String, dynamic>{});
     });
 
     testWidgets('finance records returned cash against an advance', (tester) async {
-      phoneScreen(tester);
       withRequest(record('abc', 'PAID', extra: {'requesterId': 'u-2', 'balance': balance('50000.00', paid: '50000.00')}));
-      await tester.pumpWidget(financeApp(server, const RequestDetailScreen(requestId: 'abc'), user: _finance));
-      await settleNetwork(tester);
-      await tapButton(tester, find.text('Record returned cash'));
+      await open(tester, 'abc', _finance);
+      final button = find.text('Record returned cash');
+      await scrollTo(tester, button);
+      await tester.tap(button);
       await tester.pumpAndSettle();
-      await tester.enterText(find.widgetWithText(TextField, 'Amount returned (NPR)'), '1500.50');
-      await tester.tap(find.text('How was it paid?'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Cash').last);
-      await tester.pumpAndSettle();
-      await tester.enterText(find.widgetWithText(TextField, 'Reference'), 'RCPT-7');
+      await tester.enterText(find.byKey(const Key('payment-amount')), '1500.50');
+      await tester.tap(find.byKey(const Key('mode-CASH')));
+      await tester.enterText(find.byKey(const Key('payment-reference')), 'RCPT-7');
       await tester.pump();
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Record cash return'));
-      await tester.pumpAndSettle();
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 700)));
-      await tester.pump();
+      await submit(tester, sheetButton('Record cash return'));
       final data = server.posts('/advances/abc/cash-return').single.data as Map<String, dynamic>;
       expect(data['amount'], '1500.50');
       expect(data['mode'], 'CASH');
+    });
+
+    testWidgets('an overdue advance can be chased from its detail, but not by its owner', (tester) async {
+      withRequest(record('abc', 'PAID', extra: {
+        'requesterId': 'u-2',
+        'settlementDueOn': _today(-3),
+        'balance': balance('10000.00', paid: '10000.00'),
+      }));
+      await open(tester, 'abc', _finance);
+      await tester.tap(bar('Send reminder'));
+      await tester.pump();
+      await afterAction(tester);
+      expect(server.posts('/advances/abc/remind'), hasLength(1));
+      expect(find.text('Reminder sent'), findsOneWidget);
+    });
+
+    testWidgets('an approver sees who raised it, what they hold, and the whole activity', (tester) async {
+      withRequest(record('abc', 'PENDING_FINANCE', approved: '45000.00', extra: {
+        'requesterId': 'u-2',
+        'entryStatus': 'PENDING_PM',
+        'actions': [
+          {'step': 'REQUESTER', 'action': 'SUBMITTED', 'actorId': 'u-2', 'revision': 1, 'at': '2026-10-05T05:00:00Z'},
+          {'step': 'PM', 'action': 'APPROVED', 'actorId': 'u-pm', 'revision': 1, 'at': '2026-10-06T05:00:00Z', 'comment': 'Needed before the shutdown.'},
+        ],
+      }));
+      server.scope = [record('o1', 'PAID', approved: '8500.00', extra: {'requesterId': 'u-2', 'balance': balance('8500.00', paid: '8500.00')})];
+      await open(tester, 'abc', _finance);
+      expect(find.text('Field engineer · 1 open advance'), findsOneWidget);
+      await scrollTo(tester, find.text('Activity'));
+      expect(find.textContaining('submitted', findRichText: true), findsWidgets);
+      expect(find.textContaining('Needed before the shutdown.'), findsOneWidget);
+    });
+
+    testWidgets('an engineer does not get approver buttons on their own request', (tester) async {
+      withRequest(record('abc', 'PENDING_PM'));
+      await open(tester, 'abc', engineer);
+      expect(find.text('Approve'), findsNothing);
+      await scrollTo(tester, find.text('Comments'));
+      expect(find.text('Activity'), findsNothing);
+      expect(find.text('Comments'), findsOneWidget);
     });
   });
 

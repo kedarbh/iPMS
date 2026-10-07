@@ -1,4 +1,4 @@
-import { getAdvance, getRequest } from '../../../lib/finance-api';
+import { getAdvance, getRequest, type DuplicateHit } from '../../../lib/finance-api';
 import { getCurrentUser } from '../../../lib/iam-api';
 import { listUserDirectory } from '../../../lib/user-api';
 import { Sidebar, StatePage, TopActions } from '../../../shell';
@@ -9,6 +9,11 @@ import {
 
 const WHEN = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const DAY = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const DUPLICATE_REASON: Record<DuplicateHit['reason'], (d: DuplicateHit) => string> = {
+  SAME_NUMBER: (d) => `invoice ${d.invoiceNumber} from ${d.vendor} is on it too`,
+  SAME_BILL: (d) => `a bill from ${d.vendor} with the same date and amount`,
+  NUMBER_OTHER_YEAR: (d) => `invoice ${d.invoiceNumber} from ${d.vendor}, dated in another year (the supplier may have restarted numbering)`,
+};
 const MODE: Record<string, string> = { BANK_TRANSFER: 'Bank transfer', CASH: 'Cash', CHEQUE: 'Cheque', MOBILE_WALLET: 'Mobile wallet' };
 
 export default async function FinanceRequestPage({ params }: { params: Promise<{ id: string }> }) {
@@ -48,6 +53,20 @@ export default async function FinanceRequestPage({ params }: { params: Promise<{
           </div>
 
           <ActionPanels request={request} actions={actions} />
+
+          {(request.duplicates ?? []).length > 0 ? (
+            <section className="panel" role="alert" style={{ borderLeft: '4px solid var(--danger, #b3261e)' }}>
+              <h2>Possible duplicate bill</h2>
+              <ul>
+                {(request.duplicates ?? []).map((d) => (
+                  <li key={`${d.requestId}-${d.reason}`}>
+                    <a href={`/finance/requests/${d.requestId}`}>{d.number}</a> ({STATUS_LABEL[d.status]}) —{' '}
+                    {DUPLICATE_REASON[d.reason](d)}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
           <section className="panel finance-facts">
             <dl>

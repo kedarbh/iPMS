@@ -29,6 +29,7 @@ const ROUTES: Route[] = [
   { controller: RequestController, handler: 'reject', verb: 'POST', path: 'finance/requests/:id/reject', permission: 'finance_request.view' },
   { controller: RequestController, handler: 'pay', verb: 'POST', path: 'finance/requests/:id/pay', permission: 'finance_payment.record' },
   { controller: RequestController, handler: 'returnCash', verb: 'POST', path: 'finance/advances/:id/cash-return', permission: 'finance_payment.record' },
+  { controller: RequestController, handler: 'remind', verb: 'POST', path: 'finance/advances/:id/remind', permission: 'finance_request.view' },
   { controller: RequestController, handler: 'list', verb: 'GET', path: 'finance/requests', permission: 'finance_request.view' },
   { controller: RequestController, handler: 'get', verb: 'GET', path: 'finance/requests/:id', permission: 'finance_request.view' },
   { controller: RequestController, handler: 'advance', verb: 'GET', path: 'finance/advances/:id', permission: 'finance_request.view' },

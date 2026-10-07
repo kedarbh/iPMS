@@ -164,7 +164,7 @@ void main() {
       expect(hint('DRAFT'), 'Not submitted');
       expect(hint('PENDING_PM'), 'Waiting for project manager');
       expect(hint('PENDING_DIRECTOR'), 'Waiting for project director');
-      expect(hint('PENDING_FINANCE'), 'Waiting for finance to disburse');
+      expect(hint('PENDING_FINANCE'), 'Waiting for finance to pay');
       expect(hint('RETURNED'), 'Changes requested');
       expect(hint('PENDING_PM', kind: 'SETTLEMENT'), 'Waiting for project manager');
     });
@@ -317,7 +317,7 @@ void main() {
       final r = withHistory('PAID', [act('REQUESTER', 'SUBMITTED', actor: 'u-1'), act('PM', 'APPROVED'), act('DIRECTOR', 'APPROVED', actor: 'u-dir'), act('FINANCE', 'PAID', actor: 'u-fin')],
           extra: {'settlementDueOn': '2026-10-14', 'balance': balance('1.00')});
       final steps = progressSteps(r, Stage.paid, names);
-      expect(steps.map((s) => s.title), ['Submitted', 'Project manager approval', 'Project director approval', 'Finance disbursal', 'Settlement']);
+      expect(steps.map((s) => s.title), ['Submitted', 'Project manager approval', 'Project director approval', 'Finance payment', 'Settlement']);
       expect(steps.map((s) => s.done), [true, true, true, true, false]);
       expect(steps.last.current, isTrue);
       expect(steps[1].sub, 'Rajesh Shrestha · 5 Oct');
@@ -334,7 +334,7 @@ void main() {
     test('leaves out the manager step for a request a manager raised', () {
       final r = withHistory('PENDING_DIRECTOR', [act('REQUESTER', 'SUBMITTED', actor: 'u-pm')]);
       final steps = progressSteps(r, Stage.director, names);
-      expect(steps.map((s) => s.title), ['Submitted', 'Project director approval', 'Finance disbursal', 'Settlement']);
+      expect(steps.map((s) => s.title), ['Submitted', 'Project director approval', 'Finance payment', 'Settlement']);
       expect(steps[1].current, isTrue);
     });
 

@@ -76,13 +76,10 @@ class StagePill extends StatelessWidget {
 
 /// One request in a list: number, type, status, title, meta, amount and hint.
 class RecordCard extends StatelessWidget {
-  const RecordCard({super.key, required this.view, required this.onTap, this.requester});
+  const RecordCard({super.key, required this.view, required this.onTap});
 
   final RecordView view;
   final VoidCallback onTap;
-
-  /// Shown first in the meta line on the approvals list, where it is someone else's.
-  final String? requester;
 
   @override
   Widget build(BuildContext context) {
@@ -113,10 +110,7 @@ class RecordCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(view.request.purpose, style: const TextStyle(fontSize: 14, color: Color(0xFF3F4550))),
           const SizedBox(height: 3),
-          Text(
-            [if ((requester ?? '').isNotEmpty) requester!, view.meta].join(' • '),
-            style: const TextStyle(fontSize: 12, color: FC.faint),
-          ),
+          Text(view.meta, style: const TextStyle(fontSize: 12, color: FC.faint)),
           const SizedBox(height: 10),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -160,9 +154,10 @@ class FactRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Flexible(flex: 0, child: Text(label, style: TextStyle(fontSize: 14, color: bold ? FC.ink : FC.muted, fontWeight: bold ? FontWeight.w600 : FontWeight.w400))),
+          Flexible(flex: 5, child: Text(label, style: TextStyle(fontSize: 14, color: bold ? FC.ink : FC.muted, fontWeight: bold ? FontWeight.w600 : FontWeight.w400))),
           const SizedBox(width: 12),
           Flexible(
+            flex: 4,
             child: Text(
               value,
               textAlign: TextAlign.end,

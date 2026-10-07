@@ -1,7 +1,7 @@
 import type { OnModuleInit } from '@nestjs/common';
 import {
   DurableConsumer, InMemoryDedupeStore, SUBJECTS,
-  type EventBus, type EventEnvelope, type FinanceAdvanceCashReturned, type FinanceEventBase,
+  type EventBus, type EventEnvelope, type FinanceAdvanceCashReturned, type FinanceAdvanceSettlementReminder, type FinanceEventBase,
   type FinanceRequestApproved, type FinanceRequestApprovedByPm, type FinanceRequestCancelled, type FinanceRequestPaid,
   type FinanceRequestRejected, type FinanceRequestReturned, type FinanceRequestSubmitted, type FinanceSettlementSettled,
   type FinanceStep,
@@ -12,7 +12,7 @@ import type { NotificationService } from '../notifications/notification.service.
 import type { NotificationDraft } from './content.js';
 import {
   approvalNeededContent, approvedContent, cancelledContent, cashReturnedContent, paidContent, paymentDueContent,
-  rejectedContent, returnedContent, settledContent,
+  rejectedContent, returnedContent, settledContent, settlementReminderContent,
 } from './finance-content.js';
 
 const log = createLogger('notification');
@@ -28,6 +28,7 @@ export const FINANCE_DURABLES = {
   paid: 'notification-finance-paid',
   settled: 'notification-finance-settled',
   cashReturned: 'notification-finance-cash-returned',
+  settlementReminder: 'notification-finance-settlement-reminder',
 } as const;
 
 /** The permission whose holders act at each step; the same table finance itself uses. */
@@ -74,6 +75,7 @@ export class FinanceNotificationConsumer implements OnModuleInit {
     await subscribe<FinanceRequestPaid>(SUBJECTS.FINANCE_REQUEST_PAID, FINANCE_DURABLES.paid, (e) => this.onPaid(e));
     await subscribe<FinanceSettlementSettled>(SUBJECTS.FINANCE_SETTLEMENT_SETTLED, FINANCE_DURABLES.settled, (e) => this.onSettled(e));
     await subscribe<FinanceAdvanceCashReturned>(SUBJECTS.FINANCE_ADVANCE_CASH_RETURNED, FINANCE_DURABLES.cashReturned, (e) => this.onCashReturned(e));
+    await subscribe<FinanceAdvanceSettlementReminder>(SUBJECTS.FINANCE_ADVANCE_SETTLEMENT_REMINDER, FINANCE_DURABLES.settlementReminder, (e) => this.onSettlementReminder(e));
   }
 
   /** The next approver: PMs normally, directors when a PM raised the request. */
@@ -131,6 +133,11 @@ export class FinanceNotificationConsumer implements OnModuleInit {
   async onCashReturned(envelope: EventEnvelope<FinanceAdvanceCashReturned>): Promise<void> {
     const p = envelope.payload;
     if (this.accept(envelope, p)) await this.send(envelope, [p.requesterId], cashReturnedContent(p));
+  }
+
+  async onSettlementReminder(envelope: EventEnvelope<FinanceAdvanceSettlementReminder>): Promise<void> {
+    const p = envelope.payload;
+    if (this.accept(envelope, p)) await this.send(envelope, [p.requesterId], settlementReminderContent(p));
   }
 
   private accept(envelope: EventEnvelope<unknown>, payload: Partial<FinanceEventBase> | null | undefined): payload is FinanceEventBase {

@@ -1,5 +1,5 @@
 import type {
-  FinanceAdvanceCashReturned, FinanceEventBase, FinanceRequestApproved, FinanceRequestApprovedByPm,
+  FinanceAdvanceCashReturned, FinanceAdvanceSettlementReminder, FinanceEventBase, FinanceRequestApproved, FinanceRequestApprovedByPm,
   FinanceRequestCancelled, FinanceRequestPaid, FinanceRequestRejected, FinanceRequestReturned,
   FinanceRequestSubmitted, FinanceSettlementSettled, FinanceStep,
 } from '@ipms/events';
@@ -76,4 +76,10 @@ export function cashReturnedContent(p: FinanceAdvanceCashReturned): Notification
     : 'The advance is now fully settled.';
   return draft(p, 'FINANCE_CASH_RETURNED', 'Cash return recorded',
     `Finance recorded ${formatNpr(p.returnedAmount)} returned against ${lowerSubject(p)}. ${rest}`);
+}
+
+export function settlementReminderContent(p: FinanceAdvanceSettlementReminder): NotificationDraft {
+  const late = p.daysLate === 1 ? '1 day' : `${p.daysLate} days`;
+  return draft(p, 'FINANCE_SETTLEMENT_REMINDER', 'Settlement overdue',
+    `Your ${lowerSubject(p)} (${formatNpr(p.outstanding)} outstanding) is ${late} past its settle-by date. Settle it with your receipts, or hand the balance to finance.`);
 }

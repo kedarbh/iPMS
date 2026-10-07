@@ -32,12 +32,12 @@ export async function emit(tx: Tx, subject: string, payload: object, actorId: st
 /** One line of the request's append-only history. */
 export async function recordAction(
   tx: Tx,
-  input: { requestId: string; revision: number; step: 'REQUESTER' | Step; action: string; actorId: string; amount?: string | null; comment?: string | null },
+  input: { requestId: string; revision: number; step: 'REQUESTER' | Step; action: string; actorId: string; amount?: string | null; comment?: string | null; at?: Date },
 ): Promise<void> {
   await tx.approvalAction.create({
     data: {
       id: uuidv7(), requestId: input.requestId, revision: input.revision, step: input.step, action: input.action,
-      actorId: input.actorId, amount: input.amount ?? null, comment: input.comment ?? null,
+      actorId: input.actorId, amount: input.amount ?? null, comment: input.comment ?? null, ...(input.at ? { at: input.at } : {}),
     },
   });
 }
