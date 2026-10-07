@@ -24,7 +24,9 @@ export interface FinanceRequest {
 }
 
 export interface RequestInvoice {
-  id: string; requestId: string; vendor: string; invoiceNumber: string; invoiceDate: string; amount: string; mediaId: string | null;
+  id: string; requestId: string; vendor: string; invoiceNumber: string | null; invoiceDate: string; amount: string; mediaId: string | null;
+  /** A VAT bill: 13% is inside the amount. */
+  vat: boolean; supplierTaxNo: string | null;
 }
 export interface ApprovalAction {
   id: string; requestId: string; revision: number; step: FinanceStep; action: string; actorId: string;
@@ -57,7 +59,11 @@ export interface RequestFilter {
 }
 
 /** Invoice rows as a form sends them: the date is a `YYYY-MM-DD` string, the amount a two-decimal string. */
-export interface InvoiceInput { vendor: string; invoiceNumber: string; invoiceDate: string; amount: string; mediaId?: string }
+export interface InvoiceInput {
+  vendor: string; invoiceNumber?: string; invoiceDate: string; amount: string; mediaId?: string;
+  /** A VAT bill: 13% is inside the amount. */
+  vat?: boolean; supplierTaxNo?: string;
+}
 
 export type CreateRequestInput =
   | { kind: 'ADVANCE'; projectId: string; categoryId: string; purpose: string; amount: string; workOrderId?: string }

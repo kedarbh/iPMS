@@ -40,7 +40,7 @@ describe('parseInvoices', () => {
   });
 
   it('names the row and the problem when an invoice is incomplete or its amount is wrong', () => {
-    expect(parseInvoices(form([['Himal Fuel', '', '2026-10-01', '100']]))).toEqual({ error: 'Invoice 1: enter the vendor, invoice number, date and amount.' });
+    expect(parseInvoices(form([['Himal Fuel', 'I-1', '', '100']]))).toEqual({ error: 'Invoice 1: enter the vendor, date and amount.' });
     expect(parseInvoices(form([['A', '1', '2026-10-01', '100'], ['B', '2', '2026-10-01', '1.234']]))).toEqual({ error: 'Invoice 2: enter an amount in NPR with at most two decimals.' });
     expect(parseInvoices(form([['A', '1', 'not-a-date', '100']]))).toEqual({ error: 'Invoice 1: enter a valid date.' });
   });
@@ -56,6 +56,34 @@ describe('parseInvoices', () => {
   it('does not drop the extra entries of a longer list', () => {
     const data = form([['A', '1', '2026-10-01', '100']]);
     data.append('invoiceAmount', '50');
-    expect(parseInvoices(data)).toEqual({ error: 'Invoice 2: enter the vendor, invoice number, date and amount.' });
+    expect(parseInvoices(data)).toEqual({ error: 'Invoice 2: enter the vendor, date and amount.' });
+  });
+});
+
+describe('parseInvoices: bills without a number, VAT bills and files', () => {
+  const rows = (extra: Record<string, string[]>): FormData => {
+    const data = new FormData();
+    data.append('invoiceVendor', 'Himal Fuel'); data.append('invoiceNumber', ''); data.append('invoiceDate', '2026-10-01'); data.append('invoiceAmount', '100');
+    for (const [name, values] of Object.entries(extra)) for (const v of values) data.append(name, v);
+    return data;
+  };
+
+  it('takes a bill with no number', () => {
+    expect(parseInvoices(rows({}))).toEqual({ invoices: [{ vendor: 'Himal Fuel', invoiceDate: '2026-10-01', amount: '100.00' }] });
+  });
+
+  it('keeps a VAT bill and its supplier number, and drops the number from a bill that is not VAT', () => {
+    expect(parseInvoices(rows({ invoiceVat: ['yes'], invoiceTaxNo: ['301234567'] }))).toEqual({
+      invoices: [{ vendor: 'Himal Fuel', invoiceDate: '2026-10-01', amount: '100.00', vat: true, supplierTaxNo: '301234567' }],
+    });
+    expect(parseInvoices(rows({ invoiceVat: ['no'], invoiceTaxNo: ['301234567'] }))).toEqual({
+      invoices: [{ vendor: 'Himal Fuel', invoiceDate: '2026-10-01', amount: '100.00' }],
+    });
+  });
+
+  it('carries an attached file through an edit, and ignores an id that is not one', () => {
+    const id = '0192f7a0-0000-7000-8000-000000000003';
+    expect(parseInvoices(rows({ invoiceMediaId: [id] }))).toMatchObject({ invoices: [{ mediaId: id }] });
+    expect(parseInvoices(rows({ invoiceMediaId: ['not-an-id'] }))).toEqual({ invoices: [{ vendor: 'Himal Fuel', invoiceDate: '2026-10-01', amount: '100.00' }] });
   });
 });

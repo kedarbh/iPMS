@@ -6,6 +6,7 @@ import { inScope, notFound, type Actor } from '../common.js';
 import { loadBalance } from '../ledger.js';
 import { serializeDetail, serializeRequest } from '../serialize.js';
 import { advanceSettlementDue } from '../settlement.js';
+import { listFacts } from './list-facts.js';
 import { awaitingStatuses } from '../workflow.js';
 
 const VIEW_ALL = 'finance_request.view_all';
@@ -33,7 +34,8 @@ export class QueryService {
       }),
       this.prisma.financeRequest.count({ where: full }),
     ]);
-    return { items: items.map((row) => ({ ...serializeRequest(row), category: row.category })), total, page: query.page, limit: query.limit };
+    const facts = await listFacts(this.prisma, items);
+    return { items: items.map((row) => ({ ...serializeRequest(row), category: row.category, ...facts.get(row.id) })), total, page: query.page, limit: query.limit };
   }
 
   async get(id: string, actor: Actor, scope: AuthzScope) {

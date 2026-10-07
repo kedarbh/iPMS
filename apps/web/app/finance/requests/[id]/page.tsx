@@ -83,7 +83,7 @@ export default async function FinanceRequestPage({ params }: { params: Promise<{
                   <tbody>
                     {request.invoices.map((invoice) => (
                       <tr key={invoice.id}>
-                        <td>{invoice.vendor}</td><td>{invoice.invoiceNumber}</td>
+                        <td>{invoice.vendor}{invoice.vat ? <span className="subtle"> · VAT bill{invoice.supplierTaxNo ? ` (${invoice.supplierTaxNo})` : ''}</span> : null}</td><td>{invoice.invoiceNumber ?? '—'}</td>
                         <td>{DAY.format(new Date(invoice.invoiceDate))}</td><td className="finance-num">{formatMoney(invoice.amount)}</td>
                         <td>{invoice.mediaId ? <a href={`/api/finance/files/${invoice.mediaId}`} target="_blank" rel="noreferrer">View photo</a> : '—'}</td>
                       </tr>

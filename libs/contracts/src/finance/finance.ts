@@ -5,6 +5,9 @@ import { PaginationSchema } from '../common/pagination.js';
 /** Finance deals in one currency. It is a constant, not a column, so a second currency is a deliberate change. */
 export const FINANCE_CURRENCY = 'NPR';
 
+/** The VAT rate in Nepal. A bill marked VAT carries it inside its amount, not on top. */
+export const VAT_RATE_PERCENT = 13;
+
 /** An advance is to be settled within this many days of the day it was paid. */
 export const SETTLEMENT_WINDOW_DAYS = 7;
 
@@ -30,10 +33,16 @@ export const MoneySchema = z.string().trim()
 const TextSchema = (max: number) => z.string().trim().min(1).max(max);
 
 export const InvoiceInputSchema = z.object({
+  /** Who was paid, or what for. */
   vendor: TextSchema(200),
-  invoiceNumber: TextSchema(100),
+  /** A bill without VAT often has no number, so it is optional. */
+  invoiceNumber: TextSchema(100).optional(),
   invoiceDate: z.coerce.date(),
   amount: MoneySchema,
+  /** A VAT bill: [VAT_RATE_PERCENT] is included in `amount`. */
+  vat: z.boolean().optional(),
+  /** The supplier's PAN or VAT number, from a VAT bill. */
+  supplierTaxNo: TextSchema(50).optional(),
   /** The uploaded invoice scan or photo, held by the media service. Optional until finance documents can be uploaded. */
   mediaId: UuidSchema.optional(),
 });

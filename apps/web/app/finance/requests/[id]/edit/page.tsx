@@ -55,7 +55,13 @@ export default async function EditRequestPage({ params }: { params: Promise<{ id
                 categoryId: request.categoryId,
                 purpose: request.purpose,
                 requestedAmount: request.requestedAmount,
-                invoices: request.invoices.map(({ vendor, invoiceNumber, invoiceDate, amount }) => ({ vendor, invoiceNumber, invoiceDate, amount })),
+                invoices: request.invoices.map(({ vendor, invoiceNumber, invoiceDate, amount, vat, supplierTaxNo, mediaId }) => ({
+                  vendor, invoiceDate, amount,
+                  ...(invoiceNumber ? { invoiceNumber } : {}),
+                  ...(vat ? { vat: true } : {}),
+                  ...(supplierTaxNo ? { supplierTaxNo } : {}),
+                  ...(mediaId ? { mediaId } : {}),
+                })),
               }}
             />
           </section>

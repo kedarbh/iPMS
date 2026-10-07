@@ -27,4 +27,14 @@ export function compareMoney(a: string, b: string): -1 | 0 | 1 {
   return diff < 0n ? -1 : diff > 0n ? 1 : 0;
 }
 
+/**
+ * The VAT inside an amount that includes it: amount × 13 / 113, to the paisa,
+ * halves rounding up. Integer arithmetic throughout, like every other figure.
+ */
+export function vatIncluded(amount: string, ratePercent = 13): string {
+  const rate = BigInt(ratePercent);
+  const minor = toMinor(amount);
+  return fromMinor((minor * rate * 2n + (100n + rate)) / ((100n + rate) * 2n));
+}
+
 export const minMoney = (a: string, b: string): string => (compareMoney(a, b) <= 0 ? fromMinor(toMinor(a)) : fromMinor(toMinor(b)));

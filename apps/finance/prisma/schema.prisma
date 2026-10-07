@@ -63,10 +63,13 @@ model RequestInvoice {
   id            String         @id @db.Uuid
   requestId     String         @db.Uuid
   vendor        String         @db.VarChar(200)
-  invoiceNumber String         @db.VarChar(100)
+  invoiceNumber String?        @db.VarChar(100)
   invoiceDate   DateTime       @db.Date
   amount        Decimal        @db.Decimal(14, 2)
   mediaId       String?        @db.Uuid
+  /// A VAT bill: 13% is included in `amount`.
+  vat           Boolean        @default(false)
+  supplierTaxNo String?        @db.VarChar(50)
   request       FinanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
   @@index([requestId])
