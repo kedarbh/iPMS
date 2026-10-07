@@ -65,6 +65,15 @@ class ProjectSpend {
   int get inApproval => total - paid;
 }
 
+/// Requests waiting at one earlier step, in whole paisa.
+class OnItsWay {
+  const OnItsWay({required this.step, required this.count, required this.total});
+
+  final String step;
+  final int count;
+  final int total;
+}
+
 /// What the approver's Overview tab shows. Amounts are whole paisa.
 class ApproverOverview {
   const ApproverOverview({
@@ -74,6 +83,8 @@ class ApproverOverview {
     required this.cash,
     required this.cashTotal,
     required this.projects,
+    required this.ahead,
+    required this.aheadRequests,
   });
 
   final ApproverHero hero;
@@ -87,7 +98,40 @@ class ApproverOverview {
   final int cashTotal;
   final List<ProjectSpend> projects;
 
+  /// Requests still with someone before the viewer; empty for a project manager.
+  final List<OnItsWay> ahead;
+
+  /// Those requests themselves, the longest-waiting first.
+  final List<FinanceRequest> aheadRequests;
+
+  int get aheadTotal => ahead.fold(0, (t, a) => t + a.total);
+  int get aheadCount => ahead.fold(0, (t, a) => t + a.count);
+
   int get overdueTotal => overdue.fold(0, (t, v) => t + _outstandingOf(v.request));
+}
+
+/// The approver still ahead of [role] on [r]: the step it is waiting at before it can reach them,
+/// or null when it is not upstream of them (already theirs, past them, or closed).
+/// A project manager has nothing ahead of them; the director waits on the manager; Finance
+/// waits on the manager and then the director.
+String? upstreamStep(ApproverRole role, FinanceRequest r) => switch ((role, r.status)) {
+      (ApproverRole.projectDirector || ApproverRole.finance, 'PENDING_PM') => 'project manager',
+      (ApproverRole.finance, 'PENDING_DIRECTOR') => 'project director',
+      _ => null,
+    };
+
+/// What a card says about a request that has not reached [role] yet: who has it, what comes
+/// after, and for how long. Null for anything else.
+String? onItsWayHint(ApproverRole role, FinanceRequest r, DateTime now) {
+  final at = upstreamStep(role, r);
+  if (at == null) return null;
+  final days = ageDays(r, now);
+  final waiting = days == 0 ? 'since today' : 'waiting ${ageLabel(days)}';
+  final next = switch ((role, at)) {
+    (ApproverRole.finance, 'project manager') => 'Then project director, then you',
+    _ => 'Reaches you after the $at',
+  };
+  return '$next · $waiting';
 }
 
 /// How many whole days [r] has been where it is. Today is 0.
@@ -223,6 +267,15 @@ ApproverOverview buildApproverOverview({
       }(),
   ]..sort((a, b) => b.total.compareTo(a.total));
 
+  final upstream = [for (final r in others) if (upstreamStep(role, r) != null) r];
+  final ahead = [
+    for (final step in ['project manager', 'project director'])
+      () {
+        final here = upstream.where((r) => upstreamStep(role, r) == step).toList();
+        return OnItsWay(step: step, count: here.length, total: sum(here));
+      }(),
+  ].where((a) => a.count > 0).toList();
+
   return ApproverOverview(
     hero: hero,
     preview: [for (final r in sorted.take(3)) viewOf(r, scope.isEmpty ? sorted : scope, now)],
@@ -230,6 +283,8 @@ ApproverOverview buildApproverOverview({
     cash: cash,
     cashTotal: cash.fold(0, (t, c) => t + c.total),
     projects: projects,
+    ahead: ahead,
+    aheadRequests: [...upstream]..sort((a, b) => ageDays(b, now).compareTo(ageDays(a, now))),
   );
 }
 

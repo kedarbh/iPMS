@@ -22,7 +22,7 @@ class FinanceRepository {
   Future<List<FinanceRequest>> inMyScope() => _list('all');
 
   /// Requests of others the signed-in user has already acted on, most recent first.
-  Future<List<FinanceRequest>> handledByMe() => _list('handled', limit: 8);
+  Future<List<FinanceRequest>> handledByMe() => _list('handled');
 
   Future<List<FinanceRequest>> _list(String view, {String? status, int limit = 100}) async {
     try {

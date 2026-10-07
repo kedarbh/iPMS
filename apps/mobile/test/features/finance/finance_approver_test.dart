@@ -109,11 +109,15 @@ void main() {
       expect(find.text('Reminder sent to Sita'), findsOneWidget);
     });
 
-    testWidgets('history searches by engineer, and filters to open advances', (tester) async {
+    testWidgets('history holds what the viewer handled, and open advances, but not what is still upstream', (tester) async {
       phoneScreen(tester);
+      final taxi = _queued('h1', 'PENDING_DIRECTOR', by: 'u-1', purpose: 'Taxi fare', kind: 'REIMBURSEMENT', amount: '2400.00');
+      server.handled = [taxi];
       server.scope = [
         _paidAdvance('a1', by: 'u-2'),
-        _queued('q1', 'PENDING_PM', by: 'u-1', purpose: 'Taxi fare', kind: 'REIMBURSEMENT', amount: '2400.00'),
+        taxi,
+        _queued('up1', 'PENDING_PM', by: 'u-1', purpose: 'Hotel stay', amount: '14000.00'),
+        _queued('other1', 'REJECTED', by: 'u-1', purpose: 'Team lunch', amount: '4500.00'),
       ];
       await tester.pumpWidget(financeApp(server, const FinanceScreen(), user: _finance));
       await _load(tester);
@@ -121,17 +125,73 @@ void main() {
       await tester.tap(_tab('History'));
       await tester.pump();
       expect(find.text('2 records'), findsOneWidget);
+      expect(find.text('Taxi fare'), findsOneWidget);
+      expect(find.text('Generator diesel'), findsOneWidget);
+      expect(find.text('Hotel stay'), findsNothing); // still with the project manager
+      expect(find.text('Team lunch'), findsNothing); // never reached them
 
       await tester.enterText(find.byKey(const Key('finance-search')), 'sita');
       await tester.pump();
       expect(find.text('1 record'), findsOneWidget);
       expect(find.text('Generator diesel'), findsOneWidget);
-      expect(find.text('Taxi fare'), findsNothing);
 
       await tester.enterText(find.byKey(const Key('finance-search')), '');
       await _tap(tester, find.byKey(const Key('filter-In-1')));
       expect(find.text('Taxi fare'), findsOneWidget);
       expect(find.text('Generator diesel'), findsNothing);
+    });
+  });
+
+  group('requests still on their way', () {
+    final upstream = [
+      _queued('p1', 'PENDING_PM', purpose: 'Hotel stay', amount: '14000.00', extra: {'updatedAt': DateTime.now().subtract(const Duration(days: 2)).toUtc().toIso8601String()}),
+      _queued('d1', 'PENDING_DIRECTOR', purpose: 'Scaffolding hire', amount: '42000.00'),
+      _queued('f1', 'PENDING_FINANCE', purpose: 'Cable trays'),
+    ];
+
+    testWidgets('Finance sees what is still with the manager and the director, and where it stands', (tester) async {
+      phoneScreen(tester);
+      server.awaiting = [upstream[2]];
+      server.scope = upstream;
+      await tester.pumpWidget(financeApp(server, const FinanceScreen(), user: _finance));
+      await _load(tester);
+
+      expect(find.byKey(const Key('on-its-way')), findsOneWidget);
+      expect(find.text('On its way to you'), findsOneWidget);
+      expect(find.text('2 · NPR 56,000'), findsOneWidget);
+      expect(find.text('1 with the project director'), findsOneWidget);
+
+      expect(find.text('1 with the project manager'), findsOneWidget);
+      expect(find.text('Hotel stay'), findsNothing); // the purpose shares a line with the requester
+      expect(find.textContaining('Hotel stay', findRichText: true), findsOneWidget);
+      expect(find.text('Then project director, then you · waiting 2 days'), findsOneWidget);
+      expect(find.text('Reaches you after the project director · since today'), findsOneWidget);
+      expect(find.text('Cable trays'), findsOneWidget); // the one actually waiting, in the queue preview
+
+      await tester.tap(_tab('History'));
+      await tester.pump();
+      expect(find.text('On its way'), findsNothing);
+      expect(find.text('0 records'), findsOneWidget); // none of it is history until they act on it
+      expect(find.text('Hotel stay'), findsNothing);
+    });
+
+    testWidgets('the director only waits on the manager', (tester) async {
+      phoneScreen(tester);
+      const director = AuthUser(id: 'u-dir', email: 'd@ipms.local', displayName: 'Hari Adhikari', permissions: ['finance_request.view', 'finance_request.view_all', 'finance_approval.director']);
+      server.scope = upstream;
+      await tester.pumpWidget(financeApp(server, const FinanceScreen(), user: director));
+      await _load(tester);
+      expect(find.text('1 · NPR 14,000'), findsOneWidget);
+      expect(find.text('1 with the project manager'), findsOneWidget);
+      expect(find.textContaining('project director', findRichText: true), findsNothing);
+    });
+
+    testWidgets('a project manager has no On its way card or filter', (tester) async {
+      phoneScreen(tester);
+      server.scope = upstream;
+      await tester.pumpWidget(financeApp(server, const FinanceScreen(), user: _pm));
+      await _load(tester);
+      expect(find.byKey(const Key('on-its-way')), findsNothing);
     });
   });
 
@@ -173,7 +233,7 @@ void main() {
 
     testWidgets('are listed in History under Mine', (tester) async {
       phoneScreen(tester);
-      server.scope = [_queued('q1', 'PENDING_PM', purpose: 'Taxi fare', kind: 'REIMBURSEMENT', amount: '2400.00')];
+      server.handled = [_queued('q1', 'PENDING_DIRECTOR', purpose: 'Taxi fare', kind: 'REIMBURSEMENT', amount: '2400.00')];
       server.list = [_paidAdvance('mine1', by: 'u-pm')];
       await tester.pumpWidget(financeApp(server, const FinanceScreen(), user: _pm));
       await _load(tester);

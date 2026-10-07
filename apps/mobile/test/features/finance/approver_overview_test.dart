@@ -144,6 +144,44 @@ void main() {
     });
   });
 
+  group('requests still on their way', () {
+    final pm = _req('p', 'PENDING_PM', updated: isoOn(10, 6));
+    final dir = _req('d', 'PENDING_DIRECTOR');
+    final fin = _req('f', 'PENDING_FINANCE');
+
+    test('says who is ahead of the director and of Finance', () {
+      expect(upstreamStep(ApproverRole.projectManager, pm), isNull);
+      expect(upstreamStep(ApproverRole.projectDirector, pm), 'project manager');
+      expect(upstreamStep(ApproverRole.projectDirector, dir), isNull);
+      expect(upstreamStep(ApproverRole.finance, pm), 'project manager');
+      expect(upstreamStep(ApproverRole.finance, dir), 'project director');
+      expect(upstreamStep(ApproverRole.finance, fin), isNull);
+    });
+
+    test('words what happens next and how long it has waited', () {
+      expect(onItsWayHint(ApproverRole.finance, pm, _now), 'Then project director, then you · waiting 2 days');
+      expect(onItsWayHint(ApproverRole.finance, dir, _now), 'Reaches you after the project director · since today');
+      expect(onItsWayHint(ApproverRole.projectDirector, pm, _now), 'Reaches you after the project manager · waiting 2 days');
+      expect(onItsWayHint(ApproverRole.finance, fin, _now), isNull);
+    });
+
+    test('the overview counts them by step and leaves out the viewer\'s own', () {
+      final own = _req('own', 'PENDING_PM', by: 'u-fin');
+      final o = buildApproverOverview(queue: [fin], scope: [pm, dir, fin, own], viewerId: 'u-fin', role: ApproverRole.finance, monthKey: '2026-10', now: _now);
+      expect(o.ahead.map((a) => (a.step, a.count, a.total)), [('project manager', 1, 1000000), ('project director', 1, 1000000)]);
+      expect(o.aheadCount, 2);
+      final forDirector = buildApproverOverview(queue: const [], scope: [pm, dir, fin], viewerId: 'u-dir', role: ApproverRole.projectDirector, monthKey: '2026-10', now: _now);
+      expect(forDirector.ahead.map((a) => a.step), ['project manager']);
+      final forPm = buildApproverOverview(queue: const [], scope: [pm, dir, fin], viewerId: 'u-pm', role: ApproverRole.projectManager, monthKey: '2026-10', now: _now);
+      expect(forPm.ahead, isEmpty);
+    });
+
+    test('lists the requests themselves, longest waiting first', () {
+      final o = buildApproverOverview(queue: const [], scope: [dir, pm, fin], viewerId: 'u-fin', role: ApproverRole.finance, monthKey: '2026-10', now: _now);
+      expect(o.aheadRequests.map((r) => r.id), ['p', 'd']);
+    });
+  });
+
   group('history filters', () {
     final mine = _req('m', 'PAID', by: 'u-pm', approved: '1000.00', extra: {'settlementDueOn': '2026-10-12'});
     final open = _paid('o');

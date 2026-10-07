@@ -187,6 +187,7 @@ class _ApproverFinanceState extends ConsumerState<ApproverFinance> {
           if (o.cash.isNotEmpty) ...[const SizedBox(height: 2), _cashCard(o, names, scope, now)],
           if (o.projects.isNotEmpty) ...[const SizedBox(height: 14), _projectsCard(o.projects, now)],
           if (handled.isNotEmpty) ...[const SizedBox(height: 14), _recentCard(handled, scope, role)],
+          if (o.ahead.isNotEmpty) ...[const SizedBox(height: 14), _aheadCard(o, role, names, now)],
           if (widget.onNew != null || mine.isNotEmpty) ...[const SizedBox(height: 14), _ownCard(mine, now)],
         ],
       ),
@@ -290,6 +291,72 @@ class _ApproverFinanceState extends ConsumerState<ApproverFinance> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  /// What is still with an earlier approver and will come to the viewer, so none of it is a surprise.
+  Widget _aheadCard(ApproverOverview o, ApproverRole role, Map<String, String> names, DateTime now) {
+    return FCard(
+      key: const Key('on-its-way'),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(child: Text('On its way to you', overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600))),
+              const SizedBox(width: 8),
+              Text('${o.aheadCount} · ${formatRupees(o.aheadTotal)}', style: const TextStyle(fontSize: 12, color: FC.muted)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text('Not with you yet. Still with an earlier approver.', style: TextStyle(fontSize: 12, color: FC.muted)),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 14,
+            children: [
+              for (final a in o.ahead) Text('${a.count} with the ${a.step}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: FC.indigo)),
+            ],
+          ),
+          for (final r in o.aheadRequests.take(5))
+            InkWell(
+              onTap: () => widget.onOpen(r),
+              child: Container(
+                margin: const EdgeInsets.only(top: 10),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: const BoxDecoration(border: Border(top: BorderSide(color: FC.divider))),
+                child: Row(
+                  children: [
+                    PersonAvatar(names[r.requesterId] ?? '', size: 32),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('${r.number} · ${formatRupees(paisa(r.approvedAmount ?? r.requestedAmount))}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 2),
+                          Text(
+                            [if ((names[r.requesterId] ?? '').isNotEmpty) names[r.requesterId]!, r.purpose].join(' · '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12, color: FC.muted),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(onItsWayHint(role, r, now) ?? '', style: const TextStyle(fontSize: 12, color: FC.indigo)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          if (o.aheadRequests.length > 5)
+            Padding(
+              padding: const EdgeInsets.only(top: 2, bottom: 8),
+              child: Text('and ${o.aheadRequests.length - 5} more', style: const TextStyle(fontSize: 12, color: FC.muted)),
+            ),
         ],
       ),
     );
@@ -607,18 +674,27 @@ class _ApproverFinanceState extends ConsumerState<ApproverFinance> {
 
   Widget _historyList(List<FinanceRequest> scope, Map<String, String> names, DateTime now) {
     final viewerId = widget.viewer.id;
-    final all = [...scope];
-    // Their own requests may sit outside the project scope list; History still holds them for "Mine".
-    for (final r in ref.watch(myFinanceRequestsProvider).value ?? const <FinanceRequest>[]) {
-      if (!all.any((x) => x.id == r.id)) all.add(r);
+    // History is what the viewer has acted on and what is theirs. Requests still on their way to
+    // them are not history yet (they show on the Overview), and open advances stay so that the
+    // cash-with-engineers rows have somewhere to lead.
+    final pool = <String, FinanceRequest>{};
+    for (final r in ref.watch(handledFinanceRequestsProvider).value ?? const <FinanceRequest>[]) {
+      pool[r.id] = r;
     }
-    all.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    for (final r in ref.watch(myFinanceRequestsProvider).value ?? const <FinanceRequest>[]) {
+      pool[r.id] = r;
+    }
+    for (final r in scope) {
+      if (r.isAdvance && r.status == 'PAID' && !(r.balance?.isClosed ?? false)) pool[r.id] = r;
+    }
+    final all = pool.values.toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final context = [...scope, ...all.where((r) => !scope.any((x) => x.id == r.id))];
     final q = _query.trim().toLowerCase();
-    final filter = historyFilters[_history];
+    final filter = historyFilters[_history.clamp(0, historyFilters.length - 1)];
     final advances = {for (final r in all) if (r.isAdvance) r.id: r};
     final shown = [
       for (final r in all)
-        if (_matches(r, q, names)) viewOf(r, all, now),
+        if (_matches(r, q, names)) viewOf(r, context, now),
     ].where((v) => matchesHistoryFilter(filter, v, viewerId)).toList();
 
     return Column(
