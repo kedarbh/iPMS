@@ -39,6 +39,8 @@ export interface AdvanceBalance {
 }
 export type FinanceRequestDetail = FinanceRequest & {
   invoices: RequestInvoice[]; actions: ApprovalAction[]; payments: Payment[]; balance?: AdvanceBalance;
+  /** A paid advance's last day to settle (`YYYY-MM-DD`): a week after it was paid. */
+  settlementDueOn?: string | null;
 };
 export interface AdvanceView { advance: FinanceRequest; balance: AdvanceBalance | null; settlements: FinanceRequest[] }
 export interface RequestPage { items: FinanceRequest[]; total: number; page: number; limit: number }

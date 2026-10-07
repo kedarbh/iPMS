@@ -5,6 +5,9 @@ import { PaginationSchema } from '../common/pagination.js';
 /** Finance deals in one currency. It is a constant, not a column, so a second currency is a deliberate change. */
 export const FINANCE_CURRENCY = 'NPR';
 
+/** An advance is to be settled within this many days of the day it was paid. */
+export const SETTLEMENT_WINDOW_DAYS = 7;
+
 export const RequestKindSchema = z.enum(['ADVANCE', 'SETTLEMENT', 'REIMBURSEMENT']);
 export type RequestKind = z.infer<typeof RequestKindSchema>;
 

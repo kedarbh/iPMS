@@ -4,7 +4,7 @@ import { listUserDirectory } from '../../../lib/user-api';
 import { Sidebar, StatePage, TopActions } from '../../../shell';
 import { ActionPanels } from './panels';
 import {
-  KIND_LABEL, STATUS_LABEL, STATUS_TONE, availableActions, describeEntry, formatMoney, personName, waitingOn,
+  KIND_LABEL, STATUS_LABEL, STATUS_TONE, availableActions, describeEntry, formatMoney, personName, settlementStatus, waitingOn,
 } from '../../model';
 
 const WHEN = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -28,6 +28,7 @@ export default async function FinanceRequestPage({ params }: { params: Promise<{
   const actions = availableActions(request, viewer.data, approvedEarlier, request.balance);
   const advance = request.kind === 'SETTLEMENT' && request.advanceId ? await getAdvance(request.advanceId) : null;
   const waiting = waitingOn(request.status);
+  const settle = settlementStatus(request.settlementDueOn, request.balance, new Date().toISOString().slice(0, 10));
 
   return (
     <main className="app-shell">
@@ -68,6 +69,7 @@ export default async function FinanceRequestPage({ params }: { params: Promise<{
                 <dt>Settled</dt><dd>{formatMoney(request.balance.applied)}</dd>
                 <dt>Cash returned</dt><dd>{formatMoney(request.balance.cashReturned)}</dd>
                 <dt>Outstanding</dt><dd><strong>{formatMoney(request.balance.outstanding)}</strong></dd>
+                {settle ? <><dt>Settlement</dt><dd style={settle.overdue ? { color: 'var(--danger, #b3261e)', fontWeight: 600 } : undefined}>{settle.label}</dd></> : null}
               </dl>
             </section>
           ) : null}

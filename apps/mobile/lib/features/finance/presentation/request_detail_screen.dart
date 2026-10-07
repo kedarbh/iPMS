@@ -154,6 +154,14 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                   FinanceInfoRow('Settled with invoices', formatMoney(r.balance!.applied)),
                   FinanceInfoRow('Cash returned', formatMoney(r.balance!.cashReturned)),
                   FinanceInfoRow('Outstanding', formatMoney(r.balance!.outstanding), bold: true),
+                  if (r.settlementWindow(DateTime.now()) case final window?)
+                    FinanceInfoRow(
+                      'Settlement',
+                      window.overdue
+                          ? '${window.label} (${window.daysLate} day${window.daysLate == 1 ? '' : 's'} late)'
+                          : window.label,
+                      bold: window.overdue,
+                    ),
                 ]),
               if (r.invoices.isNotEmpty)
                 _section('Invoices', [

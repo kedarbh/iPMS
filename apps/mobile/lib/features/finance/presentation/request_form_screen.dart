@@ -342,7 +342,8 @@ class _RequestFormScreenState extends ConsumerState<RequestFormScreen> {
                 decoration: BoxDecoration(color: AppColors.primaryLavenderLight, borderRadius: BorderRadius.circular(12)),
                 child: Text(
                   'Settling ${advance.number}. ${formatMoney(advance.balance?.outstanding)} is still outstanding. '
-                  'Anything above that is paid back to you.',
+                  'Anything above that is paid back to you.'
+                  '${advance.settlementWindow(DateTime.now()) == null ? '' : ' ${advance.settlementWindow(DateTime.now())!.label}.'}',
                   style: AppTypography.bodySmall.copyWith(color: AppColors.darkSlate),
                 ),
               ),

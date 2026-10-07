@@ -5,6 +5,7 @@ import type { Prisma, PrismaClient } from '@prisma-clients/finance';
 import { inScope, notFound, type Actor } from '../common.js';
 import { loadBalance } from '../ledger.js';
 import { serializeDetail, serializeRequest } from '../serialize.js';
+import { advanceSettlementDue } from '../settlement.js';
 import { awaitingStatuses } from '../workflow.js';
 
 const VIEW_ALL = 'finance_request.view_all';
@@ -42,16 +43,19 @@ export class QueryService {
     });
     if (!row || !this.mayRead(row, actor, scope)) throw notFound('Request');
     const detail = { ...serializeDetail(row), category: row.category };
-    return row.kind === 'ADVANCE' && row.status === 'PAID' ? { ...detail, balance: await loadBalance(this.prisma, id) } : detail;
+    if (row.kind !== 'ADVANCE' || row.status !== 'PAID') return detail;
+    // The due day is a fact about the advance (paid day plus the window); whether it is overdue is for the reader's clock.
+    return { ...detail, balance: await loadBalance(this.prisma, id), settlementDueOn: advanceSettlementDue(row, row.payments) };
   }
 
   /** An advance's balance and the settlements raised against it. */
   async advance(id: string, actor: Actor, scope: AuthzScope) {
-    const advance = await this.prisma.financeRequest.findUnique({ where: { id }, include: { settlements: { orderBy: { createdAt: 'asc' } } } });
+    const advance = await this.prisma.financeRequest.findUnique({ where: { id }, include: { settlements: { orderBy: { createdAt: 'asc' } }, payments: true } });
     if (!advance || advance.kind !== 'ADVANCE' || !this.mayRead(advance, actor, scope)) throw notFound('Advance');
     return {
       advance: serializeRequest(advance),
       balance: advance.status === 'PAID' ? await loadBalance(this.prisma, id) : null,
+      settlementDueOn: advanceSettlementDue(advance, advance.payments),
       settlements: advance.settlements.map(serializeRequest),
     };
   }

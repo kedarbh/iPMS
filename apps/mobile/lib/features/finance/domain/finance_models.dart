@@ -239,6 +239,25 @@ class AdvanceBalance {
   bool get isClosed => status == 'CLOSED';
 }
 
+/// Reads a `YYYY-MM-DD` day as a local calendar date, so it never slides to
+/// the day before in a timezone behind UTC.
+DateTime? _calendarDay(Object? value) {
+  final parts = value?.toString().split('-');
+  if (parts == null || parts.length != 3) return null;
+  final y = int.tryParse(parts[0]);
+  final m = int.tryParse(parts[1]);
+  final d = int.tryParse(parts[2].substring(0, parts[2].length < 2 ? parts[2].length : 2));
+  return (y == null || m == null || d == null) ? null : DateTime(y, m, d);
+}
+
+class SettlementWindow {
+  const SettlementWindow({required this.label, required this.overdue, required this.daysLate});
+
+  final String label;
+  final bool overdue;
+  final int daysLate;
+}
+
 class FinanceRequest {
   const FinanceRequest({
     required this.id,
@@ -262,6 +281,7 @@ class FinanceRequest {
     this.history = const [],
     this.payments = const [],
     this.balance,
+    this.settlementDueOn,
   });
 
   factory FinanceRequest.fromJson(Map<String, dynamic> json) {
@@ -290,6 +310,7 @@ class FinanceRequest {
       history: list('actions', ApprovalEntry.fromJson),
       payments: list('payments', RequestPayment.fromJson),
       balance: balance is Map<String, dynamic> ? AdvanceBalance.fromJson(balance) : null,
+      settlementDueOn: _calendarDay(json['settlementDueOn']),
     );
   }
 
@@ -316,6 +337,25 @@ class FinanceRequest {
 
   /// Only on a paid advance.
   final AdvanceBalance? balance;
+
+  /// A paid advance's last day to settle: a week after it was paid.
+  final DateTime? settlementDueOn;
+
+  /// Where the advance stands against its settlement window as of [now]; null
+  /// when it is not on the clock (not a paid advance, or nothing left to
+  /// settle). The due day counts as in time; overdue starts the day after.
+  SettlementWindow? settlementWindow(DateTime now) {
+    final due = settlementDueOn;
+    if (due == null || (balance?.isClosed ?? false)) return null;
+    final today = DateTime(now.year, now.month, now.day);
+    final overdue = today.isAfter(due);
+    final date = DateFormat('d MMM yyyy').format(due);
+    return SettlementWindow(
+      label: overdue ? 'Overdue since $date' : 'Settle by $date',
+      overdue: overdue,
+      daysLate: overdue ? today.difference(due).inDays : 0,
+    );
+  }
 
   bool get isAdvance => kind == RequestKind.advance;
 

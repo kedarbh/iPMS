@@ -178,6 +178,53 @@ void main() {
     });
   });
 
+  group('settlement window', () {
+    FinanceRequest advance({String? due, String balance = 'PAID'}) => FinanceRequest.fromJson(request('abc', 'PAID', extra: {
+          'settlementDueOn': due,
+          'balance': {'paid': '1000.00', 'applied': '0.00', 'cashReturned': '0.00', 'outstanding': '1000.00', 'status': balance},
+        }));
+
+    test('is a due day, in time up to and including it', () {
+      final r = advance(due: '2026-10-14');
+      expect(r.settlementDueOn, DateTime(2026, 10, 14));
+      expect(r.settlementWindow(DateTime(2026, 10, 10, 9))!.label, 'Settle by 14 Oct 2026');
+      final lastDay = r.settlementWindow(DateTime(2026, 10, 14, 23, 59))!;
+      expect(lastDay.overdue, isFalse);
+    });
+
+    test('is overdue from the day after, and counts the days late', () {
+      final w = advance(due: '2026-10-14').settlementWindow(DateTime(2026, 10, 17, 8))!;
+      expect(w.overdue, isTrue);
+      expect(w.label, 'Overdue since 14 Oct 2026');
+      expect(w.daysLate, 3);
+    });
+
+    test('is off the clock for a closed advance, or one with no due day', () {
+      expect(advance(due: '2026-10-14', balance: 'CLOSED').settlementWindow(DateTime(2026, 11, 1)), isNull);
+      expect(advance().settlementWindow(DateTime(2026, 11, 1)), isNull);
+    });
+
+    testWidgets('the advance shows when to settle by, in red when late', (tester) async {
+      final due = DateTime.now().add(const Duration(days: 3));
+      final overdue = DateTime.now().subtract(const Duration(days: 2));
+      String day(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      server.byId = {
+        'soon': request('soon', 'PAID', extra: {'settlementDueOn': day(due), 'balance': {'paid': '1.00', 'applied': '0.00', 'cashReturned': '0.00', 'outstanding': '1.00', 'status': 'PAID'}}),
+      };
+      await tester.pumpWidget(app(const RequestDetailScreen(requestId: 'soon')));
+      await settle(tester);
+      expect(find.textContaining('Settle by'), findsOneWidget);
+
+      server.byId = {
+        'late': request('late', 'PAID', extra: {'settlementDueOn': day(overdue), 'balance': {'paid': '1.00', 'applied': '0.00', 'cashReturned': '0.00', 'outstanding': '1.00', 'status': 'PAID'}}),
+      };
+      await tester.pumpWidget(app(const RequestDetailScreen(requestId: 'late')));
+      await settle(tester);
+      expect(find.textContaining('Overdue since'), findsOneWidget);
+      expect(find.textContaining('2 days late'), findsOneWidget);
+    });
+  });
+
   testWidgets('the list shows my requests, filters them, and opens one', (tester) async {
     server.list = [request('aa', 'PENDING_PM'), request('bbb', 'PAID'), request('cccc', 'DRAFT')];
     server.byId = {'aa': request('aa', 'PENDING_PM')};
