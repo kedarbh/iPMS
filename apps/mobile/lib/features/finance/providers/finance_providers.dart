@@ -20,6 +20,11 @@ final awaitingFinanceRequestsProvider = FutureProvider<List<FinanceRequest>>((re
   return ref.watch(financeRepositoryProvider).awaitingMe();
 });
 
+/// Finance notifications, newest first.
+final financeNotificationsProvider = FutureProvider<List<FinanceNotification>>((ref) {
+  return ref.watch(financeRepositoryProvider).notifications();
+});
+
 /// Names by user id, for history and requester lines.
 final financeUserNamesProvider = FutureProvider<Map<String, String>>((ref) {
   return ref.watch(financeRepositoryProvider).userNames();

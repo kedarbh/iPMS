@@ -87,27 +87,56 @@ class ExpenseCategory {
   final String name;
 }
 
+/// VAT is [vatRatePercent] of a bill's total, included in it, not added on top.
+const int vatRatePercent = 13;
+
+/// The VAT inside [amount] (which includes it): amount × 13 / 113 to the
+/// paisa, halves rounding up, as the server works it out.
+String vatIncluded(String amount) {
+  final parts = amount.trim().split('.');
+  final whole = int.tryParse(parts[0].isEmpty ? '0' : parts[0]) ?? 0;
+  final frac = parts.length > 1 ? int.tryParse(parts[1].padRight(2, '0').substring(0, 2)) ?? 0 : 0;
+  final minor = whole * 100 + frac;
+  const rate = vatRatePercent;
+  final vat = (minor * rate * 2 + (100 + rate)) ~/ ((100 + rate) * 2);
+  return '${vat ~/ 100}.${(vat % 100).toString().padLeft(2, '0')}';
+}
+
 class RequestInvoice {
   const RequestInvoice({
     required this.vendor,
-    required this.invoiceNumber,
     required this.invoiceDate,
     required this.amount,
+    this.invoiceNumber,
     this.mediaId,
+    this.vat = false,
+    this.supplierTaxNo,
   });
 
   factory RequestInvoice.fromJson(Map<String, dynamic> json) => RequestInvoice(
         mediaId: json['mediaId'] as String?,
+        vat: json['vat'] as bool? ?? false,
+        supplierTaxNo: json['supplierTaxNo'] as String?,
         vendor: json['vendor'] as String? ?? '',
-        invoiceNumber: json['invoiceNumber'] as String? ?? '',
+        invoiceNumber: json['invoiceNumber'] as String?,
         invoiceDate: DateTime.tryParse(json['invoiceDate']?.toString() ?? '') ?? DateTime.now(),
         amount: json['amount']?.toString() ?? '0.00',
       );
 
+  /// Who was paid, or what for.
   final String vendor;
-  final String invoiceNumber;
+
+  /// Absent on a bill that has none, as a bill without VAT often does.
+  final String? invoiceNumber;
   final DateTime invoiceDate;
   final String amount;
+
+  /// A VAT bill: [vatRatePercent] is included in [amount].
+  final bool vat;
+  final String? supplierTaxNo;
+
+  /// The VAT inside [amount], or zero for a bill without VAT.
+  String get vatAmount => vat ? vatIncluded(amount) : '0.00';
 
   /// The invoice photo in the media service, if one was attached.
   final String? mediaId;
@@ -115,9 +144,11 @@ class RequestInvoice {
   Map<String, dynamic> toJson() => {
         'mediaId': ?mediaId,
         'vendor': vendor.trim(),
-        'invoiceNumber': invoiceNumber.trim(),
+        if ((invoiceNumber ?? '').trim().isNotEmpty) 'invoiceNumber': invoiceNumber!.trim(),
         'invoiceDate': DateFormat('yyyy-MM-dd').format(invoiceDate),
         'amount': amount.trim(),
+        if (vat) 'vat': true,
+        if (vat && (supplierTaxNo ?? '').trim().isNotEmpty) 'supplierTaxNo': supplierTaxNo!.trim(),
       };
 }
 
@@ -282,6 +313,7 @@ class FinanceRequest {
     this.payments = const [],
     this.balance,
     this.settlementDueOn,
+    this.vatAmount,
   });
 
   factory FinanceRequest.fromJson(Map<String, dynamic> json) {
@@ -311,6 +343,7 @@ class FinanceRequest {
       payments: list('payments', RequestPayment.fromJson),
       balance: balance is Map<String, dynamic> ? AdvanceBalance.fromJson(balance) : null,
       settlementDueOn: _calendarDay(json['settlementDueOn']),
+      vatAmount: json['vatAmount']?.toString(),
     );
   }
 
@@ -340,6 +373,9 @@ class FinanceRequest {
 
   /// A paid advance's last day to settle: a week after it was paid.
   final DateTime? settlementDueOn;
+
+  /// The VAT inside a settlement's or reimbursement's VAT bills; on the list only.
+  final String? vatAmount;
 
   /// Where the advance stands against its settlement window as of [now]; null
   /// when it is not on the clock (not a paid advance, or nothing left to
@@ -376,4 +412,51 @@ class FinanceRequest {
     }
     return null;
   }
+}
+
+/// One entry of the notification feed, as the notification service sends it.
+class FinanceNotification {
+  const FinanceNotification({
+    required this.id,
+    required this.type,
+    required this.title,
+    required this.body,
+    required this.createdAt,
+    required this.isRead,
+    this.requestId,
+  });
+
+  factory FinanceNotification.fromJson(Map<String, dynamic> json) {
+    // Finance links look like `/finance/requests/<id>`.
+    final url = json['actionUrl'] as String?;
+    final match = url == null ? null : RegExp(r'/finance/requests/([0-9a-fA-F-]{36})').firstMatch(url);
+    return FinanceNotification(
+      id: json['id'] as String? ?? '',
+      type: json['type'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      body: json['body'] as String? ?? '',
+      createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '')?.toLocal() ?? DateTime.now(),
+      isRead: json['isRead'] as bool? ?? false,
+      requestId: match?.group(1),
+    );
+  }
+
+  final String id;
+  final String type;
+  final String title;
+  final String body;
+  final DateTime createdAt;
+  final bool isRead;
+
+  /// The request it is about, when it links to one.
+  final String? requestId;
+
+  bool get isFinance => type.startsWith('FINANCE_');
+
+  /// ok, warn or err: the dot's colour on the feed.
+  String get tone => switch (type) {
+        'FINANCE_REQUEST_REJECTED' || 'FINANCE_REQUEST_CANCELLED' => 'err',
+        'FINANCE_REQUEST_RETURNED' || 'FINANCE_APPROVAL_NEEDED' || 'FINANCE_PAYMENT_DUE' => 'warn',
+        _ => 'ok',
+      };
 }

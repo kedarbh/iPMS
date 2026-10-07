@@ -38,6 +38,11 @@ class ApiEndpoints {
   static String financeFileUrl(String id) => '/api/v1/media/finance/$id/url';
   static const String mediaList = '/api/v1/media';
 
+  // notifications
+  static const String notifications = '/api/v1/notifications';
+  static const String notificationsReadAll = '/api/v1/notifications/read-all';
+  static String notificationRead(String id) => '/api/v1/notifications/$id/read';
+
   // finance
   static const String financeRequests = '/api/v1/finance/requests';
   static String financeRequest(String id) => '/api/v1/finance/requests/$id';

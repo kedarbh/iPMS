@@ -115,6 +115,29 @@ class FinanceRepository {
   Future<void> returnCash(String advanceId, Map<String, dynamic> details) =>
       _act(ApiEndpoints.financeCashReturn(advanceId), details, 'Could not record the cash return.');
 
+  /// The newest notifications, finance ones only.
+  Future<List<FinanceNotification>> notifications() async {
+    try {
+      final response = await apiClient.dio.get<Map<String, dynamic>>(
+        ApiEndpoints.notifications,
+        queryParameters: {'limit': 50},
+      );
+      return (response.data?['items'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(FinanceNotification.fromJson)
+          .where((n) => n.isFinance)
+          .toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e, fallbackMessage: 'Failed to load notifications.');
+    }
+  }
+
+  Future<void> markNotificationRead(String id) =>
+      _act(ApiEndpoints.notificationRead(id), const {}, 'Could not mark it read.');
+
+  Future<void> markAllNotificationsRead() =>
+      _act(ApiEndpoints.notificationsReadAll, const {}, 'Could not mark them read.');
+
   /// Display names by user id, so history can say who did what.
   Future<Map<String, String>> userNames() async {
     try {
