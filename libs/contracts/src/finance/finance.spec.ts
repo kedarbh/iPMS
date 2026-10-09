@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { uuidv7 } from '../common/ids.js';
 import {
-  ApproveSchema, CashReturnSchema, CommentSchema, CreateRequestSchema, ListRequestsQuerySchema, MoneySchema,
+  ApproveSchema, CashReturnSchema, CommentSchema, CreateRequestSchema, InvoiceInputSchema, ListRequestsQuerySchema, MoneySchema,
   PayRequestSchema, PaymentDetailsSchema,
 } from './finance.js';
 
@@ -10,6 +10,29 @@ const invoice = { vendor: 'Himal Fuel', invoiceNumber: 'INV-1', invoiceDate: '20
 describe('MoneySchema', () => {
   it.each(['1', '10.5', '1500.50', '0.01'])('accepts %s', (v) => expect(MoneySchema.safeParse(v).success).toBe(true));
   it.each(['0', '0.00', '-5', '1.234', 'abc', '1e3', '', '1,000'])('rejects %s', (v) => expect(MoneySchema.safeParse(v).success).toBe(false));
+});
+
+describe('InvoiceInputSchema', () => {
+  const { invoiceNumber: _number, ...bill } = invoice;
+
+  it('takes a bill with no number, as a bill without VAT often has none', () => {
+    expect(InvoiceInputSchema.safeParse(bill).success).toBe(true);
+  });
+
+  it('takes a VAT bill with the supplier\'s PAN or VAT number', () => {
+    const parsed = InvoiceInputSchema.parse({ ...invoice, vat: true, supplierTaxNo: ' 301234567 ' });
+    expect(parsed.vat).toBe(true);
+    expect(parsed.supplierTaxNo).toBe('301234567');
+  });
+
+  it('treats a bill that does not say as not VAT', () => {
+    expect(InvoiceInputSchema.parse(invoice).vat).toBeUndefined();
+  });
+
+  it('refuses an empty supplier number or a vat flag that is not a boolean', () => {
+    expect(InvoiceInputSchema.safeParse({ ...invoice, supplierTaxNo: '   ' }).success).toBe(false);
+    expect(InvoiceInputSchema.safeParse({ ...invoice, vat: 'yes' }).success).toBe(false);
+  });
 });
 
 describe('CreateRequestSchema', () => {
@@ -56,6 +79,10 @@ describe('payments', () => {
   });
   it('allows an empty body for pay, since a settlement may need no payout', () => {
     expect(PayRequestSchema.parse({})).toEqual({});
+  });
+  it('takes balanceReceived on a settlement payment, and only as a boolean', () => {
+    expect(PayRequestSchema.parse({ balanceReceived: true })).toEqual({ balanceReceived: true });
+    expect(PayRequestSchema.safeParse({ balanceReceived: 'yes' }).success).toBe(false);
   });
   it('refuses a mode we do not support', () => {
     expect(PaymentDetailsSchema.safeParse({ ...details, mode: 'BITCOIN' }).success).toBe(false);

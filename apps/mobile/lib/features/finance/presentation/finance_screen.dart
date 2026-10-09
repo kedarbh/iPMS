@@ -1,26 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_typography.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../domain/approver_overview.dart';
 import '../domain/finance_models.dart';
+import '../domain/finance_overview.dart';
 import '../domain/finance_rules.dart';
+import '../domain/finance_view.dart';
 import '../providers/finance_providers.dart';
+import 'advance_form_screen.dart';
+import 'approver_finance.dart';
+import 'expenses_form_screen.dart';
 import 'finance_widgets.dart';
+import 'notifications_screen.dart';
+import 'overview_tab.dart';
+import 'records_tab.dart';
 import 'request_detail_screen.dart';
-import 'request_form_screen.dart';
+import 'statement_screen.dart';
 
-/// Filters over the list, by where a request is in its life.
-const Map<String, Set<String>?> _filters = {
-  'All': null,
-  'Drafts': {'DRAFT'},
-  'In approval': {'PENDING_PM', 'PENDING_DIRECTOR', 'PENDING_FINANCE'},
-  'Paid': {'PAID', 'SETTLED'},
-  'Returned': {'RETURNED'},
-  'Closed': {'REJECTED', 'CANCELLED'},
-};
+enum _Segment { overview, records }
 
+/// The Finance tab. An engineer (or anyone who only raises requests) gets Overview and
+/// Records over their own; an approver gets the approver dashboard instead.
 class FinanceScreen extends ConsumerStatefulWidget {
   const FinanceScreen({super.key});
 
@@ -29,294 +29,318 @@ class FinanceScreen extends ConsumerStatefulWidget {
 }
 
 class _FinanceScreenState extends ConsumerState<FinanceScreen> {
-  String _filter = 'All';
+  _Segment _segment = _Segment.overview;
+  String? _month;
+  String _query = '';
+  int _filter = 0;
+  final ScrollController _scroll = ScrollController();
 
-  /// Whether the list shows other people's requests waiting on me.
-  bool _approvals = false;
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
 
-  Future<void> _newRequest() async {
-    final kind = await showModalBottomSheet<String>(
+  void _open(FinanceRequest r) => Navigator.push<void>(
+        context,
+        MaterialPageRoute(builder: (_) => RequestDetailScreen(requestId: r.id)),
+      );
+
+  void _show(_Segment s, {String query = '', int filter = 0}) {
+    setState(() {
+      _segment = s;
+      _query = query;
+      _filter = filter;
+    });
+    if (_scroll.hasClients) _scroll.jumpTo(0);
+  }
+
+  Future<void> _go(Widget screen) => Navigator.push<void>(context, MaterialPageRoute(builder: (_) => screen));
+
+  Future<void> _newRequest(List<FinanceRequest> all) async {
+    final openCount = all.where((r) => r.isAdvance && stageOf(r, all) == Stage.paid).length;
+    final choice = await showModalBottomSheet<String>(
       context: context,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('New request', style: AppTypography.headingSmall),
+              Center(child: Container(width: 36, height: 5, decoration: BoxDecoration(color: const Color(0xFFD9DBE0), borderRadius: BorderRadius.circular(3)))),
+              const SizedBox(height: 16),
+              const Text('Create new', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
               const SizedBox(height: 12),
-              _KindTile(
-                icon: Icons.payments_outlined,
-                title: 'Advance',
-                subtitle: 'Money you need before the work. Settle it later with invoices.',
+              _SheetOption(
+                icon: Icons.north_east_rounded,
+                bg: const Color(0xFFEEF0FF),
+                fg: FC.indigo,
+                title: 'Advance request',
+                subtitle: 'Ask for funds before you spend',
                 onTap: () => Navigator.pop(ctx, RequestKind.advance),
               ),
-              _KindTile(
+              const SizedBox(height: 10),
+              _SheetOption(
                 icon: Icons.receipt_long_outlined,
-                title: 'Reimbursement',
-                subtitle: 'Claim back what you already spent, with its invoices.',
-                onTap: () => Navigator.pop(ctx, RequestKind.reimbursement),
+                bg: const Color(0xFFE6F5EC),
+                fg: FC.green,
+                title: 'Settlement',
+                subtitle: openCount > 0 ? '$openCount paid advance${openCount == 1 ? '' : 's'} waiting' : 'Account for an advance with receipts',
+                onTap: () => Navigator.pop(ctx, RequestKind.settlement),
               ),
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  'To settle an advance, open it from the list once it is paid.',
-                  style: AppTypography.caption,
-                ),
+              const SizedBox(height: 10),
+              _SheetOption(
+                icon: Icons.account_balance_wallet_outlined,
+                bg: const Color(0xFFF1F2F4),
+                fg: const Color(0xFF3F4550),
+                title: 'Reimbursement',
+                subtitle: 'Claim back what you already spent',
+                onTap: () => Navigator.pop(ctx, RequestKind.reimbursement),
               ),
             ],
           ),
         ),
       ),
     );
-    if (kind == null || !mounted) return;
-    await Navigator.push<void>(
-      context,
-      MaterialPageRoute(builder: (_) => RequestFormScreen(kind: kind)),
-    );
+    if (choice == null || !mounted) return;
+    switch (choice) {
+      case RequestKind.advance:
+        await _go(const AdvanceFormScreen());
+      case RequestKind.settlement:
+        await _go(const ExpensesFormScreen(kind: RequestKind.settlement));
+      default:
+        await _go(const ExpensesFormScreen(kind: RequestKind.reimbursement));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authStateProvider).value;
     final viewer = FinanceViewer(id: user?.id ?? '', permissions: user?.permissions ?? const []);
-    final showApprovals = _approvals && viewer.hasApprovals;
-    final requests = ref.watch(showApprovals ? awaitingFinanceRequestsProvider : myFinanceRequestsProvider);
-    final names = ref.watch(financeUserNamesProvider).value ?? const <String, String>{};
     final canView = viewer.can('finance_request.view');
     final canCreate = viewer.raisesRequests;
+    final mine = ref.watch(myFinanceRequestsProvider);
+    final unread = (ref.watch(financeNotificationsProvider).value ?? const []).where((n) => !n.isRead).length;
+    final approver = viewer.hasApprovals && canView;
+    final segment = _segment;
+    final roleLine = [if ((user?.displayName ?? '').isNotEmpty) user!.displayName!, approverRoleOf(viewer).label].join(' · ');
+    final now = DateTime.now();
+
+    Future<void> refresh() async {
+      ref.invalidate(awaitingFinanceRequestsProvider);
+      ref.invalidate(scopeFinanceRequestsProvider);
+      ref.invalidate(handledFinanceRequestsProvider);
+      ref.invalidate(financeNotificationsProvider);
+      await ref.refresh(myFinanceRequestsProvider.future).then((_) {}, onError: (_) {});
+    }
 
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
+      backgroundColor: FC.bg,
       body: SafeArea(
         bottom: false,
         child: RefreshIndicator(
-          onRefresh: () => ref
-              .refresh((showApprovals ? awaitingFinanceRequestsProvider : myFinanceRequestsProvider).future)
-              .then((_) {}, onError: (_) {}),
-          child: CustomScrollView(
+          onRefresh: refresh,
+          child: SingleChildScrollView(
+            controller: _scroll,
             physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
-                sliver: SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Finance', style: AppTypography.headingMedium),
-                            const SizedBox(height: 2),
-                            Text(
-                              showApprovals
-                                  ? 'Requests waiting for your decision'
-                                  : 'Your advances, settlements and reimbursements',
-                              style: AppTypography.bodySmall,
-                            ),
+                            const Text('Finance', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, letterSpacing: -0.5)),
+                            const SizedBox(height: 3),
+                            Text(approver ? roleLine : 'Your advances, settlements and reimbursements', style: const TextStyle(fontSize: 13, color: Color(0xFF737983), height: 1.35)),
                           ],
                         ),
                       ),
-                      if (canCreate && !showApprovals)
-                        FilledButton.icon(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.darkSlate,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      const SizedBox(width: 12),
+                      _Bell(unread: unread, onTap: () => _go(const NotificationsScreen())),
+                      if (canCreate && !approver) ...[
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          height: 44,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: FC.navy,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 18),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                            ),
+                            onPressed: () => _newRequest(mine.value ?? const []),
+                            icon: const Icon(Icons.add_rounded, size: 18),
+                            label: const Text('New', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                           ),
-                          onPressed: _newRequest,
-                          icon: const Icon(Icons.add_rounded, size: 18),
-                          label: const Text('New', style: TextStyle(fontWeight: FontWeight.w700)),
                         ),
+                      ],
                     ],
                   ),
                 ),
-              ),
-              if (!canView)
-                const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: _Notice(
-                    icon: Icons.lock_outline,
-                    title: 'Finance is not available for your account',
-                    message: 'Ask an administrator if you need to raise advances or reimbursements.',
-                  ),
-                )
-              else ...[
-                if (viewer.hasApprovals)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-                      child: SegmentedButton<bool>(
-                        showSelectedIcon: false,
-                        segments: [
-                          const ButtonSegment(value: false, label: Text('My requests')),
-                          ButtonSegment(
-                            value: true,
-                            label: Text(
-                              'Approvals${(ref.watch(awaitingFinanceRequestsProvider).value?.length ?? 0) > 0 ? ' (${ref.watch(awaitingFinanceRequestsProvider).value!.length})' : ''}',
-                            ),
-                          ),
-                        ],
-                        selected: {_approvals},
-                        onSelectionChanged: (s) => setState(() {
-                          _approvals = s.first;
-                          _filter = 'All';
-                        }),
+                if (!canView)
+                  const Padding(
+                    padding: EdgeInsets.all(40),
+                    child: Center(
+                      child: Text(
+                        'Finance is not available for your account. Ask an administrator if you need to raise advances or reimbursements.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: FC.muted),
                       ),
                     ),
-                  ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 14),
-                    child: SizedBox(
-                      height: 38,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        itemCount: _filters.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 8),
-                        itemBuilder: (_, i) {
-                          final name = _filters.keys.elementAt(i);
-                          final selected = name == _filter;
-                          return ChoiceChip(
-                            label: Text(name),
-                            selected: selected,
-                            showCheckmark: false,
-                            selectedColor: AppColors.darkSlate,
-                            labelStyle: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: selected ? Colors.white : AppColors.textSecondary,
-                            ),
-                            onSelected: (_) => setState(() => _filter = name),
-                          );
-                        },
-                      ),
+                  )
+                else if (approver)
+                  ApproverFinance(
+                    viewer: viewer,
+                    onOpen: _open,
+                    onSettle: (advance) => _go(ExpensesFormScreen(kind: RequestKind.settlement, advance: advance)),
+                    onNew: canCreate ? () => _newRequest(mine.value ?? const []) : null,
+                  )
+                else ...[
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(color: const Color(0xFFE9EAEE), borderRadius: BorderRadius.circular(12)),
+                    child: Row(
+                      children: [
+                        _SegmentButton('Overview', segment == _Segment.overview, () => _show(_Segment.overview)),
+                        _SegmentButton('Records', segment == _Segment.records, () => _show(_Segment.records)),
+                      ],
                     ),
                   ),
-                ),
-                const SliverToBoxAdapter(child: SizedBox(height: 12)),
-                requests.when(
-                  loading: () => const SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                  error: (e, _) => SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: _Notice(
-                      icon: Icons.cloud_off_outlined,
-                      title: 'Could not load your requests',
-                      message: e.toString(),
-                      action: TextButton(
-                        onPressed: () => ref.invalidate(showApprovals ? awaitingFinanceRequestsProvider : myFinanceRequestsProvider),
-                        child: const Text('Retry'),
-                      ),
-                    ),
-                  ),
-                  data: (all) {
-                    final wanted = _filters[_filter];
-                    final shown = wanted == null ? all : all.where((r) => wanted.contains(r.status)).toList();
-                    if (shown.isEmpty) {
-                      return SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: _Notice(
-                          icon: Icons.account_balance_wallet_outlined,
-                          title: all.isEmpty ? (showApprovals ? 'Nothing is waiting for you' : 'No requests yet') : 'Nothing here',
-                          message: all.isEmpty
-                              ? (showApprovals
-                                  ? 'Requests that need your approval or payment will show here.'
-                                  : canCreate
-                                      ? 'Tap New to raise an advance or a reimbursement.'
-                                      : 'Requests you raise will show here.')
-                              : 'No requests match this filter.',
-                        ),
+                  _list(mine, ref, (all) {
+                      if (segment == _Segment.records) {
+                        final views = [for (final r in all) viewOf(r, all, now)];
+                        return RecordsTab(
+                          views: views,
+                          query: _query,
+                          filter: _filter,
+                          onQuery: (q) => setState(() => _query = q),
+                          onFilter: (f) => setState(() => _filter = f),
+                          onOpen: _open,
+                        );
+                      }
+                      final months = monthsOf(all, now);
+                      final month = months.contains(_month) ? _month! : monthKeyOf(now);
+                      return OverviewTab(
+                        overview: buildOverview(all, month, now),
+                        months: months,
+                        onMonth: (m) => setState(() => _month = m),
+                        onOpen: _open,
+                        onSettle: (advance) => _go(ExpensesFormScreen(kind: RequestKind.settlement, advance: advance)),
+                        onNewAdvance: () => _go(const AdvanceFormScreen()),
+                        onNewSettlement: () => _go(const ExpensesFormScreen(kind: RequestKind.settlement)),
+                        onStatement: () => _go(StatementScreen(initialPeriod: month)),
+                        onProject: (code) => _show(_Segment.records, query: code),
+                        onSeeAll: () => _show(_Segment.records),
                       );
-                    }
-                    return SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
-                      sliver: SliverList.separated(
-                        itemCount: shown.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 10),
-                        itemBuilder: (_, i) => _RequestCard(
-                          request: shown[i],
-                          requester: showApprovals ? names[shown[i].requesterId] : null,
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                    }),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
     );
   }
+
+  Widget _list(AsyncValue<List<FinanceRequest>> async, WidgetRef ref, Widget Function(List<FinanceRequest>) data) {
+    return async.when(
+      loading: () => const Padding(padding: EdgeInsets.all(60), child: Center(child: CircularProgressIndicator())),
+      error: (e, _) => Padding(
+        padding: const EdgeInsets.all(40),
+        child: Center(
+          child: Column(
+            children: [
+              const Icon(Icons.cloud_off_outlined, size: 40, color: FC.faint),
+              const SizedBox(height: 10),
+              Text(e.toString(), textAlign: TextAlign.center, style: const TextStyle(color: FC.muted)),
+              TextButton(
+                onPressed: () {
+                  ref.invalidate(myFinanceRequestsProvider);
+                  ref.invalidate(awaitingFinanceRequestsProvider);
+                },
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      data: data,
+    );
+  }
 }
 
-class _RequestCard extends StatelessWidget {
-  const _RequestCard({required this.request, this.requester});
+class _Bell extends StatelessWidget {
+  const _Bell({required this.unread, required this.onTap});
 
-  final FinanceRequest request;
-
-  /// Shown on the approvals list, where the request is someone else's.
-  final String? requester;
+  final int unread;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final waiting = RequestStatus.waitingOn(request.status);
-    final shownAmount = request.status == 'PAID' || request.status == 'SETTLED'
-        ? (request.approvedAmount ?? request.requestedAmount)
-        : request.requestedAmount;
-    return Card(
-      margin: EdgeInsets.zero,
+    return InkWell(
+      customBorder: const CircleBorder(),
+      onTap: onTap,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: FC.field)),
+            child: const Icon(Icons.notifications_none_rounded, size: 22, color: FC.ink),
+          ),
+          if (unread > 0)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: BoxDecoration(color: const Color(0xFFC8372D), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white, width: 2)),
+                alignment: Alignment.center,
+                child: Text(unread > 9 ? '9+' : '$unread', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SegmentButton extends StatelessWidget {
+  const _SegmentButton(this.label, this.selected, this.onTap);
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => Navigator.push<void>(
-          context,
-          MaterialPageRoute(builder: (_) => RequestDetailScreen(requestId: request.id)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(request.number, style: AppTypography.titleMedium),
-                  const SizedBox(width: 8),
-                  Text(
-                    RequestKind.labels[request.kind] ?? request.kind,
-                    style: AppTypography.caption,
-                  ),
-                  const Spacer(),
-                  FinanceStatusChip(status: request.status),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(request.purpose, maxLines: 2, overflow: TextOverflow.ellipsis, style: AppTypography.bodyMedium),
-              const SizedBox(height: 4),
-              Text(
-                [
-                  if ((requester ?? '').isNotEmpty) requester!,
-                  if (request.projectCode != null) request.projectCode!,
-                  if (request.categoryName != null) request.categoryName!,
-                  DateFormat('d MMM yyyy').format(request.createdAt),
-                ].join(' • '),
-                style: AppTypography.caption,
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Text(formatMoney(shownAmount), style: AppTypography.titleLarge),
-                  const Spacer(),
-                  if (waiting != null)
-                    Flexible(child: Text(waiting, style: AppTypography.caption, overflow: TextOverflow.ellipsis)),
-                ],
-              ),
-            ],
+        borderRadius: BorderRadius.circular(9),
+        onTap: onTap,
+        child: Container(
+          height: 36,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
+            boxShadow: selected ? [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 2, offset: const Offset(0, 1))] : null,
+          ),
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 14, fontWeight: selected ? FontWeight.w600 : FontWeight.w500, color: selected ? FC.ink : const Color(0xFF5D636D)),
           ),
         ),
       ),
@@ -324,53 +348,43 @@ class _RequestCard extends StatelessWidget {
   }
 }
 
-class _KindTile extends StatelessWidget {
-  const _KindTile({required this.icon, required this.title, required this.subtitle, required this.onTap});
+class _SheetOption extends StatelessWidget {
+  const _SheetOption({required this.icon, required this.bg, required this.fg, required this.title, required this.subtitle, required this.onTap});
 
   final IconData icon;
+  final Color bg;
+  final Color fg;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: AppColors.primaryLavenderLight, borderRadius: BorderRadius.circular(12)),
-        child: Icon(icon, color: AppColors.darkSlate),
-      ),
-      title: Text(title, style: AppTypography.titleMedium),
-      subtitle: Text(subtitle, style: AppTypography.caption),
-      trailing: const Icon(Icons.chevron_right_rounded),
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
       onTap: onTap,
-    );
-  }
-}
-
-class _Notice extends StatelessWidget {
-  const _Notice({required this.icon, required this.title, required this.message, this.action});
-
-  final IconData icon;
-  final String title;
-  final String message;
-  final Widget? action;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), border: Border.all(color: FC.border)),
+        child: Row(
           children: [
-            Icon(icon, size: 44, color: AppColors.textTertiary),
-            const SizedBox(height: 12),
-            Text(title, style: AppTypography.titleMedium, textAlign: TextAlign.center),
-            const SizedBox(height: 4),
-            Text(message, style: AppTypography.bodySmall, textAlign: TextAlign.center),
-            ?action,
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
+              child: Icon(icon, size: 20, color: fg),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: const TextStyle(fontSize: 13, color: FC.muted)),
+                ],
+              ),
+            ),
           ],
         ),
       ),

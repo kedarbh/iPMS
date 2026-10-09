@@ -208,6 +208,48 @@ describe('submit', () => {
   });
 });
 
+describe('bills claimed twice', () => {
+  const bill = (over: object = {}) => ({ vendor: 'Himal Fuel', invoiceNumber: '17', invoiceDate: new Date('2026-10-01'), amount: '900', ...over });
+  const reimburse = (invoices: object[]) =>
+    service.create({ kind: 'REIMBURSEMENT', projectId: PROJECT.id, categoryId, purpose: 'Fuel', invoices } as CreateRequestDto, ACTORS.engineer, scopes.project, PROJECT);
+
+  it('refuses a vendor\'s invoice number that is already on another live request that fiscal year', async () => {
+    const first = await reimburse([bill()]);
+    await service.submit(first.id, ACTORS.engineer);
+    const again = await reimburse([bill({ vendor: ' himal  fuel', invoiceDate: new Date('2026-10-20') })]);
+    await expect(service.submit(again.id, ACTORS.engineer)).rejects.toThrow(/Invoice 17 from .* already claimed on REI-/);
+  });
+
+  it('lets the number be used again once the other request is cancelled, or in a new fiscal year, or by another vendor', async () => {
+    const first = await reimburse([bill()]);
+    await service.submit(first.id, ACTORS.engineer);
+    await expect(service.submit((await reimburse([bill({ vendor: 'Everest Hardware' })])).id, ACTORS.engineer)).resolves.toMatchObject({ status: 'PENDING_PM' });
+    await expect(service.submit((await reimburse([bill({ invoiceDate: new Date('2027-10-01') })])).id, ACTORS.engineer)).resolves.toMatchObject({ status: 'PENDING_PM' });
+    await service.cancel(first.id, undefined, ACTORS.engineer);
+    await expect(service.submit((await reimburse([bill()])).id, ACTORS.engineer)).resolves.toMatchObject({ status: 'PENDING_PM' });
+  });
+
+  it('refuses the number across New Year within one fiscal year, but not before the fiscal year turned over', async () => {
+    const first = await reimburse([bill({ invoiceDate: new Date('2026-09-01') })]);
+    await service.submit(first.id, ACTORS.engineer);
+    const sameYear = await reimburse([bill({ invoiceDate: new Date('2027-02-01') })]);
+    await expect(service.submit(sameYear.id, ACTORS.engineer)).rejects.toThrow(/already claimed/);
+    const earlier = await reimburse([bill({ invoiceDate: new Date('2026-06-01') })]);
+    await expect(service.submit(earlier.id, ACTORS.engineer)).resolves.toMatchObject({ status: 'PENDING_PM' });
+  });
+
+  it('refuses the same number listed twice on one request', async () => {
+    const r = await reimburse([bill(), bill({ amount: '50' })]);
+    await expect(service.submit(r.id, ACTORS.engineer)).rejects.toThrow(/more than once/);
+  });
+
+  it('does not count a request against itself when it is resubmitted', async () => {
+    const r = await reimburse([bill()]);
+    await service.submit(r.id, ACTORS.engineer);
+    await expect(service.submit(r.id, ACTORS.engineer)).rejects.toThrow(/draft or returned/);
+  });
+});
+
 describe('cancel', () => {
   it('lets the requester cancel while pending, recording who was holding it', async () => {
     const r = await service.create(advanceDto(), ACTORS.engineer, scopes.project, PROJECT);

@@ -38,6 +38,15 @@ class ApiEndpoints {
   static String financeFileUrl(String id) => '/api/v1/media/finance/$id/url';
   static const String mediaList = '/api/v1/media';
 
+  // notifications
+  static const String notifications = '/api/v1/notifications';
+  static const String notificationsReadAll = '/api/v1/notifications/read-all';
+  static String notificationRead(String id) => '/api/v1/notifications/$id/read';
+
+  // push notifications
+  static const String pushTokens = '/api/v1/notifications/push-tokens';
+  static const String pushTokensRemove = '/api/v1/notifications/push-tokens/unregister';
+
   // finance
   static const String financeRequests = '/api/v1/finance/requests';
   static String financeRequest(String id) => '/api/v1/finance/requests/$id';
@@ -45,6 +54,7 @@ class ApiEndpoints {
   static String financeCancel(String id) => '/api/v1/finance/requests/$id/cancel';
   static String financeAction(String id, String verb) => '/api/v1/finance/requests/$id/$verb';
   static String financeCashReturn(String advanceId) => '/api/v1/finance/advances/$advanceId/cash-return';
+  static String financeRemind(String advanceId) => '/api/v1/finance/advances/$advanceId/remind';
   static const String financeCategories = '/api/v1/finance/categories';
 
   /// Requests that must never carry (or refresh) an access token.

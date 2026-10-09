@@ -45,6 +45,20 @@ export type RequestAction = 'edit' | 'submit' | 'cancel' | 'approve' | 'return' 
 
 const PENDING = new Set(['PENDING_PM', 'PENDING_DIRECTOR', 'PENDING_FINANCE']);
 
+/**
+ * Where an advance stands against its settlement window. Only a paid advance
+ * with something still outstanding is on the clock; the day is a calendar day,
+ * so it is compared as `YYYY-MM-DD` against today's date.
+ */
+export function settlementStatus(
+  dueOn: string | null | undefined, balance: { status: string } | null | undefined, today: string,
+): { label: string; overdue: boolean } | null {
+  if (!dueOn || balance?.status === 'CLOSED') return null;
+  const overdue = dueOn < today;
+  const date = new Date(`${dueOn}T00:00:00Z`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  return { label: overdue ? `Overdue since ${date}` : `Settle by ${date}`, overdue };
+}
+
 /** An advance that has been paid can be settled and can take returned cash. */
 export const isSettleable = (request: Pick<FinanceRequest, 'kind' | 'status'>): boolean => request.kind === 'ADVANCE' && request.status === 'PAID';
 
@@ -87,5 +101,6 @@ export function describeEntry(entry: { step: FinanceStep; action: string }): str
   if (entry.action === 'SUBMITTED') return 'Submitted';
   if (entry.action === 'CANCELLED') return 'Cancelled';
   if (entry.action === 'CASH_RETURNED') return 'Cash return recorded by finance';
+  if (entry.action === 'REMINDED') return `Settlement reminder sent by ${STEP_NAME[entry.step]}`;
   return `${VERB[entry.action] ?? entry.action} by ${STEP_NAME[entry.step]}`;
 }

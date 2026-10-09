@@ -5,6 +5,12 @@ import { PaginationSchema } from '../common/pagination.js';
 /** Finance deals in one currency. It is a constant, not a column, so a second currency is a deliberate change. */
 export const FINANCE_CURRENCY = 'NPR';
 
+/** The VAT rate in Nepal. A bill marked VAT carries it inside its amount, not on top. */
+export const VAT_RATE_PERCENT = 13;
+
+/** An advance is to be settled within this many days of the day it was paid. */
+export const SETTLEMENT_WINDOW_DAYS = 7;
+
 export const RequestKindSchema = z.enum(['ADVANCE', 'SETTLEMENT', 'REIMBURSEMENT']);
 export type RequestKind = z.infer<typeof RequestKindSchema>;
 
@@ -27,10 +33,16 @@ export const MoneySchema = z.string().trim()
 const TextSchema = (max: number) => z.string().trim().min(1).max(max);
 
 export const InvoiceInputSchema = z.object({
+  /** Who was paid, or what for. */
   vendor: TextSchema(200),
-  invoiceNumber: TextSchema(100),
+  /** A bill without VAT often has no number, so it is optional. */
+  invoiceNumber: TextSchema(100).optional(),
   invoiceDate: z.coerce.date(),
   amount: MoneySchema,
+  /** A VAT bill: [VAT_RATE_PERCENT] is included in `amount`. */
+  vat: z.boolean().optional(),
+  /** The supplier's PAN or VAT number, from a VAT bill. */
+  supplierTaxNo: TextSchema(50).optional(),
   /** The uploaded invoice scan or photo, held by the media service. Optional until finance documents can be uploaded. */
   mediaId: UuidSchema.optional(),
 });
@@ -81,8 +93,11 @@ export const PaymentDetailsSchema = z.object({
 });
 export type PaymentDetailsDto = z.infer<typeof PaymentDetailsSchema>;
 
-/** Every field optional: a settlement with no payout needs none. The service demands them when money moves. */
-export const PayRequestSchema = PaymentDetailsSchema.partial();
+/**
+ * Every field optional: a settlement with no payout needs none. The service demands them when money moves.
+ * `balanceReceived` on a settlement also records the unspent balance the engineer handed over, closing the advance.
+ */
+export const PayRequestSchema = PaymentDetailsSchema.partial().extend({ balanceReceived: z.boolean().optional() });
 
 export const CashReturnSchema = PaymentDetailsSchema.extend({ amount: MoneySchema });
 export type CashReturnDto = z.infer<typeof CashReturnSchema>;
@@ -94,8 +109,8 @@ export const CategoryCreateSchema = z.object({
 export const CategoryUpdateSchema = z.object({ name: TextSchema(100).optional(), disabled: z.boolean().optional() }).strict();
 
 export const ListRequestsQuerySchema = PaginationSchema.extend({
-  /** mine: my own. awaiting: waiting for my approval or payment. all: everything in my project scope. */
-  view: z.enum(['mine', 'awaiting', 'all']).default('mine'),
+  /** mine: my own. awaiting: waiting for my approval or payment. all: everything in my project scope. handled: others' requests I have already acted on, latest first. */
+  view: z.enum(['mine', 'awaiting', 'all', 'handled']).default('mine'),
   status: RequestStatusSchema.optional(),
   kind: RequestKindSchema.optional(),
   projectId: UuidSchema.optional(),

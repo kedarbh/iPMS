@@ -65,7 +65,8 @@ describe('createUserAction', () => {
   });
 
   it('requires exactly one role', async () => {
-    const { roleCodes: _none, ...withoutRole } = NEW_USER;
+    const withoutRole: Partial<typeof NEW_USER> = { ...NEW_USER };
+    delete withoutRole.roleCodes;
     expect(await createUserAction({}, form(withoutRole))).toEqual({ error: 'Choose a role for this user.' });
     expect(await createUserAction({}, form({ ...NEW_USER, roleCodes: ['FIELD_ENGINEER', 'QC_MANAGER'] })))
       .toEqual({ error: 'Choose a role for this user.' });

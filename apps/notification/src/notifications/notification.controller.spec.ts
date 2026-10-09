@@ -13,8 +13,32 @@ function build() {
     markRead: vi.fn().mockResolvedValue(undefined),
     markAllRead: vi.fn().mockResolvedValue(2),
   };
-  return { controller: new NotificationController(service as never), service };
+  const push = { register: vi.fn().mockResolvedValue(undefined), unregister: vi.fn().mockResolvedValue(undefined) };
+  return { controller: new NotificationController(service as never, push as never), service, push };
 }
+
+describe('NotificationController push tokens', () => {
+  const TOKEN = 'fcm-token-0123456789abcdef0123456789';
+
+  it('registers a device for the caller only', async () => {
+    const { controller, push } = build();
+    await controller.registerPushToken(ME, { token: TOKEN, platform: 'ANDROID' });
+    expect(push.register).toHaveBeenCalledWith(ME, { token: TOKEN, platform: 'ANDROID' });
+  });
+
+  it('refuses a token that is too short, an unknown platform, or extra fields', async () => {
+    const { controller } = build();
+    await expect(controller.registerPushToken(ME, { token: 'x', platform: 'ANDROID' })).rejects.toThrow();
+    await expect(controller.registerPushToken(ME, { token: TOKEN, platform: 'WINDOWS' })).rejects.toThrow();
+    await expect(controller.registerPushToken(ME, { token: TOKEN, platform: 'IOS', userId: 'someone-else' })).rejects.toThrow();
+  });
+
+  it('unregisters a device for the caller only', async () => {
+    const { controller, push } = build();
+    await controller.unregisterPushToken(ME, { token: TOKEN });
+    expect(push.unregister).toHaveBeenCalledWith(ME, TOKEN);
+  });
+});
 
 describe('NotificationController', () => {
   it('lists for the caller, parsing the query string', async () => {

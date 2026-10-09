@@ -1,9 +1,10 @@
-import { Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import {
-  ListNotificationsQuerySchema, NotificationIdSchema,
+  ListNotificationsQuerySchema, NotificationIdSchema, RegisterPushTokenSchema, UnregisterPushTokenSchema,
   type NotificationPage, type UnreadCount,
 } from '@ipms/contracts';
 import { CurrentUserId } from '../http/current-user.js';
+import { PushService } from '../push/push.service.js';
 import { NotificationService } from './notification.service.js';
 
 /**
@@ -15,7 +16,7 @@ import { NotificationService } from './notification.service.js';
  */
 @Controller('notifications')
 export class NotificationController {
-  constructor(private readonly notifications: NotificationService) {}
+  constructor(private readonly notifications: NotificationService, private readonly push: PushService) {}
 
   @Get()
   async list(@CurrentUserId() userId: string, @Query() query: unknown): Promise<NotificationPage> {
@@ -25,6 +26,20 @@ export class NotificationController {
   @Get('unread-count')
   async unreadCount(@CurrentUserId() userId: string): Promise<UnreadCount> {
     return { count: await this.notifications.unreadCount(userId) };
+  }
+
+  /** The device says where pushes for the caller should go. Safe to repeat: a token is one row. */
+  @Post('push-tokens')
+  @HttpCode(204)
+  async registerPushToken(@CurrentUserId() userId: string, @Body() body: unknown): Promise<void> {
+    await this.push.register(userId, RegisterPushTokenSchema.parse(body));
+  }
+
+  /** A POST rather than a DELETE with a body: some proxies drop DELETE bodies. */
+  @Post('push-tokens/unregister')
+  @HttpCode(204)
+  async unregisterPushToken(@CurrentUserId() userId: string, @Body() body: unknown): Promise<void> {
+    await this.push.unregister(userId, UnregisterPushTokenSchema.parse(body).token);
   }
 
   @Post('read-all')

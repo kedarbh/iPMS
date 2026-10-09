@@ -8,6 +8,7 @@ import { ApprovalService } from '../approvals/approval.service.js';
 import { ProjectDirectoryClient, required } from '../directory/project-directory.client.js';
 import { PaymentService } from '../payments/payment.service.js';
 import { QueryService } from '../queries/query.service.js';
+import { ReminderService } from '../reminders/reminder.service.js';
 import { RequestService } from '../requests/request.service.js';
 
 type Authed = { user: AuthzUser; headers: Record<string, string | undefined> };
@@ -29,6 +30,7 @@ export class RequestController {
     private readonly approvals: ApprovalService,
     private readonly payments: PaymentService,
     private readonly queries: QueryService,
+    private readonly reminders: ReminderService,
     private readonly projects: ProjectDirectoryClient,
   ) {}
 
@@ -82,6 +84,11 @@ export class RequestController {
   @Post('advances/:id/cash-return') @RequirePermission('finance_payment.record')
   async returnCash(@Param('id') id: string, @Body() body: unknown, @Req() req: Authed) {
     return this.payments.returnCash(UuidSchema.parse(id), CashReturnSchema.parse(body), req.user, await this.scope(req));
+  }
+
+  @Post('advances/:id/remind') @RequirePermission('finance_request.view')
+  async remind(@Param('id') id: string, @Req() req: Authed) {
+    return this.reminders.remind(UuidSchema.parse(id), req.user, await this.scope(req));
   }
 
   @Get('requests') @RequirePermission('finance_request.view')

@@ -6,7 +6,7 @@ import {
   type AuthzScope, type ScopeProvider,
 } from '@ipms/authz';
 import { EventBus } from '@ipms/events';
-import { HealthController, MetricsController, registerReadinessCheck } from '@ipms/observability';
+import { HealthController, MetricsController, createLogger, registerReadinessCheck } from '@ipms/observability';
 import { IamDirectoryClient } from './directory/iam-directory.client.js';
 import { IamNotificationConsumer } from './events/iam-notification.consumer.js';
 import { FinanceNotificationConsumer } from './events/finance-notification.consumer.js';
@@ -14,6 +14,30 @@ import { QcNotificationConsumer } from './events/qc-notification.consumer.js';
 import { NotificationController } from './notifications/notification.controller.js';
 import { NotificationService } from './notifications/notification.service.js';
 import { PrismaService } from './prisma.service.js';
+import { FcmSender, parseServiceAccount } from './push/fcm.sender.js';
+import { PushService } from './push/push.service.js';
+import { NoopPushSender, type PushSender } from './push/push.sender.js';
+
+const log = createLogger('notification');
+
+/**
+ * Push goes out through FCM when `FCM_SERVICE_ACCOUNT_JSON` holds a Firebase service-account key;
+ * without it, notifications stay in-app and devices can still register (so pushes start the day a key is set).
+ */
+function pushSender(): PushSender {
+  const raw = process.env['FCM_SERVICE_ACCOUNT_JSON'];
+  if (!raw) {
+    log.info('FCM_SERVICE_ACCOUNT_JSON is not set: push is off, notifications stay in-app');
+    return new NoopPushSender();
+  }
+  const account = parseServiceAccount(raw);
+  if (!account) {
+    log.error('FCM_SERVICE_ACCOUNT_JSON is not a service-account key: push is off');
+    return new NoopPushSender();
+  }
+  log.info({ project: account.project_id }, 'push enabled through FCM');
+  return new FcmSender(account);
+}
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -36,14 +60,9 @@ const notificationScopeProvider: ScopeProvider = {
 };
 
 /**
- * DEFERRED — push and email transport (spec 2026-09-20 §6.2).
- *
- * This service will deliver over FCM (Android, with iOS via the APNs bridge)
- * and an SMTP-compatible transactional provider — architecture spec §12,
- * assumption 1. Neither client, nor their credentials, nor a `DevicePushToken`
- * registration endpoint exists yet. In-app delivery is live (spec 2026-10-02);
- * add transport beside `QcNotificationConsumer`, as another sink for the same
- * decision, not as a second consumer of the same events.
+ * Push (FCM; Android, with iOS through the APNs bridge) is a sink beside in-app delivery for the same
+ * decision: `NotificationService` stores a notification, then `PushService` sends it to the recipient's
+ * registered devices. Email transport is still deferred (spec 2026-09-20 §6.2).
  */
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true })],
@@ -81,9 +100,15 @@ const notificationScopeProvider: ScopeProvider = {
       },
     },
     {
-      provide: NotificationService,
-      useFactory: (prisma: PrismaService): NotificationService => new NotificationService(prisma.db),
+      provide: PushService,
+      useFactory: (prisma: PrismaService): PushService => new PushService(prisma.db, pushSender()),
       inject: [PrismaService],
+    },
+    {
+      provide: NotificationService,
+      useFactory: (prisma: PrismaService, push: PushService): NotificationService =>
+        new NotificationService(prisma.db, (rows) => { void push.dispatch(rows); }),
+      inject: [PrismaService, PushService],
     },
     {
       provide: IamDirectoryClient,

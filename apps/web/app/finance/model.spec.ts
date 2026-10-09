@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { availableActions, describeEntry, formatMoney, personName, waitingOn, type Viewer } from './model';
+import { availableActions, describeEntry, formatMoney, personName, settlementStatus, waitingOn, type Viewer } from './model';
 
 const ENG: Viewer = { id: 'u-eng', permissions: ['finance_request.view', 'finance_request.create', 'finance_request.cancel', 'finance_settlement.submit'] };
 const PM: Viewer = { id: 'u-pm', permissions: ['finance_request.view', 'finance_request.view_all', 'finance_request.create', 'finance_request.cancel', 'finance_settlement.submit', 'finance_approval.pm'] };
@@ -101,5 +101,22 @@ describe('availableActions: closed advances', () => {
     expect(availableActions(req({ status: 'PAID' }), ENG, [], { status: 'PARTIALLY_SETTLED' })).toEqual(['settle']);
     expect(availableActions(req({ status: 'PAID' }), FIN, [], null)).toEqual(['cashReturn']);
     expect(availableActions(req({ status: 'PAID' }), FIN, [])).toEqual(['cashReturn']);
+  });
+});
+
+describe('settlementStatus', () => {
+  it('says when a paid advance is to be settled by, a week after it was paid', () => {
+    expect(settlementStatus('2026-10-14', { status: 'PAID' }, '2026-10-10')).toEqual({ label: 'Settle by 14 Oct 2026', overdue: false });
+    expect(settlementStatus('2026-10-14', { status: 'PARTIALLY_SETTLED' }, '2026-10-14')?.overdue).toBe(false);
+  });
+
+  it('is overdue from the day after, while something is outstanding', () => {
+    expect(settlementStatus('2026-10-14', { status: 'PAID' }, '2026-10-15')).toEqual({ label: 'Overdue since 14 Oct 2026', overdue: true });
+  });
+
+  it('is off the clock once the advance is closed, or has no due day', () => {
+    expect(settlementStatus('2026-10-14', { status: 'CLOSED' }, '2026-12-01')).toBeNull();
+    expect(settlementStatus(null, { status: 'PAID' }, '2026-10-10')).toBeNull();
+    expect(settlementStatus(undefined, undefined, '2026-10-10')).toBeNull();
   });
 });

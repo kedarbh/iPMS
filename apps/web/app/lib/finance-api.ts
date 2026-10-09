@@ -24,7 +24,9 @@ export interface FinanceRequest {
 }
 
 export interface RequestInvoice {
-  id: string; requestId: string; vendor: string; invoiceNumber: string; invoiceDate: string; amount: string; mediaId: string | null;
+  id: string; requestId: string; vendor: string; invoiceNumber: string | null; invoiceDate: string; amount: string; mediaId: string | null;
+  /** A VAT bill: 13% is inside the amount. */
+  vat: boolean; supplierTaxNo: string | null;
 }
 export interface ApprovalAction {
   id: string; requestId: string; revision: number; step: FinanceStep; action: string; actorId: string;
@@ -37,8 +39,16 @@ export interface Payment {
 export interface AdvanceBalance {
   paid: string; applied: string; cashReturned: string; outstanding: string; status: 'PAID' | 'PARTIALLY_SETTLED' | 'CLOSED';
 }
+/** Another live request holding a bill like one of this request's. */
+export interface DuplicateHit {
+  requestId: string; number: string; status: RequestStatus; vendor: string; invoiceNumber: string | null;
+  reason: 'SAME_NUMBER' | 'SAME_BILL' | 'NUMBER_OTHER_YEAR';
+}
 export type FinanceRequestDetail = FinanceRequest & {
   invoices: RequestInvoice[]; actions: ApprovalAction[]; payments: Payment[]; balance?: AdvanceBalance;
+  duplicates?: DuplicateHit[];
+  /** A paid advance's last day to settle (`YYYY-MM-DD`): a week after it was paid. */
+  settlementDueOn?: string | null;
 };
 export interface AdvanceView { advance: FinanceRequest; balance: AdvanceBalance | null; settlements: FinanceRequest[] }
 export interface RequestPage { items: FinanceRequest[]; total: number; page: number; limit: number }
@@ -55,7 +65,11 @@ export interface RequestFilter {
 }
 
 /** Invoice rows as a form sends them: the date is a `YYYY-MM-DD` string, the amount a two-decimal string. */
-export interface InvoiceInput { vendor: string; invoiceNumber: string; invoiceDate: string; amount: string; mediaId?: string }
+export interface InvoiceInput {
+  vendor: string; invoiceNumber?: string; invoiceDate: string; amount: string; mediaId?: string;
+  /** A VAT bill: 13% is inside the amount. */
+  vat?: boolean; supplierTaxNo?: string;
+}
 
 export type CreateRequestInput =
   | { kind: 'ADVANCE'; projectId: string; categoryId: string; purpose: string; amount: string; workOrderId?: string }

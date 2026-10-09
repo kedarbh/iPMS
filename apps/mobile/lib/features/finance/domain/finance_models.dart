@@ -87,27 +87,56 @@ class ExpenseCategory {
   final String name;
 }
 
+/// VAT is [vatRatePercent] of a bill's total, included in it, not added on top.
+const int vatRatePercent = 13;
+
+/// The VAT inside [amount] (which includes it): amount × 13 / 113 to the
+/// paisa, halves rounding up, as the server works it out.
+String vatIncluded(String amount) {
+  final parts = amount.trim().split('.');
+  final whole = int.tryParse(parts[0].isEmpty ? '0' : parts[0]) ?? 0;
+  final frac = parts.length > 1 ? int.tryParse(parts[1].padRight(2, '0').substring(0, 2)) ?? 0 : 0;
+  final minor = whole * 100 + frac;
+  const rate = vatRatePercent;
+  final vat = (minor * rate * 2 + (100 + rate)) ~/ ((100 + rate) * 2);
+  return '${vat ~/ 100}.${(vat % 100).toString().padLeft(2, '0')}';
+}
+
 class RequestInvoice {
   const RequestInvoice({
     required this.vendor,
-    required this.invoiceNumber,
     required this.invoiceDate,
     required this.amount,
+    this.invoiceNumber,
     this.mediaId,
+    this.vat = false,
+    this.supplierTaxNo,
   });
 
   factory RequestInvoice.fromJson(Map<String, dynamic> json) => RequestInvoice(
         mediaId: json['mediaId'] as String?,
+        vat: json['vat'] as bool? ?? false,
+        supplierTaxNo: json['supplierTaxNo'] as String?,
         vendor: json['vendor'] as String? ?? '',
-        invoiceNumber: json['invoiceNumber'] as String? ?? '',
+        invoiceNumber: json['invoiceNumber'] as String?,
         invoiceDate: DateTime.tryParse(json['invoiceDate']?.toString() ?? '') ?? DateTime.now(),
         amount: json['amount']?.toString() ?? '0.00',
       );
 
+  /// Who was paid, or what for.
   final String vendor;
-  final String invoiceNumber;
+
+  /// Absent on a bill that has none, as a bill without VAT often does.
+  final String? invoiceNumber;
   final DateTime invoiceDate;
   final String amount;
+
+  /// A VAT bill: [vatRatePercent] is included in [amount].
+  final bool vat;
+  final String? supplierTaxNo;
+
+  /// The VAT inside [amount], or zero for a bill without VAT.
+  String get vatAmount => vat ? vatIncluded(amount) : '0.00';
 
   /// The invoice photo in the media service, if one was attached.
   final String? mediaId;
@@ -115,9 +144,11 @@ class RequestInvoice {
   Map<String, dynamic> toJson() => {
         'mediaId': ?mediaId,
         'vendor': vendor.trim(),
-        'invoiceNumber': invoiceNumber.trim(),
+        if ((invoiceNumber ?? '').trim().isNotEmpty) 'invoiceNumber': invoiceNumber!.trim(),
         'invoiceDate': DateFormat('yyyy-MM-dd').format(invoiceDate),
         'amount': amount.trim(),
+        if (vat) 'vat': true,
+        if (vat && (supplierTaxNo ?? '').trim().isNotEmpty) 'supplierTaxNo': supplierTaxNo!.trim(),
       };
 }
 
@@ -170,6 +201,35 @@ class ApprovalEntry {
     if (action == 'CASH_RETURNED') return 'Cash return recorded by finance';
     return '${_verb[action] ?? action} by ${_stepName[step] ?? step.toLowerCase()}';
   }
+}
+
+/// Another live request holding a bill like one of this request's.
+class DuplicateHit {
+  const DuplicateHit({required this.requestId, required this.number, required this.status, required this.vendor, this.invoiceNumber, required this.reason});
+
+  factory DuplicateHit.fromJson(Map<String, dynamic> json) => DuplicateHit(
+        requestId: json['requestId'].toString(),
+        number: json['number'].toString(),
+        status: json['status'].toString(),
+        vendor: json['vendor']?.toString() ?? '',
+        invoiceNumber: json['invoiceNumber']?.toString(),
+        reason: json['reason']?.toString() ?? 'SAME_BILL',
+      );
+
+  final String requestId;
+  final String number;
+  final String status;
+  final String vendor;
+  final String? invoiceNumber;
+
+  /// SAME_NUMBER, SAME_BILL or NUMBER_OTHER_YEAR.
+  final String reason;
+
+  String get explanation => switch (reason) {
+        'SAME_NUMBER' => 'invoice $invoiceNumber from $vendor is on it too',
+        'NUMBER_OTHER_YEAR' => 'invoice $invoiceNumber from $vendor, dated in another year (numbering may have restarted)',
+        _ => 'a bill from $vendor with the same date and amount',
+      };
 }
 
 class RequestPayment {
@@ -239,6 +299,25 @@ class AdvanceBalance {
   bool get isClosed => status == 'CLOSED';
 }
 
+/// Reads a `YYYY-MM-DD` day as a local calendar date, so it never slides to
+/// the day before in a timezone behind UTC.
+DateTime? _calendarDay(Object? value) {
+  final parts = value?.toString().split('-');
+  if (parts == null || parts.length != 3) return null;
+  final y = int.tryParse(parts[0]);
+  final m = int.tryParse(parts[1]);
+  final d = int.tryParse(parts[2].substring(0, parts[2].length < 2 ? parts[2].length : 2));
+  return (y == null || m == null || d == null) ? null : DateTime(y, m, d);
+}
+
+class SettlementWindow {
+  const SettlementWindow({required this.label, required this.overdue, required this.daysLate});
+
+  final String label;
+  final bool overdue;
+  final int daysLate;
+}
+
 class FinanceRequest {
   const FinanceRequest({
     required this.id,
@@ -262,6 +341,11 @@ class FinanceRequest {
     this.history = const [],
     this.payments = const [],
     this.balance,
+    this.settlementDueOn,
+    this.vatAmount,
+    this.duplicates = const [],
+    this.updatedAt,
+    this.entryStatus,
   });
 
   factory FinanceRequest.fromJson(Map<String, dynamic> json) {
@@ -290,6 +374,11 @@ class FinanceRequest {
       history: list('actions', ApprovalEntry.fromJson),
       payments: list('payments', RequestPayment.fromJson),
       balance: balance is Map<String, dynamic> ? AdvanceBalance.fromJson(balance) : null,
+      settlementDueOn: _calendarDay(json['settlementDueOn']),
+      vatAmount: json['vatAmount']?.toString(),
+      duplicates: list('duplicates', DuplicateHit.fromJson),
+      updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? '')?.toLocal(),
+      entryStatus: json['entryStatus'] as String?,
     );
   }
 
@@ -317,6 +406,39 @@ class FinanceRequest {
   /// Only on a paid advance.
   final AdvanceBalance? balance;
 
+  /// A paid advance's last day to settle: a week after it was paid.
+  final DateTime? settlementDueOn;
+
+  /// The VAT inside a settlement's or reimbursement's VAT bills; on the list only.
+  final String? vatAmount;
+
+  /// Other live requests with a bill like one of these.
+  final List<DuplicateHit> duplicates;
+
+  /// When it last changed, which for a request waiting on someone is when it reached them.
+  final DateTime? updatedAt;
+
+  /// Where it entered approval: PENDING_DIRECTOR when a project manager raised it.
+  final String? entryStatus;
+
+  bool get raisedByManager => entryStatus == 'PENDING_DIRECTOR';
+
+  /// Where the advance stands against its settlement window as of [now]; null
+  /// when it is not on the clock (not a paid advance, or nothing left to
+  /// settle). The due day counts as in time; overdue starts the day after.
+  SettlementWindow? settlementWindow(DateTime now) {
+    final due = settlementDueOn;
+    if (due == null || (balance?.isClosed ?? false)) return null;
+    final today = DateTime(now.year, now.month, now.day);
+    final overdue = today.isAfter(due);
+    final date = DateFormat('d MMM yyyy').format(due);
+    return SettlementWindow(
+      label: overdue ? 'Overdue since $date' : 'Settle by $date',
+      overdue: overdue,
+      daysLate: overdue ? today.difference(due).inDays : 0,
+    );
+  }
+
   bool get isAdvance => kind == RequestKind.advance;
 
   /// The requester can still change it.
@@ -336,4 +458,51 @@ class FinanceRequest {
     }
     return null;
   }
+}
+
+/// One entry of the notification feed, as the notification service sends it.
+class FinanceNotification {
+  const FinanceNotification({
+    required this.id,
+    required this.type,
+    required this.title,
+    required this.body,
+    required this.createdAt,
+    required this.isRead,
+    this.requestId,
+  });
+
+  factory FinanceNotification.fromJson(Map<String, dynamic> json) {
+    // Finance links look like `/finance/requests/<id>`.
+    final url = json['actionUrl'] as String?;
+    final match = url == null ? null : RegExp(r'/finance/requests/([0-9a-fA-F-]{36})').firstMatch(url);
+    return FinanceNotification(
+      id: json['id'] as String? ?? '',
+      type: json['type'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      body: json['body'] as String? ?? '',
+      createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '')?.toLocal() ?? DateTime.now(),
+      isRead: json['isRead'] as bool? ?? false,
+      requestId: match?.group(1),
+    );
+  }
+
+  final String id;
+  final String type;
+  final String title;
+  final String body;
+  final DateTime createdAt;
+  final bool isRead;
+
+  /// The request it is about, when it links to one.
+  final String? requestId;
+
+  bool get isFinance => type.startsWith('FINANCE_');
+
+  /// ok, warn or err: the dot's colour on the feed.
+  String get tone => switch (type) {
+        'FINANCE_REQUEST_REJECTED' || 'FINANCE_REQUEST_CANCELLED' || 'FINANCE_SETTLEMENT_REMINDER' => 'err',
+        'FINANCE_REQUEST_RETURNED' || 'FINANCE_APPROVAL_NEEDED' || 'FINANCE_PAYMENT_DUE' => 'warn',
+        _ => 'ok',
+      };
 }

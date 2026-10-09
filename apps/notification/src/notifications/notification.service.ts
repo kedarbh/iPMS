@@ -33,7 +33,8 @@ function toDto(row: Notification): NotificationDto {
  * indistinguishable from one that does not exist.
  */
 export class NotificationService {
-  constructor(private readonly prisma: PrismaClient) {}
+  /** `afterCreate` runs with the rows this call newly stored (never a redelivered duplicate); push hangs off it. */
+  constructor(private readonly prisma: PrismaClient, private readonly afterCreate?: (rows: Notification[]) => void) {}
 
   /**
    * One row per recipient. `skipDuplicates` leans on the unique
@@ -51,6 +52,13 @@ export class NotificationService {
       data: items.map((item) => ({ id: uuidv7(), createdAt, ...item })),
       skipDuplicates: true,
     });
+    if (this.afterCreate && result.count > 0) {
+      // Rows from this call all carry `createdAt`; a duplicate that was skipped keeps its original time.
+      const stored = await this.prisma.notification.findMany({
+        where: { createdAt, OR: items.map((i) => ({ recipientId: i.recipientId, eventId: i.eventId })) },
+      });
+      if (stored.length > 0) this.afterCreate(stored);
+    }
     return result.count;
   }
 

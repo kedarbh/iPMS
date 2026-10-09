@@ -379,6 +379,9 @@ services:
       args: { SERVICE: notification }
     env_file:
       - ./env/notification.env
+      # Optional: the Firebase key that turns push on. Absent, notifications stay in-app.
+      - path: ./env/notification.secrets.env
+        required: false
     depends_on:
       postgres-notification: { condition: service_healthy }
       nats:                  { condition: service_healthy }

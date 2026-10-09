@@ -21,15 +21,23 @@ const validDate = (value: string): boolean => {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 };
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
- * Invoice rows arrive as four aligned lists (one entry per row). A row left
- * entirely blank is ignored, so the empty spare row a form shows is harmless.
+ * Invoice rows arrive as aligned lists (one entry per row): vendor, number, date
+ * and amount, with whether it is a VAT bill, the supplier's tax number and the
+ * uploaded file's id riding along so an edit keeps what the phone attached. A
+ * row left entirely blank is ignored, so the empty spare row a form shows is
+ * harmless. A bill need not have a number.
  */
 export function parseInvoices(form: FormData): { invoices: InvoiceInput[] } | { error: string } {
   const vendors = field(form, 'invoiceVendor');
   const numbers = field(form, 'invoiceNumber');
   const dates = field(form, 'invoiceDate');
   const amounts = field(form, 'invoiceAmount');
+  const vats = field(form, 'invoiceVat');
+  const taxNos = field(form, 'invoiceTaxNo');
+  const mediaIds = field(form, 'invoiceMediaId');
   const invoices: InvoiceInput[] = [];
 
   const count = Math.max(vendors.length, numbers.length, dates.length, amounts.length);
@@ -38,11 +46,22 @@ export function parseInvoices(form: FormData): { invoices: InvoiceInput[] } | { 
     const [vendor = '', invoiceNumber = '', invoiceDate = '', rawAmount = ''] = [vendors[i], numbers[i], dates[i], amounts[i]];
     if (!vendor && !invoiceNumber && !invoiceDate && !rawAmount) continue;
     const row = `Invoice ${i + 1}`;
-    if (!vendor || !invoiceNumber || !invoiceDate || !rawAmount) return { error: `${row}: enter the vendor, invoice number, date and amount.` };
+    if (!vendor || !invoiceDate || !rawAmount) return { error: `${row}: enter the vendor, date and amount.` };
     if (!validDate(invoiceDate)) return { error: `${row}: enter a valid date.` };
     const amount = parseMoney(rawAmount);
     if (amount === null) return { error: `${row}: enter an amount in NPR with at most two decimals.` };
-    invoices.push({ vendor, invoiceNumber, invoiceDate, amount });
+    const vat = vats[i] === 'yes';
+    const taxNo = taxNos[i] ?? '';
+    const mediaId = mediaIds[i] ?? '';
+    invoices.push({
+      vendor,
+      ...(invoiceNumber ? { invoiceNumber } : {}),
+      invoiceDate,
+      amount,
+      ...(vat ? { vat: true } : {}),
+      ...(vat && taxNo ? { supplierTaxNo: taxNo } : {}),
+      ...(UUID.test(mediaId) ? { mediaId } : {}),
+    });
   }
   return invoices.length === 0 ? { error: 'Add at least one invoice.' } : { invoices };
 }

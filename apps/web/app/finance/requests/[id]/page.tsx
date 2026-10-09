@@ -1,14 +1,19 @@
-import { getAdvance, getRequest } from '../../../lib/finance-api';
+import { getAdvance, getRequest, type DuplicateHit } from '../../../lib/finance-api';
 import { getCurrentUser } from '../../../lib/iam-api';
 import { listUserDirectory } from '../../../lib/user-api';
 import { Sidebar, StatePage, TopActions } from '../../../shell';
 import { ActionPanels } from './panels';
 import {
-  KIND_LABEL, STATUS_LABEL, STATUS_TONE, availableActions, describeEntry, formatMoney, personName, waitingOn,
+  KIND_LABEL, STATUS_LABEL, STATUS_TONE, availableActions, describeEntry, formatMoney, personName, settlementStatus, waitingOn,
 } from '../../model';
 
 const WHEN = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const DAY = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const DUPLICATE_REASON: Record<DuplicateHit['reason'], (d: DuplicateHit) => string> = {
+  SAME_NUMBER: (d) => `invoice ${d.invoiceNumber} from ${d.vendor} is on it too`,
+  SAME_BILL: (d) => `a bill from ${d.vendor} with the same date and amount`,
+  NUMBER_OTHER_YEAR: (d) => `invoice ${d.invoiceNumber} from ${d.vendor}, dated in another year (the supplier may have restarted numbering)`,
+};
 const MODE: Record<string, string> = { BANK_TRANSFER: 'Bank transfer', CASH: 'Cash', CHEQUE: 'Cheque', MOBILE_WALLET: 'Mobile wallet' };
 
 export default async function FinanceRequestPage({ params }: { params: Promise<{ id: string }> }) {
@@ -28,6 +33,7 @@ export default async function FinanceRequestPage({ params }: { params: Promise<{
   const actions = availableActions(request, viewer.data, approvedEarlier, request.balance);
   const advance = request.kind === 'SETTLEMENT' && request.advanceId ? await getAdvance(request.advanceId) : null;
   const waiting = waitingOn(request.status);
+  const settle = settlementStatus(request.settlementDueOn, request.balance, new Date().toISOString().slice(0, 10));
 
   return (
     <main className="app-shell">
@@ -47,6 +53,20 @@ export default async function FinanceRequestPage({ params }: { params: Promise<{
           </div>
 
           <ActionPanels request={request} actions={actions} />
+
+          {(request.duplicates ?? []).length > 0 ? (
+            <section className="panel" role="alert" style={{ borderLeft: '4px solid var(--danger, #b3261e)' }}>
+              <h2>Possible duplicate bill</h2>
+              <ul>
+                {(request.duplicates ?? []).map((d) => (
+                  <li key={`${d.requestId}-${d.reason}`}>
+                    <a href={`/finance/requests/${d.requestId}`}>{d.number}</a> ({STATUS_LABEL[d.status]}) —{' '}
+                    {DUPLICATE_REASON[d.reason](d)}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
           <section className="panel finance-facts">
             <dl>
@@ -68,6 +88,7 @@ export default async function FinanceRequestPage({ params }: { params: Promise<{
                 <dt>Settled</dt><dd>{formatMoney(request.balance.applied)}</dd>
                 <dt>Cash returned</dt><dd>{formatMoney(request.balance.cashReturned)}</dd>
                 <dt>Outstanding</dt><dd><strong>{formatMoney(request.balance.outstanding)}</strong></dd>
+                {settle ? <><dt>Settlement</dt><dd style={settle.overdue ? { color: 'var(--danger, #b3261e)', fontWeight: 600 } : undefined}>{settle.label}</dd></> : null}
               </dl>
             </section>
           ) : null}
@@ -81,7 +102,7 @@ export default async function FinanceRequestPage({ params }: { params: Promise<{
                   <tbody>
                     {request.invoices.map((invoice) => (
                       <tr key={invoice.id}>
-                        <td>{invoice.vendor}</td><td>{invoice.invoiceNumber}</td>
+                        <td>{invoice.vendor}{invoice.vat ? <span className="subtle"> · VAT bill{invoice.supplierTaxNo ? ` (${invoice.supplierTaxNo})` : ''}</span> : null}</td><td>{invoice.invoiceNumber ?? '—'}</td>
                         <td>{DAY.format(new Date(invoice.invoiceDate))}</td><td className="finance-num">{formatMoney(invoice.amount)}</td>
                         <td>{invoice.mediaId ? <a href={`/api/finance/files/${invoice.mediaId}`} target="_blank" rel="noreferrer">View photo</a> : '—'}</td>
                       </tr>

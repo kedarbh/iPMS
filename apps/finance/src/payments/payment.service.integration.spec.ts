@@ -25,7 +25,7 @@ afterAll(async () => { await db?.stop(); });
 beforeEach(async () => { await resetDb(prisma); });
 
 const bank = { mode: 'BANK_TRANSFER' as const, reference: 'TXN-1', paidOn: new Date('2026-10-05') };
-const invoice = (amount: string) => ({ vendor: 'V', invoiceNumber: `I-${amount}`, invoiceDate: new Date('2026-10-01'), amount, mediaId: uuidv7() });
+const invoice = (amount: string) => ({ vendor: 'V', invoiceNumber: `I-${amount}-${uuidv7().slice(-6)}`, invoiceDate: new Date('2026-10-01'), amount, mediaId: uuidv7() });
 
 /** Takes a request through both approvals so it waits at Finance. */
 async function atFinance(id: string, directorAmount?: string) {
@@ -198,6 +198,27 @@ describe('settle an advance', () => {
     expect(settled.payments?.[0]).toMatchObject({ kind: 'PAYOUT', amount: '2000.00' });
     expect(await loadBalance(prisma, advanceId)).toMatchObject({ outstanding: '0.00', status: 'CLOSED' });
     expect((await prisma.outboxEvent.findFirstOrThrow({ where: { subject: 'finance.settlement.settled' } })).payload).toMatchObject({ appliedAmount: '5000.00', payoutAmount: '2000.00' });
+  });
+
+  it('records the unspent balance and closes the advance when Finance confirms it was received', async () => {
+    const advanceId = await paidAdvance('18000');
+    const sId = await settlementAtFinance(advanceId, '17250');
+    await expect(payments.pay(sId, { balanceReceived: true }, ACTORS.finance, scopes.global)).rejects.toThrow(/payment details/i);
+
+    const settled = await payments.pay(sId, { ...bank, balanceReceived: true }, ACTORS.finance, scopes.global);
+    expect(settled).toMatchObject({ status: 'SETTLED', appliedAmount: '17250.00' });
+    expect(await loadBalance(prisma, advanceId)).toMatchObject({ applied: '17250.00', cashReturned: '750.00', outstanding: '0.00', status: 'CLOSED' });
+    const returns = await prisma.payment.findMany({ where: { requestId: advanceId, kind: 'CASH_RETURN' } });
+    expect(returns.map((p) => p.amount.toFixed(2))).toEqual(['750.00']);
+    expect(await prisma.approvalAction.count({ where: { requestId: advanceId, action: 'CASH_RETURNED' } })).toBe(1);
+    expect((await prisma.outboxEvent.findFirstOrThrow({ where: { subject: 'finance.advance.cash_returned' } })).payload).toMatchObject({ returnedAmount: '750.00', outstandingAfter: '0.00' });
+  });
+
+  it('leaves the balance alone unless Finance says it was received', async () => {
+    const advanceId = await paidAdvance('18000');
+    const sId = await settlementAtFinance(advanceId, '17250');
+    await payments.pay(sId, {}, ACTORS.finance, scopes.global);
+    expect(await loadBalance(prisma, advanceId)).toMatchObject({ cashReturned: '0.00', outstanding: '750.00', status: 'PARTIALLY_SETTLED' });
   });
 
   it('applies only what is left after a cash return and pays out the rest', async () => {

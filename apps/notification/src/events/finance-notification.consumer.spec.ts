@@ -31,7 +31,8 @@ describe('durables', () => {
     expect(Object.values(FINANCE_DURABLES).sort()).toEqual([
       'notification-finance-approved', 'notification-finance-approved-by-pm', 'notification-finance-cancelled',
       'notification-finance-cash-returned', 'notification-finance-paid', 'notification-finance-rejected',
-      'notification-finance-returned', 'notification-finance-settled', 'notification-finance-submitted',
+      'notification-finance-returned', 'notification-finance-settled', 'notification-finance-settlement-reminder',
+      'notification-finance-submitted',
     ]);
   });
 });
@@ -161,6 +162,14 @@ describe('onCashReturned', () => {
   });
 });
 
+describe('onSettlementReminder', () => {
+  it('tells the requester, and no one else', async () => {
+    const { consumer, sent } = build();
+    await consumer.onSettlementReminder(envelope({ ...base, dueOn: '2026-10-12', daysLate: 8, outstanding: '10000.00' }));
+    expect(sent().map((r) => [r.recipientId, r.type])).toEqual([['u-eng', 'FINANCE_SETTLEMENT_REMINDER']]);
+  });
+});
+
 describe('register', () => {
   const expected = [
     [SUBJECTS.FINANCE_REQUEST_SUBMITTED, 'notification-finance-submitted', 'onSubmitted'],
@@ -172,6 +181,7 @@ describe('register', () => {
     [SUBJECTS.FINANCE_REQUEST_PAID, 'notification-finance-paid', 'onPaid'],
     [SUBJECTS.FINANCE_SETTLEMENT_SETTLED, 'notification-finance-settled', 'onSettled'],
     [SUBJECTS.FINANCE_ADVANCE_CASH_RETURNED, 'notification-finance-cash-returned', 'onCashReturned'],
+    [SUBJECTS.FINANCE_ADVANCE_SETTLEMENT_REMINDER, 'notification-finance-settlement-reminder', 'onSettlementReminder'],
   ] as const;
 
   it('subscribes each subject to its own durable', async () => {

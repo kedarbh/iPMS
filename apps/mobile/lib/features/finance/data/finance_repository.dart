@@ -18,11 +18,17 @@ class FinanceRepository {
   /// payment. Empty for someone who approves nothing.
   Future<List<FinanceRequest>> awaitingMe() => _list('awaiting');
 
-  Future<List<FinanceRequest>> _list(String view, {String? status}) async {
+  /// Everyone's requests in the signed-in approver's project scope, their own included.
+  Future<List<FinanceRequest>> inMyScope() => _list('all');
+
+  /// Requests of others the signed-in user has already acted on, most recent first.
+  Future<List<FinanceRequest>> handledByMe() => _list('handled');
+
+  Future<List<FinanceRequest>> _list(String view, {String? status, int limit = 100}) async {
     try {
       final response = await apiClient.dio.get<Map<String, dynamic>>(
         ApiEndpoints.financeRequests,
-        queryParameters: {'view': view, 'limit': 100, 'status': ?status},
+        queryParameters: {'view': view, 'limit': limit, 'status': ?status},
       );
       return (response.data?['items'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>()
@@ -111,9 +117,42 @@ class FinanceRepository {
   Future<void> pay(String id, Map<String, dynamic> details) =>
       _act(ApiEndpoints.financeAction(id, 'pay'), details, 'Could not record the payment.');
 
+  /// Nudges the engineer to settle an overdue advance. False when someone already did so today.
+  Future<bool> remind(String advanceId) async {
+    try {
+      final response = await apiClient.dio.post<Map<String, dynamic>>(ApiEndpoints.financeRemind(advanceId), data: const <String, dynamic>{});
+      return response.data?['reminded'] as bool? ?? true;
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e, fallbackMessage: 'Could not send the reminder.');
+    }
+  }
+
   /// Records cash an engineer handed back against a paid advance.
   Future<void> returnCash(String advanceId, Map<String, dynamic> details) =>
       _act(ApiEndpoints.financeCashReturn(advanceId), details, 'Could not record the cash return.');
+
+  /// The newest notifications, finance ones only.
+  Future<List<FinanceNotification>> notifications() async {
+    try {
+      final response = await apiClient.dio.get<Map<String, dynamic>>(
+        ApiEndpoints.notifications,
+        queryParameters: {'limit': 50},
+      );
+      return (response.data?['items'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(FinanceNotification.fromJson)
+          .where((n) => n.isFinance)
+          .toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e, fallbackMessage: 'Failed to load notifications.');
+    }
+  }
+
+  Future<void> markNotificationRead(String id) =>
+      _act(ApiEndpoints.notificationRead(id), const {}, 'Could not mark it read.');
+
+  Future<void> markAllNotificationsRead() =>
+      _act(ApiEndpoints.notificationsReadAll, const {}, 'Could not mark them read.');
 
   /// Display names by user id, so history can say who did what.
   Future<Map<String, String>> userNames() async {
