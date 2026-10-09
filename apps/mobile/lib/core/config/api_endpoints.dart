@@ -43,6 +43,10 @@ class ApiEndpoints {
   static const String notificationsReadAll = '/api/v1/notifications/read-all';
   static String notificationRead(String id) => '/api/v1/notifications/$id/read';
 
+  // push notifications
+  static const String pushTokens = '/api/v1/notifications/push-tokens';
+  static const String pushTokensRemove = '/api/v1/notifications/push-tokens/unregister';
+
   // finance
   static const String financeRequests = '/api/v1/finance/requests';
   static String financeRequest(String id) => '/api/v1/finance/requests/$id';

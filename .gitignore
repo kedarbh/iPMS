@@ -35,3 +35,8 @@ apps/web/next-env.d.ts
 
 # Real object-storage credentials live only on servers.
 docker/env/*.secrets.env
+
+# Firebase client config: downloaded per developer from the Firebase console (see docs/push-notifications.md).
+# CI secret scanning flags the API key inside it, so it is not committed.
+apps/mobile/android/app/google-services.json
+apps/mobile/ios/Runner/GoogleService-Info.plist

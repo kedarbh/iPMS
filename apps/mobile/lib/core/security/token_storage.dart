@@ -23,6 +23,7 @@ class TokenStorage {
   static const String _deviceIdKey = 'ipms_device_id';
   static const String _apiBaseUrlKey = 'ipms_api_base_url';
   static const String _hasSeenGuideKey = 'ipms_has_seen_guide_v1';
+  static const String _pushEnabledKey = 'ipms_push_enabled';
 
   Future<void> saveTokens({
     required String accessToken,
@@ -115,6 +116,11 @@ class TokenStorage {
       value: enabled ? 'true' : 'false',
     );
   }
+
+  /// Whether this device may receive push notifications. On unless the user switched it off.
+  Future<bool> isPushEnabled() async => (await _storage.read(key: _pushEnabledKey)) != 'false';
+
+  Future<void> setPushEnabled(bool enabled) => _storage.write(key: _pushEnabledKey, value: enabled ? 'true' : 'false');
 
   Future<String?> getBiometricUsername() =>
       _storage.read(key: _biometricUsernameKey);

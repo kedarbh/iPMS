@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_exceptions.dart';
+import '../../../core/push/push_providers.dart';
 import '../../../core/security/token_storage.dart';
 import '../data/auth_repository.dart';
 import '../domain/models/auth_user.dart';
@@ -102,6 +103,10 @@ class AuthNotifier extends AsyncNotifier<AuthUser?> {
   /// is false) this only locks the app, so Face ID / fingerprint can reopen
   /// the session; otherwise every session is revoked on the server.
   Future<void> logout({bool purgeBiometrics = false}) async {
+    // Forget this device while the session still works; a signed-out phone must not get someone's pushes.
+    try {
+      await ref.read(pushControllerProvider).stop(unregister: true);
+    } catch (_) {}
     state = const AsyncValue.loading();
     final keep = !purgeBiometrics &&
         await ref.read(tokenStorageProvider).isBiometricEnabled();

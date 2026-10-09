@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/push/push_controller.dart';
+import '../../../core/push/push_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/brand_mark.dart';
@@ -246,6 +248,7 @@ class ProfileScreen extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Column(
                     children: [
+                      const _PushTile(),
                       if (biometricState.isHardwareSupported) ...[
                         SwitchListTile.adaptive(
                           secondary: Icon(
@@ -542,6 +545,34 @@ class _SyncCardState extends ConsumerState<_SyncCard> {
           ],
         ),
       ),
+    );
+  }
+}
+
+
+/// Switches push notifications on or off for this device, and says honestly when they cannot work.
+class _PushTile extends ConsumerWidget {
+  const _PushTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(pushEnabledProvider).value ?? true;
+    final status = ref.watch(pushStatusProvider);
+    final subtitle = !enabled
+        ? 'Off on this device'
+        : switch (status) {
+            PushStatus.unavailable => 'Not set up in this version of the app',
+            PushStatus.denied => 'Blocked: allow notifications for this app in system settings',
+            _ => 'Alerts when something needs you',
+          };
+    return SwitchListTile.adaptive(
+      key: const Key('push-switch'),
+      secondary: const Icon(Icons.notifications_active_outlined, color: AppColors.darkSlate),
+      title: Text('Push notifications', style: AppTypography.titleMedium),
+      subtitle: Text(subtitle, style: AppTypography.caption),
+      value: enabled,
+      activeThumbColor: AppColors.darkSlate,
+      onChanged: (value) => ref.read(pushEnabledProvider.notifier).set(value),
     );
   }
 }

@@ -31,6 +31,28 @@ const NEW: NewNotification = {
   title: 'T', body: 'B', actionUrl: '/quality/work-orders/w', workOrderId: '0192f7a0-0000-7000-8000-0000000000b1',
 };
 
+describe('NotificationService.createMany after-create hook', () => {
+  it('hands over the rows this call stored, and not when nothing was new', async () => {
+    const prisma = {
+      notification: {
+        createMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findMany: vi.fn().mockResolvedValue([row(1)]),
+      },
+    };
+    const after = vi.fn();
+    const service = new NotificationService(prisma as never, after);
+    await service.createMany([NEW]);
+    expect(after).toHaveBeenCalledWith([row(1)]);
+    const where = prisma.notification.findMany.mock.calls[0]?.[0].where;
+    expect(where.OR).toEqual([{ recipientId: ME, eventId: NEW.eventId }]);
+
+    prisma.notification.createMany.mockResolvedValue({ count: 0 });
+    after.mockClear();
+    await service.createMany([NEW]);
+    expect(after).not.toHaveBeenCalled();
+  });
+});
+
 describe('NotificationService.createMany', () => {
   it('writes one row per recipient, skipping duplicates, and returns how many were new', async () => {
     const { service, prisma } = build();

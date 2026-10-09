@@ -55,3 +55,16 @@ export const NotificationIdSchema = z.string().regex(
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
   'Invalid id',
 );
+
+export const PUSH_PLATFORMS = ['ANDROID', 'IOS'] as const;
+
+/** A device telling the service where to send pushes. The token is the push provider's own (FCM). */
+export const RegisterPushTokenSchema = z.object({
+  token: z.string().trim().min(20).max(500),
+  platform: z.enum(PUSH_PLATFORMS),
+}).strict();
+export type RegisterPushTokenDto = z.infer<typeof RegisterPushTokenSchema>;
+
+/** A device that no longer wants pushes (signed out, or push switched off). */
+export const UnregisterPushTokenSchema = z.object({ token: z.string().trim().min(20).max(500) }).strict();
+export type UnregisterPushTokenDto = z.infer<typeof UnregisterPushTokenSchema>;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/config/env.dart';
+import 'core/push/push_providers.dart';
 import 'core/security/token_storage.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/login_screen.dart';
@@ -33,6 +34,7 @@ class IpmsApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authStateProvider);
     final user = authState.value;
+    ref.watch(pushLifecycleProvider);
 
     // A sign-in or sign-out in progress keeps the previous value, so the
     // screen the user is on stays put (and can react when it finishes). Only
@@ -55,6 +57,8 @@ class IpmsApp extends ConsumerWidget {
 
     return MaterialApp(
       title: 'Axiom Field App',
+      navigatorKey: rootNavigatorKey,
+      scaffoldMessengerKey: rootMessengerKey,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       home: home,
