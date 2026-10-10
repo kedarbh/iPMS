@@ -1497,6 +1497,9 @@ button:focus-visible,
 .user-id span { color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; }
 .role-pills { display: flex; flex-wrap: wrap; gap: 5px; }
 .role-pill { padding: 3px 9px; border-radius: 999px; background: #f1f4fa; color: #3f4c63; font-size: 12px; font-weight: 600; }
+.role-pill-off { background: #fdf1e1; color: #8a5a0c; }
+.finance-choice { margin-top: 12px; }
+.finance-choice .subtle { margin: 4px 0 0 24px; font-size: 12px; }
 .subtle-dash, .muted-cell { color: var(--muted); }
 .status-dot { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: #738095; }
 .status-dot::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #b6bfcc; }

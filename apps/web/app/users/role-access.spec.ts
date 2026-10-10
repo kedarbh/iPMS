@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { summarizeAccess } from './role-access';
+import { isFinancePermission, summarizeAccess } from './role-access';
 
 const catalog = [
   { code: 'user.view', module: 'user', description: 'View users' },
@@ -40,5 +40,34 @@ describe('summarizeAccess', () => {
 
   it('ignores a selected code with no matching role', () => {
     expect(summarizeAccess(['GONE'], roles, catalog).total).toBe(0);
+  });
+});
+
+describe('summarizeAccess with finance switched off', () => {
+  const financeCatalog = [
+    ...catalog,
+    { code: 'finance_request.view', module: 'finance_request', description: 'View your own finance requests' },
+    { code: 'finance_request.create', module: 'finance_request', description: 'Raise an advance or reimbursement request' },
+  ];
+  const engineer = [{
+    code: 'FIELD_ENGINEER', name: 'Field Engineer',
+    permissionCodes: ['project.view', 'finance_request.view', 'finance_request.create'],
+  }];
+
+  it('lists finance by default', () => {
+    const summary = summarizeAccess(['FIELD_ENGINEER'], engineer, financeCatalog);
+    expect(summary.total).toBe(3);
+    expect(summary.groups.map((g) => g.label)).toContain('Finance request');
+  });
+
+  it('leaves finance out when it is switched off, and keeps the rest', () => {
+    const summary = summarizeAccess(['FIELD_ENGINEER'], engineer, financeCatalog, { financeEnabled: false });
+    expect(summary.total).toBe(1);
+    expect(summary.groups.map((g) => g.module)).toEqual(['project']);
+  });
+
+  it('knows a finance permission by its module', () => {
+    expect(isFinancePermission('finance_payment.record')).toBe(true);
+    expect(isFinancePermission('project.view')).toBe(false);
   });
 });
