@@ -27,6 +27,8 @@ export async function DirectorOverview({ decided }: { decided?: string | undefin
 
   const now = new Date();
   const money = finance.state === 'ready' ? finance.data : null;
+  // A missing permission hides a panel; only a service that failed to answer is reported.
+  const mayReadFinance = finance.state !== 'forbidden';
   const health = portfolio.state === 'ready'
     ? buildPortfolio(portfolio.data, workOrders.state === 'ready' ? workOrders.data : null, money?.projects ?? null, now)
     : [];
@@ -56,16 +58,20 @@ export async function DirectorOverview({ decided }: { decided?: string | undefin
               <a className="primary-button" href="/finance?view=awaiting">Open queue</a>
             </div>
           </section>
-          <WaitingPanel finance={money} names={names} now={now} />
-          <PortfolioPanel
-            health={health}
-            failure={portfolio.state === 'ready' ? null : portfolio.state === 'unavailable' || portfolio.state === 'forbidden' ? portfolio.message : 'Sign in again to continue.'}
-            workOrdersMissing={workOrders.state !== 'ready'}
-          />
-          <div className="ov-pair">
-            <MoneyPanel finance={money} names={names} />
-            <DecisionsPanel finance={money} />
-          </div>
+          {mayReadFinance ? <WaitingPanel finance={money} names={names} now={now} /> : null}
+          {portfolio.state === 'forbidden' ? null : (
+            <PortfolioPanel
+              health={health}
+              failure={portfolio.state === 'unavailable' ? portfolio.message : null}
+              workOrdersMissing={workOrders.state === 'unavailable'}
+            />
+          )}
+          {mayReadFinance ? (
+            <div className="ov-pair">
+              <MoneyPanel finance={money} names={names} />
+              <DecisionsPanel finance={money} />
+            </div>
+          ) : null}
         </div>
       </section>
     </main>

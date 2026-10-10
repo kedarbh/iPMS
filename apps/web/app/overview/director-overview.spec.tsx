@@ -85,6 +85,36 @@ describe('DirectorOverview', () => {
     expect(out).toContain('Koshi Rollout');
   });
 
+  it('notes that decisions cannot be shown when finance is down', async () => {
+    getFinanceOverview.mockResolvedValue(down);
+    expect(await render()).toContain('Finance did not answer, so your decisions cannot be shown.');
+  });
+
+  it('hides the finance panels, without an error, when the viewer may not read finance', async () => {
+    getFinanceOverview.mockResolvedValue({ state: 'forbidden', message: 'no' });
+    const out = await render();
+    expect(out).not.toContain('id="waiting"');
+    expect(out).not.toContain('id="money"');
+    expect(out).not.toContain('id="decisions"');
+    expect(out).not.toContain('did not answer');
+    expect(out).toContain('Koshi Rollout');
+  });
+
+  it('hides the portfolio, without an error, when the viewer may not read projects', async () => {
+    getPortfolio.mockResolvedValue({ state: 'forbidden', message: 'no' });
+    const out = await render();
+    expect(out).not.toContain('id="portfolio"');
+    expect(out).not.toContain('Projects are unavailable');
+    expect(out).toContain('ADV-2026-0012');
+  });
+
+  it('shows no work-order note when the viewer may not read work orders', async () => {
+    getWorkOrderSummary.mockResolvedValue({ state: 'forbidden', message: 'no' });
+    const out = await render();
+    expect(out).not.toContain('Work orders unavailable');
+    expect(out).toContain('Koshi Rollout');
+  });
+
   it('asks a signed-out viewer to sign in', async () => {
     getCurrentUser.mockResolvedValue({ state: 'unauthenticated' });
     expect(await render()).toContain('Sign in to see your projects');

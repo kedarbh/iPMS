@@ -166,7 +166,14 @@ export function MoneyPanel({ finance, names }: { finance: FinanceOverview | null
 
 /** The viewer's own decisions over 30 days. */
 export function DecisionsPanel({ finance }: { finance: FinanceOverview | null }) {
-  if (!finance) return null;
+  if (!finance) {
+    return (
+      <section className="ov-card ov-panel" id="decisions">
+        <header className="ov-panel-head"><div><h2>Your decisions</h2></div></header>
+        <p className="ov-note">Finance did not answer, so your decisions cannot be shown.</p>
+      </section>
+    );
+  }
   const d = finance.decisions;
   return (
     <section className="ov-card ov-panel" id="decisions">
