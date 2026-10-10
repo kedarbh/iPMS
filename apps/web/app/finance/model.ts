@@ -1,4 +1,4 @@
-import type { FinanceRequest, FinanceRequestDetail, FinanceStep, RequestFlag } from '../lib/finance-api';
+import type { FinanceOverview, FinanceRequest, FinanceRequestDetail, FinanceStep, RequestFlag, RequestKind, RequestStatus } from '../lib/finance-api';
 
 /** What the finance screens show and which buttons they offer. Pure, so it is testable; the service enforces every rule again. */
 
@@ -138,3 +138,57 @@ export function decisionLine(request: Pick<FinanceRequestDetail, 'number' | 'act
   if (last.action === 'REJECTED') return `${request.number} rejected.`;
   return null;
 }
+
+export const KIND_PLURAL: Record<RequestKind, string> = { ADVANCE: 'Advances', SETTLEMENT: 'Settlements', REIMBURSEMENT: 'Reimbursements' };
+
+/** Money strings are always two decimals, so adding their cents is exact. */
+export function addMoney(...amounts: readonly string[]): string {
+  const cents = amounts.reduce((sum, amount) => sum + BigInt(amount.replace('.', '')), 0n);
+  const digits = cents.toString().padStart(3, '0');
+  return `${digits.slice(0, -2)}.${digits.slice(-2)}`;
+}
+
+export type ApproverRole = 'DIRECTOR' | 'PM' | 'FINANCE';
+export const ROLE_LABEL: Record<ApproverRole, string> = { DIRECTOR: 'Project director', PM: 'Project manager', FINANCE: 'Finance' };
+
+/** The approval the viewer is framed by, most senior first; null for someone who approves nothing. */
+export function approverRole(permissions: readonly string[]): ApproverRole | null {
+  if (permissions.includes('finance_approval.director')) return 'DIRECTOR';
+  if (permissions.includes('finance_approval.pm')) return 'PM';
+  if (permissions.includes('finance_payment.record')) return 'FINANCE';
+  return null;
+}
+
+export const waitingTitle = (role: ApproverRole): string => (role === 'FINANCE' ? 'Waiting for payment' : 'Waiting for your approval');
+
+export type QueueAction = 'approve' | 'pay' | 'return';
+
+/** The inline buttons for a waiting request: the viewer's own step only. The service still decides. */
+export function queueActions(status: RequestStatus, permissions: readonly string[]): QueueAction[] {
+  const can = (permission: string): boolean => permissions.includes(permission);
+  if (status === 'PENDING_PM' && can('finance_approval.pm')) return ['approve', 'return'];
+  if (status === 'PENDING_DIRECTOR' && can('finance_approval.director')) return ['approve', 'return'];
+  if (status === 'PENDING_FINANCE' && can('finance_payment.record')) return ['pay', 'return'];
+  return [];
+}
+
+export const waitingDays = (since: string, now: Date): number => Math.max(0, Math.floor((now.getTime() - new Date(since).getTime()) / 86_400_000));
+export const waitLabel = (days: number): string => (days === 0 ? 'Today' : dayCount(days));
+export const waitTone = (days: number): 'amber' | 'slate' => (days >= 3 ? 'amber' : 'slate');
+
+/** The red banner: overdue settlements across the projects, and who holds them; null when there are none. */
+export function overdueSummary(
+  projects: FinanceOverview['projects'], holders: FinanceOverview['cashHolders'], names: ReadonlyMap<string, string>,
+): { count: number; amount: string; people: string[] } | null {
+  const late = projects.filter((p) => p.overdueSettlements.count > 0);
+  const count = late.reduce((total, p) => total + p.overdueSettlements.count, 0);
+  if (count === 0) return null;
+  return {
+    count,
+    amount: addMoney(...late.map((p) => p.overdueSettlements.amount)),
+    people: holders.filter((h) => h.overdue > 0).map((h) => personName(h.requesterId, names)),
+  };
+}
+
+export const initials = (name: string): string =>
+  name.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]!.toUpperCase()).join('');

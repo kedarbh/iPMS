@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { availableActions, decisionLine, describeEntry, flagText, formatMoney, personName, settlementStatus, waitingOn, type Viewer } from './model';
+import { addMoney, approverRole, availableActions, decisionLine, describeEntry, flagText, formatMoney, initials, overdueSummary, personName, queueActions, settlementStatus, waitLabel, waitTone, waitingDays, waitingOn, waitingTitle, type Viewer } from './model';
 
 const ENG: Viewer = { id: 'u-eng', permissions: ['finance_request.view', 'finance_request.create', 'finance_request.cancel', 'finance_settlement.submit'] };
 const PM: Viewer = { id: 'u-pm', permissions: ['finance_request.view', 'finance_request.view_all', 'finance_request.create', 'finance_request.cancel', 'finance_settlement.submit', 'finance_approval.pm'] };
@@ -154,5 +154,80 @@ describe('decisionLine', () => {
   it('says nothing when the last step was not the viewer’s', () => {
     expect(decisionLine({ number: 'ADV-2026-0012', actions: [action({ actorId: 'someone-else' })] }, 'u-dir')).toBeNull();
     expect(decisionLine({ number: 'ADV-2026-0012', actions: [] }, 'u-dir')).toBeNull();
+  });
+});
+
+describe('addMoney', () => {
+  it('adds two-decimal strings exactly', () => {
+    expect(addMoney('0.10', '0.20')).toBe('0.30');
+    expect(addMoney('1000.00', '250.50', '99.99')).toBe('1350.49');
+    expect(addMoney()).toBe('0.00');
+  });
+});
+
+describe('approverRole', () => {
+  it('picks the most senior approval the viewer holds', () => {
+    expect(approverRole(DIR.permissions)).toBe('DIRECTOR');
+    expect(approverRole(PM.permissions)).toBe('PM');
+    expect(approverRole(FIN.permissions)).toBe('FINANCE');
+    expect(approverRole(ENG.permissions)).toBeNull();
+    expect(approverRole([...DIR.permissions, ...FIN.permissions])).toBe('DIRECTOR');
+  });
+  it('words the dark card for what the role does', () => {
+    expect(waitingTitle('PM')).toBe('Waiting for your approval');
+    expect(waitingTitle('FINANCE')).toBe('Waiting for payment');
+  });
+});
+
+describe('queueActions', () => {
+  it('offers approve and return at the viewer’s own step only', () => {
+    expect(queueActions('PENDING_PM', PM.permissions)).toEqual(['approve', 'return']);
+    expect(queueActions('PENDING_DIRECTOR', PM.permissions)).toEqual([]);
+    expect(queueActions('PENDING_DIRECTOR', DIR.permissions)).toEqual(['approve', 'return']);
+  });
+  it('offers pay in place of approve for finance', () => {
+    expect(queueActions('PENDING_FINANCE', FIN.permissions)).toEqual(['pay', 'return']);
+    expect(queueActions('PENDING_FINANCE', DIR.permissions)).toEqual([]);
+    expect(queueActions('PAID', FIN.permissions)).toEqual([]);
+  });
+});
+
+describe('waiting age', () => {
+  const now = new Date('2026-10-10T12:00:00Z');
+  it('counts whole days and never goes negative', () => {
+    expect(waitingDays('2026-10-10T08:00:00Z', now)).toBe(0);
+    expect(waitingDays('2026-10-07T11:00:00Z', now)).toBe(3);
+    expect(waitingDays('2026-10-11T00:00:00Z', now)).toBe(0);
+  });
+  it('labels and tones the age', () => {
+    expect(waitLabel(0)).toBe('Today');
+    expect(waitLabel(1)).toBe('1 day');
+    expect(waitLabel(4)).toBe('4 days');
+    expect(waitTone(2)).toBe('slate');
+    expect(waitTone(3)).toBe('amber');
+  });
+});
+
+describe('overdueSummary', () => {
+  const project = (count: number, amount: string) => ({ projectId: 'p', code: 'C', name: 'N', spentToDate: '0.00', spentByMonth: [], cashHeld: '0.00', overdueSettlements: { count, amount } });
+  const names = new Map([['u-1', 'Anil Gurung'], ['u-2', 'Bikash Tamang']]);
+  it('is null when nothing is overdue', () => {
+    expect(overdueSummary([project(0, '0.00')], [], names)).toBeNull();
+  });
+  it('totals the projects and names the people holding overdue cash', () => {
+    const holders = [
+      { requesterId: 'u-1', outstanding: '23500.00', open: 2, overdue: 1 },
+      { requesterId: 'u-2', outstanding: '45000.00', open: 1, overdue: 1 },
+      { requesterId: 'u-3', outstanding: '1000.00', open: 1, overdue: 0 },
+    ];
+    expect(overdueSummary([project(1, '20000.00'), project(1, '25000.00')], holders, names)).toEqual({ count: 2, amount: '45000.00', people: ['Anil Gurung', 'Bikash Tamang'] });
+  });
+});
+
+describe('initials', () => {
+  it('takes the first letters of up to two words', () => {
+    expect(initials('Bikash Tamang')).toBe('BT');
+    expect(initials('sita')).toBe('S');
+    expect(initials('')).toBe('');
   });
 });
