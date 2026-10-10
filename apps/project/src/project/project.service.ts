@@ -7,6 +7,7 @@ import { scopeWhere } from '@ipms/authz';
 import type { JsonObject } from '@ipms/persistence';
 import { asJson, recordAudit, type AuditObject, type Tx } from '../outbox/audit.js';
 import type { WorkOrderUsageClient } from './work-order-usage.client.js';
+import { summarizePortfolio } from './portfolio.js';
 import { uuidv7, type AssignableUser, type SiteRefs, type AssignTaskDto, type CreateMilestoneDto, type CreateProjectDto, type CreateSiteDto, type CreateTaskDto, type CreateTaskTypeDto, type ListTasksQueryDto, type UpdateMilestoneDto, type UpdateProjectDto, type UpdateSiteDto, type UpdateTaskDto, type UpdateTaskTypeDto } from '@ipms/contracts';
 
 @Injectable()
@@ -408,6 +409,8 @@ export class ProjectService {
     const projects = await this.prisma.project.findMany({ where: { AND: [{ status: 'ACTIVE' }, projectScope(scope)] }, include: { _count: { select: { sites: { where: siteScope(scope) } } } }, take: 12, orderBy: { updatedAt: 'desc' } });
     return { activeProjectCount: projects.length, sitesInDelivery: projects.reduce((total, p) => total + p._count.sites, 0), projects };
   }
+  /** The Director's portfolio: every ACTIVE or ON_HOLD project in scope, with the counts its health is judged by. */
+  portfolio(scope: AuthzScope) { return summarizePortfolio(this.prisma, scope); }
   /**
    * The five guards below are where scope is enforced for almost every method
    * in this service: each one already funnelled through them, so they are the

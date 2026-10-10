@@ -22,6 +22,7 @@ describe('permissions on the destructive routes', () => {
     ['internalScope', 'task.view'],
     ['siteRefs', 'site.view'],
     ['assignable', 'task.assign'],
+    ['portfolio', 'project.view'],
   ];
 
   for (const [method, permission] of EXPECTED) {
