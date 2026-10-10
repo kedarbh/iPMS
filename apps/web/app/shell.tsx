@@ -207,7 +207,10 @@ export async function Sidebar({ active }: { active: Section }) {
           <NavItem section="finance-history" active={active} href="/finance/history" icon={<CashIcon />}>History</NavItem>
         </>
       ) : (
-        <NavItem section="finance" active={active} href="/finance" icon={<CashIcon />}>Requests</NavItem>
+        <>
+          <NavItem section="finance" active={active} href="/finance" icon={<CashIcon />}>Requests</NavItem>
+          {maySeeSpend ? <NavItem section="finance-history" active={active} href="/finance/history" icon={<CashIcon />}>History</NavItem> : null}
+        </>
       )}
       {mayManageCategories ? (
         <NavItem section="finance-categories" active={active} href="/finance/categories" icon={<CashIcon />}>
