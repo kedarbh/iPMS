@@ -124,7 +124,7 @@ One finance function, `requestFlags(rows, scope)`, computes flags for requests i
 | Flag | Rule | Example |
 |---|---|---|
 | `DUPLICATE_BILL` | The existing duplicate check (`findDuplicates`) finds a match for a settlement's or reimbursement's bills | "Possible duplicate: Himal Traders #4471 on SET-2026-0031" |
-| `REQUESTER_HOLDS_CASH` | The requester has open advances in the viewer's scope with an outstanding balance. For a settlement, the advance it settles is left out. Red when any is past its settle-by day, amber otherwise | "Already holds NPR 45,000 from 2 advances, one 9 days past settle-by" |
+| `REQUESTER_HOLDS_CASH` | The requester has open advances in the viewer's scope with an outstanding balance. For a settlement, the advance it settles is left out. Red when any is overdue (past its settle-by day with no settlement under review, as in section 3.3), amber otherwise | "Already holds NPR 45,000 from 2 advances, one 9 days past settle-by" |
 | `UNUSUAL_AMOUNT` | The amount is more than 2× the median of requests of the same kind and category closed by Finance in the last 180 days, with at least 5 such requests | "About 3× the usual for Fuel" |
 | `WAITING_LONG` | More than 3 days since the request reached its current step | "Waiting 5 days" |
 
@@ -161,11 +161,11 @@ The page receiving `decided` fetches that request through the normal, scope-chec
 
 ### 4.6 Director sidebar
 
-For `director`: **Overview · Projects · Finance (Requests, Spend report) · Documentation**. Hiding an item remains presentation only.
+For `director`: **Overview · Projects · Finance (Requests, Spend report)**, plus Documentation when their role may read it (the docs reader roles are unchanged, so today it is not shown). Hiding an item remains presentation only.
 
 ## 5. Service endpoints
 
-All three sit under gateway prefixes that already exist (`/api/v1/dashboard`, `/api/v1/work-orders`, `/api/v1/finance`), so the gateway does not change. Each filters by the caller's scope with the helpers its list endpoints already use. Out of scope reads as absent. Totals come from grouped queries, with no page caps. Amounts travel as decimal strings; dates as ISO strings. Week buckets are ISO weeks in Asia/Kathmandu, oldest first.
+All three sit under gateway prefixes that already exist (`/api/v1/dashboard`, `/api/v1/work-orders`, `/api/v1/finance`), so the gateway does not change. Each filters by the caller's scope with the helpers its list endpoints already use. Out of scope reads as absent. Totals come from grouped queries, with no page caps. Amounts travel as decimal strings; dates as ISO strings. Week buckets are rolling seven-day windows ending at the time of the request, oldest first, so the last four are exactly the 28 days pace uses.
 
 ### 5.1 project: `GET /dashboard/portfolio`
 
@@ -180,7 +180,7 @@ interface PortfolioProject {
   /** Null when no milestone declares requirements. */
   sitesComplete: number | null;
   nextMilestone: { name: string; targetDate: string | null; percent: number } | null;
-  /** Last 8 ISO weeks: completed sites when sitesComplete is not null, otherwise completed tasks. */
+  /** Last 8 rolling weeks: completed sites when sitesComplete is not null, otherwise completed tasks. */
   completedByWeek: number[];
 }
 ```
@@ -199,7 +199,7 @@ interface WorkOrderProjectSummary {
   /** Approved in the last 90 days, and how many of those were never rejected. */
   approved90: number; firstTime90: number;
   reviewing: { count: number; oldestSubmittedAt: string | null };
-  /** Last 8 ISO weeks, by actualCompletionAt. */
+  /** Last 8 rolling weeks, by actualCompletionAt. */
   completedByWeek: number[];
 }
 ```
@@ -212,12 +212,14 @@ Permission `finance_request.view_all`. Requests in the caller's project scope.
 
 ```ts
 interface FinanceOverview {
+  /** The six months spentByMonth covers, `YYYY-MM`, oldest first; the last is the current month in Kathmandu. */
+  months: string[];
   pipeline: {
     steps: { status: 'PENDING_PM' | 'PENDING_DIRECTOR' | 'PENDING_FINANCE'; count: number; amount: string; oldestSince: string | null; mine: boolean }[];
     paidThisMonth: { count: number; amount: string };
   };
   /** The 5 requests longest at the caller's step, the caller's own excluded, with flags. */
-  queue: (RequestRow & { flags: RequestFlag[] })[];
+  queue: { id: string; number: string; kind: RequestKind; status: PendingStatus; projectId: string; projectCode: string; projectName: string; requesterId: string; purpose: string; category: string; amount: string; waitingSince: string; flags: RequestFlag[] }[];
   projects: { projectId: string; code: string; name: string; spentToDate: string; spentByMonth: string[]; cashHeld: string; overdueSettlements: { count: number; amount: string } }[];
   categories: { categoryId: string; name: string; amount: string }[];
   cashHolders: { requesterId: string; outstanding: string; open: number; overdue: number }[];
