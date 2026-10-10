@@ -220,7 +220,16 @@ describe('overdueSummary', () => {
       { requesterId: 'u-2', outstanding: '45000.00', open: 1, overdue: 1 },
       { requesterId: 'u-3', outstanding: '1000.00', open: 1, overdue: 0 },
     ];
-    expect(overdueSummary([project(1, '20000.00'), project(1, '25000.00')], holders, names)).toEqual({ count: 2, amount: '45000.00', people: ['Anil Gurung', 'Bikash Tamang'] });
+    expect(overdueSummary([project(1, '20000.00'), project(1, '25000.00')], holders, names)).toEqual({ count: 2, amount: '45000.00', people: ['Anil Gurung', 'Bikash Tamang'], partial: false });
+  });
+  it('is partial when the listed holders cover fewer overdue settlements than the total', () => {
+    const holders = [{ requesterId: 'u-1', outstanding: '23500.00', open: 2, overdue: 1 }];
+    expect(overdueSummary([project(3, '60000.00')], holders, names)?.partial).toBe(true);
+    expect(overdueSummary([project(3, '60000.00')], [], names)).toMatchObject({ people: [], partial: true });
+  });
+  it('is not partial when the holders cover every overdue settlement', () => {
+    const holders = [{ requesterId: 'u-1', outstanding: '23500.00', open: 2, overdue: 3 }];
+    expect(overdueSummary([project(3, '60000.00')], holders, names)?.partial).toBe(false);
   });
 });
 

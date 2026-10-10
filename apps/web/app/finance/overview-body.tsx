@@ -32,10 +32,10 @@ export function OverviewBody({ overview, names, role, now }: { overview: Finance
       </div>
 
       {overdue ? (
-        <div className="fin-banner" role="alert">
+        <div className="fin-banner" role="status">
           <div>
             <strong>{plural(overdue.count, 'settlement')} overdue</strong>
-            <p>{formatMoney(overdue.amount)}{overdue.people.length > 0 ? ` with ${overdue.people.join(' and ')}` : ''}, past the settle-by day.</p>
+            <p>{formatMoney(overdue.amount)}{overdue.people.length > 0 || overdue.partial ? ` with ${[...overdue.people, ...(overdue.partial ? ['others'] : [])].join(' and ')}` : ''}, past the settle-by day.</p>
           </div>
           <a className="fin-banner-link" href="#cash">See who</a>
         </div>

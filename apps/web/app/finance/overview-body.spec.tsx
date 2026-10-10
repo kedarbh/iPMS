@@ -52,7 +52,36 @@ describe('OverviewBody', () => {
 
   it('has no banner when nothing is overdue', () => {
     const quiet = overview({ projects: [{ projectId: 'p', code: 'NP004', name: 'Pokhara', spentToDate: '0.00', spentByMonth: [], cashHeld: '0.00', overdueSettlements: { count: 0, amount: '0.00' } }], cashHolders: [] });
-    expect(html(quiet)).not.toContain('overdue');
+    const out = html(quiet);
+    expect(out).toContain('Waiting for your approval');
+    expect(out).not.toContain('fin-banner');
+    expect(out).not.toContain('settlements overdue');
+  });
+
+  it('says "and others" or "with others" when the listed holders do not cover every overdue settlement', () => {
+    const partial = overview({ cashHolders: [{ requesterId: 'u-2', outstanding: '45000.00', open: 2, overdue: 1 }] });
+    expect(html(partial)).toContain('with Bikash Tamang and others, past');
+    const none = html(overview({ cashHolders: [] }));
+    expect(none).toContain('fin-banner');
+    expect(none).toContain('with others, past');
+  });
+
+  it('uses singular wording', () => {
+    const one = overview({
+      waiting: { total: 1, amount: '2400.00', oldestSince: '2026-10-07T08:00:00Z', byKind: { ADVANCE: { count: 0, amount: '0.00' }, SETTLEMENT: { count: 0, amount: '0.00' }, REIMBURSEMENT: { count: 1, amount: '2400.00' } } },
+      projects: [{ projectId: 'p', code: 'NP004', name: 'Pokhara', spentToDate: '0.00', spentByMonth: [], cashHeld: '0.00', overdueSettlements: { count: 1, amount: '20000.00' } }],
+    });
+    const out = html(one);
+    expect(out).toContain('1 request ');
+    expect(out).toContain('1 settlement overdue');
+  });
+
+  it('tones the wait pill by age', () => {
+    expect(html()).toContain('finance-pill amber');
+    const fresh = overview({ queue: [{ id: 'r-2', number: 'RMB-2026-0004', kind: 'REIMBURSEMENT', status: 'PENDING_PM', projectId: 'p', projectCode: 'NP004', projectName: 'Pokhara', requesterId: 'u-2', purpose: 'Lunch', category: 'Meals', amount: '300.00', waitingSince: '2026-10-10T02:00:00Z', flags: [] }] });
+    const out = html(fresh);
+    expect(out).toContain('finance-pill slate');
+    expect(out).not.toContain('finance-pill amber');
   });
 
   it('lists the waiting requests with a way into the queue', () => {

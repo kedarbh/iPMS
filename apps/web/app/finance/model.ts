@@ -176,10 +176,10 @@ export const waitingDays = (since: string, now: Date): number => Math.max(0, Mat
 export const waitLabel = (days: number): string => (days === 0 ? 'Today' : dayCount(days));
 export const waitTone = (days: number): 'amber' | 'slate' => (days >= 3 ? 'amber' : 'slate');
 
-/** The red banner: overdue settlements across the projects, and who holds them; null when there are none. */
+/** The red banner: overdue settlements across the projects, and who holds them (`partial` when the listed holders do not cover them all); null when there are none. */
 export function overdueSummary(
   projects: FinanceOverview['projects'], holders: FinanceOverview['cashHolders'], names: ReadonlyMap<string, string>,
-): { count: number; amount: string; people: string[] } | null {
+): { count: number; amount: string; people: string[]; partial: boolean } | null {
   const late = projects.filter((p) => p.overdueSettlements.count > 0);
   const count = late.reduce((total, p) => total + p.overdueSettlements.count, 0);
   if (count === 0) return null;
@@ -187,6 +187,8 @@ export function overdueSummary(
     count,
     amount: addMoney(...late.map((p) => p.overdueSettlements.amount)),
     people: holders.filter((h) => h.overdue > 0).map((h) => personName(h.requesterId, names)),
+    // The holders list is capped, so it may not account for every overdue settlement.
+    partial: holders.reduce((total, h) => total + h.overdue, 0) < count,
   };
 }
 
