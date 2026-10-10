@@ -192,7 +192,7 @@ describe('after a decision', () => {
   });
 
   it('sends a project manager back to the finance queue when nothing is left', async () => {
-    await expect(actions.approveAction(EMPTY, form({ id: 'r-1' }))).rejects.toThrow('NEXT_REDIRECT:/finance?view=awaiting&decided=r-1');
+    await expect(actions.approveAction(EMPTY, form({ id: 'r-1' }))).rejects.toThrow('NEXT_REDIRECT:/finance/queue?decided=r-1');
   });
 
   it('sends a Project Director home when nothing is left', async () => {
@@ -204,6 +204,47 @@ describe('after a decision', () => {
     api.approveRequest.mockResolvedValue({ state: 'forbidden', message: 'You already approved an earlier step of this request' });
     expect(await actions.approveAction(EMPTY, form({ id: 'r-1' }))).toEqual({ error: 'You already approved an earlier step of this request' });
     expect(api.listRequests).not.toHaveBeenCalled();
+  });
+});
+
+describe('decisions made from the queue', () => {
+  it('approves and stays put', async () => {
+    const state = await actions.approveAction(EMPTY, form({ id: 'r-1', from: 'queue' }));
+    expect(state).toEqual({ done: true });
+    expect(redirect).not.toHaveBeenCalled();
+    expect(revalidatePath).toHaveBeenCalledWith('/finance/queue');
+    expect(revalidatePath).toHaveBeenCalledWith('/finance/history');
+  });
+
+  it('returns with a reason and stays put, and still asks for the reason', async () => {
+    expect(await actions.returnAction(EMPTY, form({ id: 'r-1', from: 'queue' }))).toEqual({ error: 'Say why.' });
+    expect(await actions.returnAction(EMPTY, form({ id: 'r-1', from: 'queue', comment: 'Bill missing' }))).toEqual({ done: true });
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it('rejects with a reason and stays put, and still asks for the reason', async () => {
+    expect(await actions.rejectAction(EMPTY, form({ id: 'r-1', from: 'queue' }))).toEqual({ error: 'Say why.' });
+    expect(await actions.rejectAction(EMPTY, form({ id: 'r-1', from: 'queue', comment: 'Not in budget' }))).toEqual({ done: true });
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it('records a payment and reports it done', async () => {
+    const state = await actions.payAction(EMPTY, form({ id: 'r-1', from: 'queue', mode: 'CASH', reference: 'V-1', paidOn: '2026-10-10' }));
+    expect(state).toEqual({ done: true });
+  });
+
+  it('shows the service’s refusal and does not report done', async () => {
+    api.approveRequest.mockResolvedValue({ state: 'forbidden', message: 'You already approved this' });
+    expect(await actions.approveAction(EMPTY, form({ id: 'r-1', from: 'queue' }))).toEqual({ error: 'You already approved this' });
+  });
+
+  it('without the flag, a decision still opens the next request', async () => {
+    api.listRequests.mockResolvedValue(ready({ items: [{ id: 'r-2' }], total: 1, page: 1, limit: 2 }));
+    await expect(actions.approveAction(EMPTY, form({ id: 'r-1' }))).rejects.toThrow('NEXT_REDIRECT:/finance/requests/r-2?decided=r-1');
+  });
+
+  it('without the flag and nothing left, lands on the queue', async () => {
+    await expect(actions.approveAction(EMPTY, form({ id: 'r-1' }))).rejects.toThrow('NEXT_REDIRECT:/finance/queue?decided=r-1');
   });
 });
 
