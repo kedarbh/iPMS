@@ -1,4 +1,4 @@
-import type { FinanceRequest, FinanceStep } from '../lib/finance-api';
+import type { FinanceRequest, FinanceRequestDetail, FinanceStep, RequestFlag } from '../lib/finance-api';
 
 /** What the finance screens show and which buttons they offer. Pure, so it is testable; the service enforces every rule again. */
 
@@ -103,4 +103,35 @@ export function describeEntry(entry: { step: FinanceStep; action: string }): str
   if (entry.action === 'CASH_RETURNED') return 'Cash return recorded by finance';
   if (entry.action === 'REMINDED') return `Settlement reminder sent by ${STEP_NAME[entry.step]}`;
   return `${VERB[entry.action] ?? entry.action} by ${STEP_NAME[entry.step]}`;
+}
+
+/** One warning as a sentence. */
+export function flagText(flag: RequestFlag): string {
+  switch (flag.code) {
+    case 'DUPLICATE_BILL':
+      return `Possible duplicate bill: also on ${flag.matches.map((m) => m.number).join(', ')}`;
+    case 'REQUESTER_HOLDS_CASH': {
+      const held = `Already holds ${formatMoney(flag.outstanding)} from ${flag.advances} advance${flag.advances === 1 ? '' : 's'}`;
+      if (flag.overdue === 0) return held;
+      if (flag.overdue === 1) return `${held}, one ${flag.oldestOverdueDays} days past settle-by`;
+      return `${held}, ${flag.overdue} past settle-by (oldest ${flag.oldestOverdueDays} days)`;
+    }
+    case 'UNUSUAL_AMOUNT':
+      return `About ${flag.ratio}× the usual for ${flag.category}`;
+    case 'WAITING_LONG':
+      return `Waiting ${flag.days} days`;
+  }
+}
+
+/**
+ * "ADV-2026-0012 approved for NPR 40,000.00." — what the viewer just decided,
+ * read from the request's own history; null when its last step is not theirs.
+ */
+export function decisionLine(request: Pick<FinanceRequestDetail, 'number' | 'actions'>, viewerId: string): string | null {
+  const last = request.actions[request.actions.length - 1];
+  if (!last || last.actorId !== viewerId) return null;
+  if (last.action === 'APPROVED') return `${request.number} approved${last.amount ? ` for ${formatMoney(last.amount)}` : ''}.`;
+  if (last.action === 'RETURNED') return `${request.number} returned to the requester.`;
+  if (last.action === 'REJECTED') return `${request.number} rejected.`;
+  return null;
 }

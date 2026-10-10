@@ -41,3 +41,9 @@
 
 @media (max-width: 900px) { .finance-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 700px) { .finance-facts dl { grid-template-columns: 1fr; } .finance-facts dt { padding-bottom: 0; } .finance-facts dd { border-top: 0; padding-top: 2px; } }
+.finance-flags { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 3px; font-size: 12px; font-weight: 600; }
+.finance-flags li.red { color: var(--red); }
+.finance-flags li.amber { color: var(--amber); }
+.finance-decided { margin: 0 0 14px; padding: 10px 14px; border-radius: 8px; background: color-mix(in srgb, var(--green) 12%, transparent); color: var(--ink); font-size: 14px; font-weight: 600; }
+.finance-context { border-left: 4px solid var(--blue); }
+.finance-context .finance-flags { margin: 0 0 12px; }
