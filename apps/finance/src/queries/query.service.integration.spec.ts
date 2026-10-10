@@ -104,6 +104,27 @@ describe('list', () => {
     expect(page).toMatchObject({ total: 3, page: 2, limit: 2 });
     expect(page.items).toHaveLength(1);
   });
+
+  it('filters by stage: approval is every pending step, closed is paid and settled', async () => {
+    const pending = await make();
+    const done = await make();
+    await approvals.approve(done.id, {}, ACTORS.pm, scopes.project);
+    await approvals.approve(done.id, {}, ACTORS.director, scopes.project);
+    await payments.pay(done.id, { mode: 'CASH', reference: 'V-1', paidOn: new Date('2026-10-09') }, ACTORS.finance, scopes.global);
+    const approval = await queries.list(ACTORS.pm, scopes.project, { view: 'all', stage: 'approval', page: 1, limit: 20 });
+    expect(approval.items.map((i) => i.id)).toEqual([pending.id]);
+    const closed = await queries.list(ACTORS.pm, scopes.project, { view: 'all', stage: 'closed', page: 1, limit: 20 });
+    expect(closed.items.map((i) => i.id)).toEqual([done.id]);
+  });
+
+  it('searches number, purpose and project, ignoring case', async () => {
+    const one = await make();
+    const find = (q: string) => queries.list(ACTORS.pm, scopes.project, { view: 'all', q, page: 1, limit: 20 }).then((p) => p.items.map((i) => i.id));
+    expect(await find(one.number.toLowerCase())).toEqual([one.id]);
+    expect(await find('TRAV')).toEqual([one.id]);
+    expect(await find(PROJECT.code.toLowerCase())).toEqual([one.id]);
+    expect(await find('no such thing')).toEqual([]);
+  });
 });
 
 describe('get', () => {

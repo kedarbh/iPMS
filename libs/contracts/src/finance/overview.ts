@@ -35,11 +35,20 @@ export interface ProjectMoney {
   overdueSettlements: { count: number; amount: string };
 }
 
+export interface WaitingSummary {
+  total: number;
+  amount: string;
+  oldestSince: string | null;
+  byKind: Record<RequestKind, { count: number; amount: string }>;
+}
+
 /** `GET /finance/overview`: money in the caller's project scope. */
 export interface FinanceOverview {
   /** The six months spentByMonth covers, `YYYY-MM`, oldest first; the last is the current month in Kathmandu. */
   months: string[];
   pipeline: { steps: PipelineStep[]; paidThisMonth: { count: number; amount: string } };
+  /** Everything waiting at the caller's step, uncapped (the queue below shows the first few). */
+  waiting: WaitingSummary;
   queue: OverviewQueueItem[];
   projects: ProjectMoney[];
   categories: { categoryId: string; name: string; amount: string }[];

@@ -67,7 +67,16 @@ export class OverviewService {
       return { status, count: here.length, amount: sumMoney(here.map(amountOf)), oldestSince: here[0]?.updatedAt.toISOString() ?? null, mine: mine.has(status) };
     });
 
-    const queueRows = visible.filter((r) => mine.has(r.status)).slice(0, QUEUE_SIZE);
+    const waitingRows = visible.filter((r) => mine.has(r.status));
+    const ofKind = (kind: RequestKind) => {
+      const rows = waitingRows.filter((r) => r.kind === kind);
+      return { count: rows.length, amount: sumMoney(rows.map(amountOf)) };
+    };
+    const waiting = {
+      total: waitingRows.length, amount: sumMoney(waitingRows.map(amountOf)), oldestSince: waitingRows[0]?.updatedAt.toISOString() ?? null,
+      byKind: { ADVANCE: ofKind('ADVANCE'), SETTLEMENT: ofKind('SETTLEMENT'), REIMBURSEMENT: ofKind('REIMBURSEMENT') },
+    };
+    const queueRows = waitingRows.slice(0, QUEUE_SIZE);
     const flags = await requestFlags(this.prisma, queueRows, scope, now);
     const queue = queueRows.map((r) => ({
       id: r.id, number: r.number, kind: r.kind as RequestKind, status: r.status as PendingStatus,
@@ -114,6 +123,7 @@ export class OverviewService {
     return {
       months,
       pipeline: { steps, paidThisMonth: { count: closedThisMonth.length, amount: sumMoney(closedThisMonth.map((c) => c.paidOut)) } },
+      waiting,
       queue,
       projects: [...projects.values()].sort((a, b) => compareMoney(b.spentToDate, a.spentToDate) || a.code.localeCompare(b.code)),
       categories: [...byCategory.entries()]
