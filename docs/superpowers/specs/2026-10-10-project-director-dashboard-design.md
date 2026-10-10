@@ -27,7 +27,7 @@ Out of scope:
 
 ## 3. The Director home
 
-`homeFor` gains a `director` value for anyone holding `PROJECT_DIRECTOR` without a more senior role (`SUPER_ADMIN` and `PROJECT_MANAGER` still win, as today). `FINANCE` keeps its current workspace. `/` renders `DirectorOverview` for `director`.
+`homeFor` gains a `director` value for anyone holding `PROJECT_DIRECTOR` without a more senior role (`SUPER_ADMIN` and `PROJECT_MANAGER` still win, as today). `FINANCE` keeps its current workspace. `/` renders `DirectorOverview` for `director`. Someone who is both a QC Manager and a Project Director lands on the Director home and keeps the Quality & EHS menu (section 4.6).
 
 ### 3.1 Header
 
@@ -161,7 +161,7 @@ The page receiving `decided` fetches that request through the normal, scope-chec
 
 ### 4.6 Director sidebar
 
-For `director`: **Overview · Projects · Finance (Requests, Spend report)**, plus Documentation when their role may read it (the docs reader roles are unchanged, so today it is not shown). Hiding an item remains presentation only.
+For `director`: **Overview · Projects · Quality & EHS · Finance (Requests, Spend report)**, plus Documentation when their role may read it (the docs reader roles are unchanged, so today it is not shown). Quality & EHS shows Work orders to anyone holding `task.view` and the Checklist library to anyone holding `qc_template.view`; a Director who also holds `QC_MANAGER` gets the review badge. Hiding an item remains presentation only.
 
 ## 5. Service endpoints
 
