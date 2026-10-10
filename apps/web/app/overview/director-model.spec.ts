@@ -35,7 +35,7 @@ describe('scheduleSignal', () => {
   });
 
   it('says a project past its target is slipping', () => {
-    expect(run({ targetDate: '2026-09-30T00:00:00.000Z', completion: 78 }).signal).toEqual({ label: 'Slipping', severity: 'red', reason: 'Target was 30 Sep; 78% done' });
+    expect(run({ targetDate: '2026-09-30T00:00:00.000Z', completion: 78 }).signal).toEqual({ label: 'Slipping', severity: 'red', reason: 'Target was 30 Sept; 78% done' });
   });
 
   it('does not forecast a project in its first four weeks', () => {
