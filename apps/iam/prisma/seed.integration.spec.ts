@@ -224,6 +224,11 @@ describe('seedDemoUsers global scope replication', () => {
     expect(await prisma.userGlobalScope.count()).toBe(2);
   });
 
+  it('leaves finance on for every demo account', async () => {
+    expect(await prisma.user.count({ where: { financeEnabled: false } })).toBe(0);
+    expect(await prisma.user.count({ where: { financeEnabled: true } })).toBeGreaterThan(0);
+  });
+
   it('is idempotent: a second seed adds no row and no second event', async () => {
     await seedDemoUsers(prisma);
     expect(await prisma.userGlobalScope.count()).toBe(2);
