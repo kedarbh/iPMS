@@ -23,7 +23,8 @@ async function userId(admin: string, email: string): Promise<string> {
 }
 
 interface Request { id: string; status: string; approvedAmount: string | null }
-interface Overview { queue: { id: string }[]; pipeline: { steps: { status: string; mine: boolean }[] }; decisions: { trimmed: { count: number } } }
+interface Overview { queue: { id: string }[]; pipeline: { steps: { status: string; mine: boolean; count: number }[] }; decisions: { trimmed: { count: number } } }
+const directorStep = (o: Overview) => o.pipeline.steps.find((s) => s.status === 'PENDING_DIRECTOR')!;
 
 let manager: string;
 let director: string;
@@ -43,7 +44,8 @@ beforeAll(async () => {
   }
   [manager, director] = await Promise.all([login('manager'), login('director')]);
   for (const token of [manager, director]) {
-    await eventually(() => api<{ id: string }[]>('/api/v1/projects', { token }), (r) => r.body.some((p) => p.id === projectId));
+    const replicated = await eventually(() => api<{ id: string }[]>('/api/v1/projects', { token }), (r) => r.body.some((p) => p.id === projectId));
+    expect(replicated.body.some((p) => p.id === projectId), 'scope replicated').toBe(true);
   }
   categoryId = (await api<{ id: string; disabledAt: string | null }[]>('/api/v1/finance/categories', { token: manager })).body.find((c) => !c.disabledAt)!.id;
 }, 120_000);
@@ -55,13 +57,16 @@ describe('Project Director finance', () => {
     });
     expect(created.status).toBe(201);
     const submitted = await api<Request>(`/api/v1/finance/requests/${created.body.id}/submit`, { method: 'POST', token: manager });
+    expect(submitted.status).toBe(201);
     // A project manager's own request skips the PM step and goes to the Director.
     expect(submitted.body.status).toBe('PENDING_DIRECTOR');
 
     const before = await api<Overview>('/api/v1/finance/overview', { token: director });
     expect(before.status).toBe(200);
-    expect(before.body.pipeline.steps.find((s) => s.mine)?.status).toBe('PENDING_DIRECTOR');
+    expect(directorStep(before.body).mine).toBe(true);
+    expect(directorStep(before.body).count).toBeGreaterThanOrEqual(1);
     const awaiting = await api<{ items: Request[] }>('/api/v1/finance/requests?view=awaiting&limit=100', { token: director });
+    expect(awaiting.status).toBe(200);
     expect(awaiting.body.items.map((r) => r.id)).toContain(created.body.id);
 
     const approved = await api<Request>(`/api/v1/finance/requests/${created.body.id}/approve`, { method: 'POST', token: director, body: { amount: '4000' } });
@@ -69,8 +74,10 @@ describe('Project Director finance', () => {
     expect(approved.body).toMatchObject({ status: 'PENDING_FINANCE', approvedAmount: '4000.00' });
 
     const handled = await api<{ items: Request[] }>('/api/v1/finance/requests?view=handled&limit=100', { token: director });
+    expect(handled.status).toBe(200);
     expect(handled.body.items.map((r) => r.id)).toContain(created.body.id);
     const after = await api<Overview>('/api/v1/finance/overview', { token: director });
+    expect(directorStep(after.body).count).toBe(directorStep(before.body).count - 1);
     expect(after.body.decisions.trimmed.count).toBe(before.body.decisions.trimmed.count + 1);
   });
 
