@@ -15,6 +15,9 @@ vi.mock('./lib/user-api', () => ({ getMyProfile }));
 const listWorkOrders = vi.fn();
 vi.mock('./lib/work-order-api', () => ({ listWorkOrders }));
 
+const listRequests = vi.fn();
+vi.mock('./lib/finance-api', () => ({ listRequests }));
+
 const { Sidebar, TopActions, initialsOf } = await import('./shell');
 
 function user(permissions: string[]) {
@@ -45,6 +48,8 @@ function currentHrefs(node: unknown): string[] {
 beforeEach(() => {
   getCurrentUser.mockReset();
   listWorkOrders.mockReset();
+  listRequests.mockReset();
+  listRequests.mockResolvedValue({ state: 'ready', data: { items: [], total: 0 } });
   cookieStore.get.mockReset();
 });
 
@@ -202,6 +207,29 @@ describe('Sidebar Finance group', () => {
     expect(links).not.toContain('/finance/categories');
     expect(links).not.toContain('/#audit-log');
     expect(listWorkOrders).not.toHaveBeenCalled();
+  });
+
+  it('gives an approver Overview, Queue (badged with the awaiting total) and History', async () => {
+    getCurrentUser.mockResolvedValue(as(['FINANCE'], ['finance_request.view', 'finance_request.view_all', 'finance_payment.record']));
+    listRequests.mockResolvedValue({ state: 'ready', data: { items: [], total: 4 } });
+    const tree = await Sidebar({ active: 'finance-queue' });
+    expect(hrefs(tree)).toEqual(expect.arrayContaining(['/finance', '/finance/queue', '/finance/history']));
+    const text = JSON.stringify(tree);
+    expect(text).toContain('Overview');
+    expect(text).toContain('"badge":4');
+    expect(text).not.toContain('Requests');
+    expect(listRequests).toHaveBeenCalledWith({ view: 'awaiting', limit: 1 });
+  });
+
+  it('gives someone who approves nothing the single Requests item', async () => {
+    getCurrentUser.mockResolvedValue(as(['FINANCE'], ['finance_request.view', 'finance_request.view_all']));
+    const tree = await Sidebar({ active: 'finance' });
+    const links = hrefs(tree);
+    expect(links).toContain('/finance');
+    expect(links).not.toContain('/finance/queue');
+    expect(links).not.toContain('/finance/history');
+    expect(JSON.stringify(tree)).toContain('Requests');
+    expect(listRequests).not.toHaveBeenCalled();
   });
 
   it('keeps the review badge for a Director who is also a QC Manager', async () => {

@@ -55,7 +55,7 @@ export async function DirectorOverview({ decided }: { decided?: string | undefin
             </div>
             <div className="ov-head-actions">
               <a className="secondary-button" href="/finance/reports">Spend report</a>
-              <a className="primary-button" href="/finance?view=awaiting">Open queue</a>
+              <a className="primary-button" href="/finance/queue">Open queue</a>
             </div>
           </section>
           {mayReadFinance ? <WaitingPanel finance={money} names={names} now={now} /> : null}
