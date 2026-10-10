@@ -58,7 +58,7 @@ export class RequestService {
           id: uuidv7(), number: await this.nextNumber(tx, dto.kind), kind: dto.kind, status: 'DRAFT',
           projectId: ref.id, projectCode: ref.code, projectName: ref.name,
           workOrderId: dto.workOrderId ?? null, categoryId: dto.categoryId, requesterId: actor.id, advanceId,
-          purpose: dto.purpose, requestedAmount,
+          purpose: dto.purpose, remarks: dto.remarks ?? null, requestedAmount,
         },
       });
       await this.writeInvoices(tx, row.id, invoices);
@@ -90,6 +90,7 @@ export class RequestService {
           requestedAmount,
           ...(dto.categoryId ? { categoryId: dto.categoryId } : {}),
           ...(dto.purpose ? { purpose: dto.purpose } : {}),
+          ...(dto.remarks !== undefined ? { remarks: dto.remarks } : {}),
           ...(dto.workOrderId !== undefined ? { workOrderId: dto.workOrderId } : {}),
         },
       });

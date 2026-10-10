@@ -3,7 +3,7 @@ import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/
 // the `output` comment in prisma/schema.prisma.
 import type { PrismaClient } from '@prisma-clients/iam';
 import type { ChangePasswordDto, LoginDto, TokenPair } from '@ipms/contracts';
-import { resolvePermissions, type AuthzOverride } from '@ipms/authz';
+import { financeOptOutOverrides, resolvePermissions, type AuthzOverride } from '@ipms/authz';
 import { PasswordService } from './password.service.js';
 import { TokenService } from './token.service.js';
 
@@ -47,7 +47,14 @@ interface OverrideRow {
   validUntil: Date | null;
 }
 
-/** Loaded on both login and refresh, because both mint a `permissions` claim. */
+/**
+ * Loaded on both login and refresh, because both mint a `permissions` claim.
+ *
+ * The finance opt-out reads `financeEnabled` from the user row's scalar
+ * columns, which `include` returns. If this is ever changed to a `select` it
+ * must name `financeEnabled`, or the opt-out silently stops applying
+ * (`claimsFor` is called with `user as never`, so the compiler will not notice).
+ */
 const USER_INCLUDE = {
   roles: { include: { role: { include: { permissions: { include: { permission: true } } } } } },
   overrides: { include: { permission: true } },
@@ -102,12 +109,12 @@ export class AuthService {
    * transaction as the override write.
    */
   private claimsFor(
-    user: { roles: unknown; overrides?: unknown },
+    user: { roles: unknown; overrides?: unknown; financeEnabled?: boolean },
     now: Date,
   ): { roles: string[]; permissions: string[] } {
     const live = (user.roles as RoleAssignment[]).filter((a) => this.isLive(a, now));
     const rolePermissions = live.flatMap((a) => a.role.permissions.map((rp) => rp.permission.code));
-    const overrides: AuthzOverride[] = ((user.overrides ?? []) as OverrideRow[]).map((o) => ({
+    const stored: AuthzOverride[] = ((user.overrides ?? []) as OverrideRow[]).map((o) => ({
       permission: o.permission.code,
       effect: o.effect === 'DENY' ? 'DENY' : 'ALLOW',
       projectId: o.projectId,
@@ -115,6 +122,10 @@ export class AuthService {
       validFrom: o.validFrom,
       validUntil: o.validUntil,
     }));
+    // A Field Engineer whose own company handles their money holds no finance
+    // permission. Synthesised here, never stored; a DENY outranks any role grant
+    // or ALLOW override, so nothing else needs to know.
+    const overrides = user.financeEnabled === false ? [...stored, ...financeOptOutOverrides()] : stored;
 
     return {
       roles: [...new Set(live.map((a) => a.role.code))],

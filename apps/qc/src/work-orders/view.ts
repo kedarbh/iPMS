@@ -1,4 +1,20 @@
-import type { WorkOrder } from '@prisma-clients/qc';
+import { scopeWhere, type AuthzScope } from '@ipms/authz';
+import type { Prisma, WorkOrder } from '@prisma-clients/qc';
+
+/**
+ * What a caller may read. `onlyAssignee` is set for a caller without
+ * `task.view_all` — a field engineer — and narrows every read to the work
+ * assigned to them, cancelled work excluded: their queue is their own work.
+ */
+export type WorkOrderScope = AuthzScope & { onlyAssignee?: string };
+
+/** The scope filter plus, for a restricted caller, the own-work filter. ANDed by every read. */
+export function reachWhere(scope: WorkOrderScope): Prisma.WorkOrderWhereInput[] {
+  return [
+    scopeWhere(scope),
+    ...(scope.onlyAssignee ? [{ assigneeId: scope.onlyAssignee, status: { not: 'CANCELLED' } }] : []),
+  ];
+}
 
 export type WorkOrderRow = WorkOrder;
 

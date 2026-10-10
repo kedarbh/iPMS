@@ -6,6 +6,7 @@ import type {
   CreateSiteInput,
   CreateTaskDto,
   CreateTaskTypeDto,
+  PortfolioProject,
   SiteImportCommitDto,
   SiteImportPreviewDto,
   UpdateMilestoneDto,
@@ -124,6 +125,11 @@ export type DashboardResult = ApiResult<ProjectDashboard>;
 /** Calls the gateway, never the Project service directly, preserving one public API boundary. */
 export async function getProjectDashboard(): Promise<DashboardResult> {
   return authFetch<ProjectDashboard>('/api/v1/dashboard');
+}
+
+/** The Director's portfolio: every ACTIVE or ON_HOLD project in scope, with the counts its health is judged by. */
+export async function getPortfolio(): Promise<ApiResult<PortfolioProject[]>> {
+  return authFetch<PortfolioProject[]>('/api/v1/dashboard/portfolio');
 }
 
 export async function listProjects(): Promise<ApiResult<ProjectListEntry[]>> {

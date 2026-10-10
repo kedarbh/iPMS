@@ -286,6 +286,20 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(view.hint, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: view.hintColor)),
                   ),
+                if (r.remarks != null && r.remarks!.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  FCard(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Remarks', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 6),
+                        Text(r.remarks!, style: const TextStyle(fontSize: 14, height: 1.45, color: Color(0xFF3F4550))),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 14),
                 if (r.duplicates.isNotEmpty) ...[
                   _duplicateWarning(r.duplicates),

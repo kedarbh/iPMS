@@ -2,7 +2,9 @@ import { getAdvance, getRequest, type DuplicateHit } from '../../../lib/finance-
 import { getCurrentUser } from '../../../lib/iam-api';
 import { listUserDirectory } from '../../../lib/user-api';
 import { Sidebar, StatePage, TopActions } from '../../../shell';
+import { DecidedNotice } from '../../decided';
 import { ActionPanels } from './panels';
+import { ContextPanel } from './context-panel';
 import {
   KIND_LABEL, STATUS_LABEL, STATUS_TONE, availableActions, describeEntry, formatMoney, personName, settlementStatus, waitingOn,
 } from '../../model';
@@ -16,8 +18,8 @@ const DUPLICATE_REASON: Record<DuplicateHit['reason'], (d: DuplicateHit) => stri
 };
 const MODE: Record<string, string> = { BANK_TRANSFER: 'Bank transfer', CASH: 'Cash', CHEQUE: 'Cheque', MOBILE_WALLET: 'Mobile wallet' };
 
-export default async function FinanceRequestPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function FinanceRequestPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ decided?: string }> }) {
+  const [{ id }, { decided }] = await Promise.all([params, searchParams]);
   const [viewer, result, directory] = await Promise.all([getCurrentUser(), getRequest(id), listUserDirectory()]);
   if (result.state === 'unauthenticated' || viewer.state === 'unauthenticated') {
     return <StatePage title="Sign in to see this request"><a className="primary-button" href="/login">Sign in</a></StatePage>;
@@ -44,6 +46,7 @@ export default async function FinanceRequestPage({ params }: { params: Promise<{
           <TopActions />
         </header>
         <div className="dashboard">
+          <DecidedNotice id={decided} viewerId={viewer.data.id} />
           <div className="toolbar">
             <div>
               <p className="eyebrow">{KIND_LABEL[request.kind].toUpperCase()}</p>
@@ -52,6 +55,7 @@ export default async function FinanceRequestPage({ params }: { params: Promise<{
             </div>
           </div>
 
+          {request.context ? <ContextPanel context={request.context} category={request.category?.name ?? 'this category'} project={request.projectName} /> : null}
           <ActionPanels request={request} actions={actions} />
 
           {(request.duplicates ?? []).length > 0 ? (
@@ -71,6 +75,7 @@ export default async function FinanceRequestPage({ params }: { params: Promise<{
           <section className="panel finance-facts">
             <dl>
               <dt>For</dt><dd>{request.purpose}</dd>
+              {request.remarks ? <><dt>Remarks</dt><dd style={{ whiteSpace: 'pre-wrap' }}>{request.remarks}</dd></> : null}
               <dt>Category</dt><dd>{request.category?.name ?? '—'}</dd>
               <dt>Requested by</dt><dd>{who(request.requesterId)}</dd>
               <dt>Requested</dt><dd>{formatMoney(request.requestedAmount)}</dd>

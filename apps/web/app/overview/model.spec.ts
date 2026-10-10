@@ -137,9 +137,11 @@ describe('homeFor', () => {
     expect(homeFor(roles)).toBe(expected);
   });
 
-  it('sends Finance and Project Directors to the finance workspace', () => {
+  it('sends Finance to the finance workspace and Project Directors to their own home', () => {
     expect(homeFor(['FINANCE'])).toBe('finance');
-    expect(homeFor(['PROJECT_DIRECTOR'])).toBe('finance');
+    expect(homeFor(['PROJECT_DIRECTOR'])).toBe('director');
+    expect(homeFor(['FINANCE', 'PROJECT_DIRECTOR'])).toBe('director');
+    expect(homeFor(['QC_MANAGER', 'PROJECT_DIRECTOR'])).toBe('director');
   });
 
   it('keeps administrators and project managers on their own homes even if they also hold a finance role', () => {

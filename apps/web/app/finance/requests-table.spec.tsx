@@ -22,15 +22,23 @@ describe('RequestsTable', () => {
     expect(out).toContain('Koshi Rollout');
     expect(out).toContain('Sita Rai');
     expect(out).toContain('NPR 50,000.00');
-    expect(out).toContain('With project manager');
+    expect(out).toContain('Approval');
+    expect(out).toContain('Project manager');
   });
 
   it('shows the approved amount beside the requested one once there is one', () => {
     expect(html([row({ status: 'PENDING_FINANCE', approvedAmount: '40000.00' })])).toContain('NPR 40,000.00');
   });
 
-  it('says so when nothing is waiting', () => {
-    expect(html([])).toContain('Nothing here yet.');
+  it('says the queue is clear when nothing is waiting, and plainly empty elsewhere', () => {
+    expect(html([])).toContain('All caught up. Nothing is waiting for you.');
+    expect(renderToStaticMarkup(<RequestsTable page={page([])} names={names} view="mine" />)).toContain('Nothing here yet.');
+  });
+
+  it('shows the flags a waiting request carries', () => {
+    const out = html([row({ flags: [{ code: 'WAITING_LONG', tone: 'amber', days: 5 }] })]);
+    expect(out).toContain('finance-flags');
+    expect(out).toContain('Waiting 5 days');
   });
 
   it('uses scoped class names', () => {

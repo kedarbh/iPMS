@@ -18,6 +18,9 @@ import type { TokenService } from '../auth/token.service.js';
 /** A ceiling, not a page size: the directory is one list, and the platform's staff fits in it. */
 const DIRECTORY_LIMIT = 5000;
 
+/** The one role that may have finance turned off: vendor staff, whose own company handles their money. */
+const FIELD_ENGINEER = 'FIELD_ENGINEER';
+
 type Tx = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
 
 /**
@@ -30,7 +33,7 @@ type Tx = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
  */
 const USER_SELECT = {
   id: true, email: true, fullName: true, employeeCode: true,
-  isActive: true, mustChangePassword: true, lastLoginAt: true, createdAt: true,
+  isActive: true, mustChangePassword: true, financeEnabled: true, lastLoginAt: true, createdAt: true,
   roles: { select: { role: { select: { code: true, name: true } } } },
 } as const;
 
@@ -41,6 +44,7 @@ interface UserRow {
   employeeCode: string | null;
   isActive: boolean;
   mustChangePassword: boolean;
+  financeEnabled: boolean;
   lastLoginAt: Date | null;
   createdAt: Date;
   roles: Array<{ role: { code: string; name: string } }>;
@@ -65,6 +69,7 @@ function toResponse(row: UserRow): UserResponse {
     employeeCode: row.employeeCode,
     isActive: row.isActive,
     mustChangePassword: row.mustChangePassword,
+    financeEnabled: row.financeEnabled,
     lastLoginAt: row.lastLoginAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     roles: [...seen].map(([code, name]) => ({ code, name })),
@@ -236,6 +241,15 @@ export class UsersService {
   async create(dto: CreateUserDto, actorId: string, actorRoleCodes: string[]): Promise<UserResponse> {
     this.assertMayAssign(actorRoleCodes, dto.roleCodes);
 
+    // Finance is on unless the caller says otherwise, and only a Field Engineer
+    // may turn it off: it exists for vendor staff whose own company pays their
+    // advances and settles their expenses. Checked here rather than in the
+    // schema so the refusal is a 400 naming the rule.
+    const financeEnabled = dto.financeEnabled ?? true;
+    if (!financeEnabled && !(dto.roleCodes.length === 1 && dto.roleCodes[0] === FIELD_ENGINEER)) {
+      throw new BadRequestException('Only a Field Engineer can have finance turned off');
+    }
+
     // Hashed before the transaction opens: argon2 is deliberately slow, and
     // holding a database transaction open across it would pin a connection for
     // the duration of every user creation.
@@ -263,6 +277,7 @@ export class UsersService {
           // The creator knows this password, so the account carries no
           // authority until its holder replaces it. See AuthService.login.
           mustChangePassword: true,
+          financeEnabled,
         },
       });
 
@@ -278,6 +293,7 @@ export class UsersService {
       await this.audit(tx, actorId, 'user.created', id, {}, {
         email: dto.email, fullName: dto.fullName,
         roleCodes: roles.map((role) => role.code),
+        financeEnabled,
       });
 
       // Re-read rather than assembling the response from the write inputs: one
@@ -433,8 +449,18 @@ export class UsersService {
       // The permissions claim is resolved at issuance, so without this the old
       // authority stays live for the access token's full TTL.
       await this.revokeTokens(tx, id);
+      // An engineer made some other role is no longer one: finance is theirs
+      // again, rather than withheld by a switch only an engineer can carry. A
+      // user left with no role keeps the switch, so a round trip through "no
+      // role" cannot restore finance to a vendor engineer.
+      const restoresFinance = existing.financeEnabled === false
+        && dto.roleCodes.length > 0
+        && !dto.roleCodes.includes(FIELD_ENGINEER);
+      if (restoresFinance) await tx.user.update({ where: { id }, data: { financeEnabled: true } });
+
       await this.audit(tx, actorId, 'user.roles_changed', id,
-        { roleCodes: previousCodes }, { roleCodes: dto.roleCodes });
+        { roleCodes: previousCodes, ...(restoresFinance ? { financeEnabled: false } : {}) },
+        { roleCodes: dto.roleCodes, ...(restoresFinance ? { financeEnabled: true } : {}) });
 
       const updated = await tx.user.findUniqueOrThrow({ where: { id }, select: USER_SELECT });
       return toResponse(updated as UserRow);

@@ -7,7 +7,7 @@ import { CheckIcon, Kpi, SignInPage } from './parts';
 import { Sidebar, TopActions } from '../shell';
 
 /** A field engineer's home: their own work orders, rework first. The API already narrows every read to what is assigned to them. */
-export async function EngineerOverview() {
+export async function EngineerOverview({ canViewFinance }: { canViewFinance: boolean }) {
   const [open, profile] = await Promise.all([listWorkOrders({ view: 'open', limit: 12 }), getMyProfile()]);
   if (open.state === 'unauthenticated') return <SignInPage what="your work" />;
 
@@ -44,9 +44,11 @@ export async function EngineerOverview() {
                       : `${todo} work order${todo === 1 ? '' : 's'} to do${late > 0 ? `, ${late} overdue` : ''}.`}
               </p>
             </div>
-            <div className="ov-head-actions">
-              <a className="secondary-button" href="/finance">Finance requests</a>
-            </div>
+            {canViewFinance ? (
+              <div className="ov-head-actions">
+                <a className="secondary-button" href="/finance">Finance requests</a>
+              </div>
+            ) : null}
           </section>
 
           <section className="ov-kpis ov-kpis-4" aria-label="Your work">

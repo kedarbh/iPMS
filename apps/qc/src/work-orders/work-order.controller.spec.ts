@@ -16,7 +16,7 @@ function permissionOf(method: keyof WorkOrderController): string | undefined {
 }
 
 const make = (scope: unknown = { state: 'found', value: SCOPE }) => {
-  const service = { create: vi.fn(), list: vi.fn(), brief: vi.fn(), get: vi.fn(), update: vi.fn(), cancel: vi.fn() };
+  const service = { create: vi.fn(), list: vi.fn(), summary: vi.fn(), brief: vi.fn(), get: vi.fn(), update: vi.fn(), cancel: vi.fn() };
   const projects = { scope: vi.fn().mockResolvedValue(scope) };
   return { service, projects, controller: new WorkOrderController(service as unknown as WorkOrderService, projects as unknown as ProjectDirectoryClient) };
 };
@@ -25,7 +25,7 @@ const req = (permissions: string[]) => ({ user: { id: 'u-1', permissions }, head
 describe('WorkOrderController', () => {
   it.each([
     ['list', 'task.view'], ['brief', 'task.view'], ['get', 'task.view'], ['update', 'task.assign'],
-    ['cancel', 'task.cancel'], ['create', 'task.create'],
+    ['cancel', 'task.cancel'], ['create', 'task.create'], ['summary', 'task.view'],
   ] as [keyof WorkOrderController, string][])('%s requires %s', (method, permission) => {
     expect(permissionOf(method)).toBe(permission);
   });
@@ -47,6 +47,14 @@ describe('WorkOrderController', () => {
     await controller.list({ page: '2', view: 'overdue', projectId: ID }, req(['task.view']));
     expect(projects.scope).toHaveBeenCalledWith('Bearer t');
     expect(service.list).toHaveBeenCalledWith({ ...SCOPE, onlyAssignee: 'u-1' }, { page: 2, limit: 20, view: 'overdue', projectId: ID });
+  });
+
+  it('summarises within the caller’s reach', async () => {
+    const { controller, service } = make();
+    await controller.summary(req(['task.view']));
+    await controller.summary(req(['task.view', 'task.view_all']));
+    expect(service.summary.mock.calls[0]![0]).toEqual({ ...SCOPE, onlyAssignee: 'u-1' });
+    expect(service.summary.mock.calls[1]![0]).toEqual(SCOPE);
   });
 
   it('lets a caller holding task.view_all see every work order in scope', async () => {

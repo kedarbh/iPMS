@@ -46,6 +46,13 @@ export const CreateUserSchema = z.object({
   employeeCode: z.string().trim().min(1).max(50).optional(),
   password: NewPasswordSchema,
   roleCodes: SingleRoleSchema.default([]),
+  /**
+   * Whether the user goes through Axiom finance. Only a Field Engineer may have
+   * it off (the service refuses it for anyone else): some are vendor staff whose
+   * own company pays their advances and settles their expenses. Chosen here and
+   * nowhere else, so `UpdateUserSchema` does not carry it.
+   */
+  financeEnabled: z.boolean().optional(),
 }).strip();
 export type CreateUserDto = z.infer<typeof CreateUserSchema>;
 
@@ -128,6 +135,7 @@ export const UserResponseSchema = z.object({
   employeeCode: z.string().nullable(),
   isActive: z.boolean(),
   mustChangePassword: z.boolean(),
+  financeEnabled: z.boolean(),
   lastLoginAt: z.string().nullable(),
   createdAt: z.string(),
   roles: z.array(UserRoleSummarySchema),

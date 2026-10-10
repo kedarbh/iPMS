@@ -79,6 +79,30 @@ describe('createUserAction', () => {
     expect(createUser.mock.calls[0]![0]).not.toHaveProperty('employeeCode');
   });
 
+  describe('the finance switch', () => {
+    it('turns finance off when the box was offered and left unticked', async () => {
+      await expect(createUserAction({}, form({ ...NEW_USER, financeOffered: '1' }))).rejects.toThrow('NEXT_REDIRECT');
+      expect(createUser.mock.calls[0]![0]).toMatchObject({ roleCodes: ['FIELD_ENGINEER'], financeEnabled: false });
+    });
+
+    it('leaves finance on when the box was ticked', async () => {
+      await expect(createUserAction({}, form({ ...NEW_USER, financeOffered: '1', financeEnabled: 'on' })))
+        .rejects.toThrow('NEXT_REDIRECT');
+      expect(createUser.mock.calls[0]![0]).not.toHaveProperty('financeEnabled');
+    });
+
+    it('leaves finance on when the box was never offered', async () => {
+      await expect(createUserAction({}, form(NEW_USER))).rejects.toThrow('NEXT_REDIRECT');
+      expect(createUser.mock.calls[0]![0]).not.toHaveProperty('financeEnabled');
+    });
+
+    it('ignores the box for any other role', async () => {
+      await expect(createUserAction({}, form({ ...NEW_USER, roleCodes: 'QC_MANAGER', financeOffered: '1' })))
+        .rejects.toThrow('NEXT_REDIRECT');
+      expect(createUser.mock.calls[0]![0]).not.toHaveProperty('financeEnabled');
+    });
+  });
+
   it('refuses a mismatched confirmation without a round trip', async () => {
     expect(await createUserAction({}, form({ ...NEW_USER, confirmPassword: 'something-else' })))
       .toEqual({ error: 'The two passwords do not match.' });

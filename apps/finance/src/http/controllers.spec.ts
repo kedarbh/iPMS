@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { PERMISSION_KEY, PERMISSION_CODES, type PermissionMetadata } from '@ipms/authz';
 import { CategoryController } from './category.controller.js';
+import { OverviewController } from './overview.controller.js';
 import { ReportController } from './report.controller.js';
 import { RequestController } from './request.controller.js';
 
@@ -37,9 +38,10 @@ const ROUTES: Route[] = [
   { controller: CategoryController, handler: 'create', verb: 'POST', path: 'finance/categories', permission: 'finance_category.manage' },
   { controller: CategoryController, handler: 'update', verb: 'PATCH', path: 'finance/categories/:id', permission: 'finance_category.manage' },
   { controller: ReportController, handler: 'spend', verb: 'GET', path: 'finance/reports/project-spend', permission: 'finance_request.view_all' },
+  { controller: OverviewController, handler: 'overview', verb: 'GET', path: 'finance/overview', permission: 'finance_request.view_all' },
 ];
 
-const CONTROLLERS = [RequestController, CategoryController, ReportController];
+const CONTROLLERS = [RequestController, CategoryController, ReportController, OverviewController];
 
 const fn = (c: { prototype: object }, name: string): object =>
   (c.prototype as Record<string, object>)[name]!;

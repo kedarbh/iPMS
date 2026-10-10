@@ -12,11 +12,13 @@ import { CategoryService } from './categories/category.service.js';
 import { MediaClient } from './directory/media.client.js';
 import { ProjectDirectoryClient } from './directory/project-directory.client.js';
 import { CategoryController } from './http/category.controller.js';
+import { OverviewController } from './http/overview.controller.js';
 import { ReportController } from './http/report.controller.js';
 import { RequestController } from './http/request.controller.js';
 import { OutboxDrainer } from './outbox/outbox.drainer.js';
 import { PaymentService } from './payments/payment.service.js';
 import { PrismaService } from './prisma.service.js';
+import { OverviewService } from './queries/overview.service.js';
 import { QueryService } from './queries/query.service.js';
 import { ReportService } from './queries/report.service.js';
 import { ReminderService } from './reminders/reminder.service.js';
@@ -43,7 +45,7 @@ const service = <T>(cls: new (db: PrismaService['db']) => T) => ({
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true })],
-  controllers: [RequestController, CategoryController, ReportController, HealthController, MetricsController],
+  controllers: [RequestController, CategoryController, ReportController, OverviewController, HealthController, MetricsController],
   providers: [
     // Order matters: JwtUserGuard must populate request.user before AuthzGuard reads it.
     { provide: APP_GUARD, useClass: JwtUserGuard },
@@ -70,6 +72,7 @@ const service = <T>(cls: new (db: PrismaService['db']) => T) => ({
     service(QueryService),
     service(CategoryService),
     service(ReportService),
+    service(OverviewService),
     service(ReminderService),
     {
       provide: EventBus,

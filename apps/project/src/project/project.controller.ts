@@ -11,6 +11,8 @@ import { ProjectService } from './project.service.js';
 type Authed = { user: AuthzUser; headers: Record<string, string | undefined> };
 @Controller() export class ProjectController { constructor(private readonly service: ProjectService, private readonly imports: SiteImportService) {}
   @Get('dashboard') @RequirePermission('project.view') dashboard(@ScopeOf() scope: AuthzScope){ return this.service.dashboard(scope); }
+  /** For the Project Director's home. */
+  @Get('dashboard/portfolio') @RequirePermission('project.view') portfolio(@ScopeOf() scope: AuthzScope){ return this.service.portfolio(scope); }
   /** Service-to-service only: the gateway refuses every '/internal/' path. Still permission-checked, because the caller forwards the submitting user's own token. */
   @Get('internal/sites/:id/geofence') @RequirePermission('site.view') siteGeofence(@Param('id') id:string){ return this.service.siteGeofence(UuidSchema.parse(id)); }
   /** For qc: the caller's own replicated scope, which qc filters work orders by. task.view because every work order read needs it. */

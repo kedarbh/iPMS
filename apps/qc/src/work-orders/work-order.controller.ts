@@ -34,6 +34,12 @@ export class WorkOrderController {
     return this.workOrders.brief(await this.readScope(req), id);
   }
 
+  /** Per-project counts for the Director's portfolio, within what the caller may read. */
+  @Get('summary') @RequirePermission('task.view')
+  async summary(@Req() req: Authed) {
+    return this.workOrders.summary(await this.readScope(req));
+  }
+
   @Get(':id') @RequirePermission('task.view')
   async get(@Param('id') id: string, @Req() req: Authed) {
     const parsed = UuidSchema.parse(id);

@@ -3,10 +3,11 @@ import { listRequests } from '../lib/finance-api';
 import { getCurrentUser, hasPermission } from '../lib/iam-api';
 import { listUserDirectory } from '../lib/user-api';
 import { Sidebar, StatePage, TopActions } from '../shell';
+import { DecidedNotice } from './decided';
 import { RequestsTable, financeHref } from './requests-table';
 import { resolveSearch, type RawSearch } from './search';
 
-const LABEL: Record<RequestView, string> = { awaiting: 'Waiting for me', mine: 'My requests', all: 'All requests' };
+const LABEL: Record<RequestView, string> = { awaiting: 'Waiting for me', handled: 'Decided by me', mine: 'My requests', all: 'All requests' };
 
 export default async function FinancePage({ searchParams }: { searchParams: Promise<RawSearch> }) {
   const search = await searchParams;
@@ -22,7 +23,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
   const mayAct = ['finance_approval.pm', 'finance_approval.director', 'finance_payment.record'].some((p) => hasPermission(user, p));
   const mayRaise = hasPermission(user, 'finance_request.create');
   const seeAll = hasPermission(user, 'finance_request.view_all');
-  const { view, status, kind, page, tabs } = resolveSearch(search, { mayAct, seeAll });
+  const { view, status, kind, page, tabs } = resolveSearch(search, { mayAct, seeAll, mayRaise });
   const query = { ...(status ? { status } : {}), ...(kind ? { kind } : {}) };
 
   const [result, directory] = await Promise.all([
@@ -43,6 +44,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
           <TopActions />
         </header>
         <div className="dashboard">
+          <DecidedNotice id={search.decided} viewerId={user.id} />
           <div className="toolbar">
             <div>
               <p className="eyebrow">FINANCE</p><h1>Advances &amp; settlements</h1>

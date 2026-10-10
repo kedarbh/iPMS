@@ -13,7 +13,7 @@ function row(overrides: Record<string, unknown> = {}) {
   return {
     id: TARGET, email: 'field.one@ipms.local',
     fullName: 'Field One', employeeCode: null, isActive: true,
-    mustChangePassword: false, lastLoginAt: null, createdAt: new Date('2026-01-01T00:00:00Z'),
+    mustChangePassword: false, financeEnabled: true, lastLoginAt: null, createdAt: new Date('2026-01-01T00:00:00Z'),
     roles: [{ role: { code: 'FIELD_ENGINEER', name: 'Field Engineer' } }],
     ...overrides,
   };
@@ -196,6 +196,64 @@ describe('UsersService.create', () => {
   });
 });
 
+describe('UsersService.create — the finance switch', () => {
+  const dto = {
+    email: 'vendor.one@ipms.local', fullName: 'Vendor One',
+    password: 'a-long-enough-password', roleCodes: ['FIELD_ENGINEER'],
+  };
+
+  it('leaves finance on unless told otherwise', async () => {
+    const { service, tx } = build(null);
+    await service.create(dto, ACTOR, ADMIN);
+    expect(tx.user.create.mock.calls[0]![0].data.financeEnabled).toBe(true);
+  });
+
+  it('lets an administrator create a field engineer with finance off', async () => {
+    const { service, tx } = build(null);
+    await service.create({ ...dto, financeEnabled: false }, ACTOR, ADMIN);
+    expect(tx.user.create.mock.calls[0]![0].data.financeEnabled).toBe(false);
+  });
+
+  it('lets a project manager create a field engineer with finance off', async () => {
+    const { service, tx } = build(null);
+    await service.create({ ...dto, financeEnabled: false }, ACTOR, MANAGER);
+    expect(tx.user.create.mock.calls[0]![0].data.financeEnabled).toBe(false);
+  });
+
+  it('refuses finance off for any role but a field engineer', async () => {
+    const { service, tx } = build(null);
+    await expect(service.create({ ...dto, roleCodes: ['QC_MANAGER'], financeEnabled: false }, ACTOR, ADMIN))
+      .rejects.toThrow('Only a Field Engineer can have finance turned off');
+    expect(tx.user.create).not.toHaveBeenCalled();
+  });
+
+  it('refuses finance off for a user with no role', async () => {
+    const { service } = build(null);
+    await expect(service.create({ ...dto, roleCodes: [], financeEnabled: false }, ACTOR, ADMIN))
+      .rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('accepts finance on for any role', async () => {
+    const { service, tx } = build(null);
+    await service.create({ ...dto, roleCodes: ['QC_MANAGER'], financeEnabled: true }, ACTOR, ADMIN);
+    expect(tx.user.create).toHaveBeenCalled();
+  });
+
+  it('records the choice in the audit entry', async () => {
+    const { service, tx } = build(null);
+    await service.create({ ...dto, financeEnabled: false }, ACTOR, ADMIN);
+    const audit = tx.outboxEvent.create.mock.calls
+      .map((call) => call[0].data)
+      .find((data: { subject: string }) => data.subject === 'audit.event.recorded');
+    expect(audit.payload.newState.financeEnabled).toBe(false);
+  });
+
+  it('reports the switch on the user it returns', async () => {
+    const { service } = build(row({ financeEnabled: false }));
+    expect((await service.get(TARGET)).financeEnabled).toBe(false);
+  });
+});
+
 describe('UsersService.update', () => {
   it('writes the fields the caller sent', async () => {
     const { service, tx } = build();
@@ -368,6 +426,45 @@ describe('UsersService.setRoles', () => {
     expect(audit.payload.action).toBe('user.roles_changed');
     expect(audit.payload.previousState).toEqual({ roleCodes: ['FIELD_ENGINEER'] });
     expect(audit.payload.newState).toEqual({ roleCodes: ['QC_MANAGER'] });
+  });
+});
+
+describe('UsersService.setRoles — the finance switch', () => {
+  const financeWrites = (tx: ReturnType<typeof build>['tx']) =>
+    tx.user.update.mock.calls.filter(([arg]) => 'financeEnabled' in (arg as { data: object }).data);
+
+  it('gives finance back to an engineer who stops being one', async () => {
+    const { service, tx } = build(row({ financeEnabled: false }));
+    await service.setRoles(TARGET, { roleCodes: ['QC_MANAGER'] }, ACTOR, ADMIN);
+    expect(tx.user.update).toHaveBeenCalledWith({ where: { id: TARGET }, data: { financeEnabled: true } });
+  });
+
+  it('records the reset in the audit entry', async () => {
+    const { service, tx } = build(row({ financeEnabled: false }));
+    await service.setRoles(TARGET, { roleCodes: ['QC_MANAGER'] }, ACTOR, ADMIN);
+    const audit = tx.outboxEvent.create.mock.calls
+      .map((call) => call[0].data)
+      .find((data: { subject: string }) => data.subject === 'audit.event.recorded');
+    expect(audit.payload.previousState).toEqual({ roleCodes: ['FIELD_ENGINEER'], financeEnabled: false });
+    expect(audit.payload.newState).toEqual({ roleCodes: ['QC_MANAGER'], financeEnabled: true });
+  });
+
+  it('leaves finance off when the user is still a field engineer', async () => {
+    const { service, tx } = build(row({ financeEnabled: false }));
+    await service.setRoles(TARGET, { roleCodes: ['FIELD_ENGINEER'] }, ACTOR, ADMIN);
+    expect(financeWrites(tx)).toHaveLength(0);
+  });
+
+  it('does not write finance for a user who already has it on', async () => {
+    const { service, tx } = build();
+    await service.setRoles(TARGET, { roleCodes: ['QC_MANAGER'] }, ACTOR, ADMIN);
+    expect(financeWrites(tx)).toHaveLength(0);
+  });
+
+  it('keeps finance off for an engineer left with no role, so a round trip through "no role" cannot restore it', async () => {
+    const { service, tx } = build(row({ financeEnabled: false }));
+    await service.setRoles(TARGET, { roleCodes: [] }, ACTOR, ADMIN);
+    expect(financeWrites(tx)).toHaveLength(0);
   });
 });
 

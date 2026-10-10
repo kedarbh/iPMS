@@ -9,9 +9,12 @@ const ready = (data: unknown = {}) => ({ state: 'ready' as const, data });
 const api = {
   createRequest: vi.fn(), updateRequest: vi.fn(), submitRequest: vi.fn(), cancelRequest: vi.fn(),
   approveRequest: vi.fn(), returnRequest: vi.fn(), rejectRequest: vi.fn(), payRequest: vi.fn(), returnCash: vi.fn(),
-  createCategory: vi.fn(), updateCategory: vi.fn(),
+  createCategory: vi.fn(), updateCategory: vi.fn(), listRequests: vi.fn(),
 };
 vi.mock('../lib/finance-api', () => api);
+const getCurrentUser = vi.fn();
+vi.mock('../lib/iam-api', () => ({ getCurrentUser }));
+const asRole = (role: string) => ({ state: 'ready' as const, data: { id: 'u-1', roles: [role], permissions: [], tokenVersion: 0, isActive: true } });
 
 const actions = await import('./actions');
 const EMPTY = {};
@@ -24,6 +27,8 @@ const form = (entries: Record<string, string | string[]>) => {
 beforeEach(() => {
   for (const fn of Object.values(api)) fn.mockReset().mockResolvedValue(ready({ id: 'r-1' }));
   revalidatePath.mockClear(); redirect.mockClear();
+  api.listRequests.mockResolvedValue(ready({ items: [], total: 0, page: 1, limit: 2 }));
+  getCurrentUser.mockReset().mockResolvedValue(asRole('PROJECT_MANAGER'));
 });
 
 describe('saveRequestAction', () => {
@@ -53,7 +58,7 @@ describe('saveRequestAction', () => {
 
   it('updates an existing request instead of creating one', async () => {
     await expect(actions.saveRequestAction(EMPTY, form({ ...advance, id: 'r-9', intent: 'draft' }))).rejects.toThrow('NEXT_REDIRECT:/finance/requests/r-9');
-    expect(api.updateRequest).toHaveBeenCalledWith('r-9', { categoryId: 'c-1', purpose: 'Site travel', amount: '50000.00' });
+    expect(api.updateRequest).toHaveBeenCalledWith('r-9', { categoryId: 'c-1', purpose: 'Site travel', remarks: null, amount: '50000.00' });
     expect(api.createRequest).not.toHaveBeenCalled();
   });
 
@@ -102,8 +107,15 @@ describe('saveRequestAction coverage', () => {
   it('edits a reimbursement with category, purpose and invoices only', async () => {
     await expect(actions.saveRequestAction(EMPTY, form({ ...base, ...rows, kind: 'REIMBURSEMENT', id: 'r-5', projectId: 'p-1' }))).rejects.toThrow('NEXT_REDIRECT:/finance/requests/r-5');
     expect(api.updateRequest).toHaveBeenCalledWith('r-5', {
-      categoryId: 'c-1', purpose: 'Fuel', invoices: [{ vendor: 'V', invoiceNumber: 'I-1', invoiceDate: '2026-10-01', amount: '100.00' }],
+      categoryId: 'c-1', purpose: 'Fuel', remarks: null, invoices: [{ vendor: 'V', invoiceNumber: 'I-1', invoiceDate: '2026-10-01', amount: '100.00' }],
     });
+  });
+
+  it('sends remarks when given, and clears them on an edit when emptied', async () => {
+    await expect(actions.saveRequestAction(EMPTY, form({ ...base, kind: 'ADVANCE', projectId: 'p-1', amount: '10', remarks: ' Fuel for the survey ' }))).rejects.toThrow('NEXT_REDIRECT');
+    expect(api.createRequest).toHaveBeenCalledWith(expect.objectContaining({ remarks: 'Fuel for the survey' }));
+    await expect(actions.saveRequestAction(EMPTY, form({ ...base, ...rows, kind: 'SETTLEMENT', id: 'r-6', remarks: '' }))).rejects.toThrow('NEXT_REDIRECT');
+    expect(api.updateRequest).toHaveBeenCalledWith('r-6', expect.objectContaining({ remarks: null }));
   });
 
   it('asks for a project and for an advance to settle', async () => {
@@ -152,9 +164,9 @@ describe('request actions', () => {
   });
 
   it('approves, with an amount only when one was typed', async () => {
-    await actions.approveAction(EMPTY, form({ id: 'r-1', amount: '40,000', comment: 'Cut travel days' }));
+    await expect(actions.approveAction(EMPTY, form({ id: 'r-1', amount: '40,000', comment: 'Cut travel days' }))).rejects.toThrow('NEXT_REDIRECT');
     expect(api.approveRequest).toHaveBeenCalledWith('r-1', { amount: '40000.00', comment: 'Cut travel days' });
-    await actions.approveAction(EMPTY, form({ id: 'r-1', amount: '', comment: '' }));
+    await expect(actions.approveAction(EMPTY, form({ id: 'r-1', amount: '', comment: '' }))).rejects.toThrow('NEXT_REDIRECT');
     expect(api.approveRequest).toHaveBeenLastCalledWith('r-1', {});
     expect(await actions.approveAction(EMPTY, form({ id: 'r-1', amount: '1.234' }))).toEqual({ error: 'Enter an amount in NPR with at most two decimals.' });
   });
@@ -163,10 +175,42 @@ describe('request actions', () => {
     expect(await actions.returnAction(EMPTY, form({ id: 'r-1', comment: '  ' }))).toEqual({ error: 'Say why.' });
     expect(await actions.rejectAction(EMPTY, form({ id: 'r-1', comment: '' }))).toEqual({ error: 'Say why.' });
     expect(api.returnRequest).not.toHaveBeenCalled();
-    await actions.returnAction(EMPTY, form({ id: 'r-1', comment: 'Add the quotation' }));
+    await expect(actions.returnAction(EMPTY, form({ id: 'r-1', comment: 'Add the quotation' }))).rejects.toThrow('NEXT_REDIRECT');
     expect(api.returnRequest).toHaveBeenCalledWith('r-1', 'Add the quotation');
-    await actions.rejectAction(EMPTY, form({ id: 'r-1', comment: 'Not in budget' }));
+    await expect(actions.rejectAction(EMPTY, form({ id: 'r-1', comment: 'Not in budget' }))).rejects.toThrow('NEXT_REDIRECT');
     expect(api.rejectRequest).toHaveBeenCalledWith('r-1', 'Not in budget');
+  });
+});
+
+describe('after a decision', () => {
+  it('opens the next request waiting on the caller, naming the one just decided', async () => {
+    api.listRequests.mockResolvedValue(ready({ items: [{ id: 'r-1' }, { id: 'r-2' }], total: 2, page: 1, limit: 2 }));
+    await expect(actions.approveAction(EMPTY, form({ id: 'r-1' }))).rejects.toThrow('NEXT_REDIRECT:/finance/requests/r-2?decided=r-1');
+    expect(api.listRequests).toHaveBeenCalledWith({ view: 'awaiting', limit: 2 });
+    expect(revalidatePath).toHaveBeenCalledWith('/');
+  });
+
+  it.each([
+    ['return', (f: FormData) => actions.returnAction(EMPTY, f)],
+    ['reject', (f: FormData) => actions.rejectAction(EMPTY, f)],
+  ])('does the same after a %s', async (_name, run) => {
+    api.listRequests.mockResolvedValue(ready({ items: [{ id: 'r-3' }], total: 1, page: 1, limit: 2 }));
+    await expect(run(form({ id: 'r-1', comment: 'why' }))).rejects.toThrow('NEXT_REDIRECT:/finance/requests/r-3?decided=r-1');
+  });
+
+  it('sends a project manager back to the finance queue when nothing is left', async () => {
+    await expect(actions.approveAction(EMPTY, form({ id: 'r-1' }))).rejects.toThrow('NEXT_REDIRECT:/finance?view=awaiting&decided=r-1');
+  });
+
+  it('sends a Project Director home when nothing is left', async () => {
+    getCurrentUser.mockResolvedValue(asRole('PROJECT_DIRECTOR'));
+    await expect(actions.approveAction(EMPTY, form({ id: 'r-1' }))).rejects.toThrow('NEXT_REDIRECT:/?decided=r-1');
+  });
+
+  it('stays on the request and shows the reason when the decision fails', async () => {
+    api.approveRequest.mockResolvedValue({ state: 'forbidden', message: 'You already approved an earlier step of this request' });
+    expect(await actions.approveAction(EMPTY, form({ id: 'r-1' }))).toEqual({ error: 'You already approved an earlier step of this request' });
+    expect(api.listRequests).not.toHaveBeenCalled();
   });
 });
 

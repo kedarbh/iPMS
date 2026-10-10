@@ -104,6 +104,15 @@ export interface ProjectSummary {
 
 const percent = (part: number, whole: number) => (whole === 0 ? 0 : Math.round((part / whole) * 100));
 
+/**
+ * A project's completion, as its page and the Director's portfolio both show
+ * it: sites that met every milestone requirement when some milestone declares
+ * requirements, otherwise completed work over live work.
+ */
+export function completionOf(units: { sitesComplete: number | null; sites: number; completed: number; live: number }): number {
+  return units.sitesComplete === null ? percent(units.completed, units.live) : percent(units.sitesComplete, units.sites);
+}
+
 export function formatDay(iso: string): string {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 }
@@ -202,7 +211,7 @@ export function summarizeProject(project: ProjectDetail, tasks: Work[], now: Dat
     reviewingCount: live.filter((task) => task.status === 'REVIEWING').length,
     rectifyingCount: live.filter((task) => task.status === 'RECTIFYING').length,
     sitesComplete,
-    completion: sitesComplete === null ? percent(completed.length, live.length) : percent(sitesComplete, project.sites.length),
+    completion: completionOf({ sitesComplete, sites: project.sites.length, completed: completed.length, live: live.length }),
     milestones,
     attention: flagged.slice(0, limit).map(({ task, why }) => ({
       taskId: task.id,

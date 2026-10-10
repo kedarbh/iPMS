@@ -72,9 +72,15 @@ export async function createUserAction(_previous: FormState, form: FormData): Pr
   if ('error' in role) return { error: role.error };
 
   const employeeCode = optional(form, 'employeeCode');
+  // The box is offered, with a marker beside it, only for a Field Engineer.
+  // Offered and not ticked means off; a form that never offered it leaves
+  // finance on, so a missing field can never switch anyone's finance off.
+  const financeOff = role.roleCodes[0] === 'FIELD_ENGINEER'
+    && form.get('financeOffered') !== null && form.get('financeEnabled') === null;
   const result = await createUser({
     email, fullName, password: password.password, roleCodes: role.roleCodes,
     ...(employeeCode === undefined ? {} : { employeeCode }),
+    ...(financeOff ? { financeEnabled: false } : {}),
   });
 
   const state = await settle(result, '/users');

@@ -27,6 +27,8 @@ export interface User {
   employeeCode: string | null;
   isActive: boolean;
   mustChangePassword: boolean;
+  /** False for a Field Engineer whose own company handles their advances and expenses. */
+  financeEnabled: boolean;
   lastLoginAt: string | null;
   createdAt: string;
   roles: UserRoleSummary[];

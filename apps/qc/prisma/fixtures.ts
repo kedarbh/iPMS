@@ -45,18 +45,21 @@ export async function seedPublishedTemplate(
 
 export interface SeededWorkOrder { id: string; projectId: string; siteId: string; assigneeId: string; templateId: string; status: string }
 
-/** A work order on a fresh project and site, written without the service. */
+/** A work order on a fresh project and site (unless given one), written without the service. */
 export async function seedWorkOrder(
-  prisma: PrismaClient, templateId: string, overrides: Partial<Pick<SeededWorkOrder, 'assigneeId' | 'status'>> = {},
+  prisma: PrismaClient,
+  templateId: string,
+  overrides: Partial<Pick<SeededWorkOrder, 'assigneeId' | 'status' | 'projectId'>> & { plannedCompletionAt?: Date; actualCompletionAt?: Date } = {},
 ): Promise<SeededWorkOrder> {
+  const { plannedCompletionAt = new Date('2026-09-30T18:14:59Z'), actualCompletionAt = null, ...rest } = overrides;
   const row = {
-    id: uuidv7(), projectId: uuidv7(), siteId: uuidv7(), assigneeId: ACTOR, templateId, status: 'NOT_STARTED', ...overrides,
+    id: uuidv7(), projectId: uuidv7(), siteId: uuidv7(), assigneeId: ACTOR, templateId, status: 'NOT_STARTED', ...rest,
   };
   await prisma.workOrder.create({
     data: {
       ...row, projectCode: 'TI-L2100', projectName: 'Antenna upgrade', siteCode: 'KOS102X', siteName: 'KOS102X',
       templateName: 'Antenna + RRU', workOrderType: 'QUALITY_SELF_CHECK', title: '[Quality Self-check]KOS102X',
-      plannedCompletionAt: new Date('2026-09-30T18:14:59Z'), createdBy: ACTOR,
+      plannedCompletionAt, actualCompletionAt, createdBy: ACTOR,
     },
   });
   return row;

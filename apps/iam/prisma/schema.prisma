@@ -31,6 +31,12 @@ model User {
   /// false so existing rows, including the seeded demo accounts, are unaffected.
   mustChangePassword Boolean @default(false)
 
+  /// False for a Field Engineer whose own company, not Axiom finance, handles
+  /// their advances and settlements. Chosen once, when the account is created;
+  /// the finance permissions are then withheld at token issuance (see
+  /// `financeOptOutOverrides` in @ipms/authz). Only a Field Engineer may have it off.
+  financeEnabled Boolean @default(true)
+
   lastLoginAt  DateTime? @db.Timestamptz(6)
   createdAt    DateTime  @default(now()) @db.Timestamptz(6)
   updatedAt    DateTime  @updatedAt @db.Timestamptz(6)

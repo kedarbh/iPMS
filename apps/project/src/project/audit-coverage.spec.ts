@@ -118,7 +118,7 @@ describe('ledger completeness', () => {
     // that is not in MUTATIONS above fails here rather than silently going
     // unaudited — which is exactly how project drifted out of the ledger.
     const READS = new Set([
-      'listProjects', 'getProject', 'listTasks', 'siteGeofence', 'siteRefs', 'assignable', 'dashboard',
+      'listProjects', 'getProject', 'listTasks', 'siteGeofence', 'siteRefs', 'assignable', 'dashboard', 'portfolio',
     ]);
     const mutating = Object.getOwnPropertyNames(ProjectService.prototype)
       .filter((name) => name !== 'constructor' && !name.startsWith('require') && !READS.has(name))

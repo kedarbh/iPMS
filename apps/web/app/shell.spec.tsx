@@ -183,7 +183,7 @@ describe('Sidebar Finance group', () => {
     expect(links).toEqual(expect.arrayContaining(['/finance', '/finance/categories', '/finance/reports']));
   });
 
-  it('leaves Finance and Project Directors with the Finance group only', async () => {
+  it('leaves Finance with the Finance group only', async () => {
     getCurrentUser.mockResolvedValue(as(['FINANCE'], ['finance_request.view', 'finance_request.view_all', 'finance_category.manage', 'project.view', 'task.view']));
     const links = hrefs(await Sidebar({ active: 'finance' }));
     expect(links).toEqual(expect.arrayContaining(['/finance', '/finance/categories', '/finance/reports']));
@@ -191,6 +191,25 @@ describe('Sidebar Finance group', () => {
     expect(JSON.stringify(await Sidebar({ active: 'finance' }))).not.toContain('Overview');
     expect(links.some((href) => href.startsWith('/quality'))).toBe(false);
     expect(links).not.toContain('/#audit-log');
+  });
+
+  it('gives Project Directors their overview, the projects, work orders to read and the finance group, with no badge', async () => {
+    getCurrentUser.mockResolvedValue(as(['PROJECT_DIRECTOR'], ['project.view', 'site.view', 'milestone.view', 'task.view', 'task.view_all', 'finance_request.view', 'finance_request.view_all', 'finance_approval.director']));
+    const links = hrefs(await Sidebar({ active: 'overview' }));
+    expect(links).toEqual(expect.arrayContaining(['/projects', '/quality/work-orders', '/finance', '/finance/reports']));
+    expect(JSON.stringify(await Sidebar({ active: 'overview' }))).toContain('Overview');
+    expect(links).not.toContain('/quality/templates');
+    expect(links).not.toContain('/finance/categories');
+    expect(links).not.toContain('/#audit-log');
+    expect(listWorkOrders).not.toHaveBeenCalled();
+  });
+
+  it('keeps the review badge for a Director who is also a QC Manager', async () => {
+    getCurrentUser.mockResolvedValue(as(['QC_MANAGER', 'PROJECT_DIRECTOR'], ['project.view', 'task.view', 'qc_template.view', 'finance_request.view', 'finance_request.view_all', 'finance_approval.director']));
+    listWorkOrders.mockResolvedValue({ state: 'ready', data: { counts: { REVIEWING: 2 } } });
+    const tree = await Sidebar({ active: 'overview' });
+    expect(hrefs(tree)).toEqual(expect.arrayContaining(['/quality/work-orders', '/quality/templates', '/finance']));
+    expect(JSON.stringify(tree)).toContain('"badge":2');
   });
 });
 

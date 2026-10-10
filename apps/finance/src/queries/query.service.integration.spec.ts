@@ -62,6 +62,22 @@ describe('list', () => {
     expect((await queries.list(ACTORS.engineer, scopes.project, { view: 'awaiting', page: 1, limit: 20 })).items).toEqual([]);
   });
 
+  it('lists what awaits the caller oldest-waiting first, with flags', async () => {
+    const older = await make();
+    const newer = await make();
+    await prisma.$executeRaw`UPDATE "finance_request" SET "updatedAt" = ${new Date(Date.now() - 5 * 86_400_000)} WHERE "id" = ${older.id}::uuid`;
+    const page = await queries.list(ACTORS.pm, scopes.project, { view: 'awaiting', page: 1, limit: 20 });
+    expect(page.items.map((i) => i.id)).toEqual([older.id, newer.id]);
+    expect(page.items[0]!.flags).toEqual([{ code: 'WAITING_LONG', tone: 'amber', days: 5 }]);
+    expect(page.items[1]!.flags).toEqual([]);
+  });
+
+  it('carries no flags outside the awaiting view', async () => {
+    await make();
+    const page = await queries.list(ACTORS.pm, scopes.project, { view: 'all', page: 1, limit: 20 });
+    expect(page.items[0]).not.toHaveProperty('flags');
+  });
+
   it('lists what the caller has already acted on, not their own and not others\' untouched ones', async () => {
     const acted = await make(ACTORS.engineer);
     await make(ACTORS.otherEngineer);                        // never touched by the PM

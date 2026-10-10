@@ -1,5 +1,5 @@
 import 'server-only';
-import type { RequestKind, RequestStatus } from '@ipms/contracts';
+import type { DecisionContext, FinanceOverview, RequestFlag, RequestKind, RequestStatus } from '@ipms/contracts';
 import { authFetch, type ApiResult } from './api-client';
 
 /**
@@ -10,17 +10,19 @@ import { authFetch, type ApiResult } from './api-client';
  * and do; these functions only carry the request.
  */
 
-export type { RequestKind, RequestStatus };
+export type { DecisionContext, FinanceOverview, RequestFlag, RequestKind, RequestStatus };
 export type PaymentMode = 'BANK_TRANSFER' | 'CASH' | 'CHEQUE' | 'MOBILE_WALLET';
 export type FinanceStep = 'REQUESTER' | 'PM' | 'DIRECTOR' | 'FINANCE';
 
 export interface FinanceRequest {
   id: string; number: string; kind: RequestKind; status: RequestStatus; revision: number; entryStatus: string | null;
   projectId: string; projectCode: string; projectName: string; workOrderId: string | null;
-  categoryId: string; requesterId: string; advanceId: string | null; purpose: string;
+  categoryId: string; requesterId: string; advanceId: string | null; purpose: string; remarks?: string | null;
   requestedAmount: string; approvedAmount: string | null; appliedAmount: string | null;
   submittedAt: string | null; createdAt: string; updatedAt: string;
   category?: { code: string; name: string };
+  /** Warnings, on rows of the awaiting view only. */
+  flags?: RequestFlag[];
 }
 
 export interface RequestInvoice {
@@ -49,6 +51,8 @@ export type FinanceRequestDetail = FinanceRequest & {
   duplicates?: DuplicateHit[];
   /** A paid advance's last day to settle (`YYYY-MM-DD`): a week after it was paid. */
   settlementDueOn?: string | null;
+  /** "Before you decide": present only for the approver at the request's current step. */
+  context?: DecisionContext;
 };
 export interface AdvanceView { advance: FinanceRequest; balance: AdvanceBalance | null; settlements: FinanceRequest[] }
 export interface RequestPage { items: FinanceRequest[]; total: number; page: number; limit: number }
@@ -58,7 +62,7 @@ export interface SpendRow {
   reimbursed: string; settled: string; expense: string;
 }
 
-export type RequestView = 'mine' | 'awaiting' | 'all';
+export type RequestView = 'mine' | 'awaiting' | 'all' | 'handled';
 export interface RequestFilter {
   view?: RequestView | undefined; status?: RequestStatus | undefined; kind?: RequestKind | undefined;
   projectId?: string | undefined; page?: number | undefined; limit?: number | undefined;
@@ -72,12 +76,12 @@ export interface InvoiceInput {
 }
 
 export type CreateRequestInput =
-  | { kind: 'ADVANCE'; projectId: string; categoryId: string; purpose: string; amount: string; workOrderId?: string }
-  | { kind: 'REIMBURSEMENT'; projectId: string; categoryId: string; purpose: string; invoices: InvoiceInput[]; workOrderId?: string }
-  | { kind: 'SETTLEMENT'; advanceId: string; categoryId: string; purpose: string; invoices: InvoiceInput[]; workOrderId?: string };
+  | { kind: 'ADVANCE'; projectId: string; categoryId: string; purpose: string; remarks?: string; amount: string; workOrderId?: string }
+  | { kind: 'REIMBURSEMENT'; projectId: string; categoryId: string; purpose: string; remarks?: string; invoices: InvoiceInput[]; workOrderId?: string }
+  | { kind: 'SETTLEMENT'; advanceId: string; categoryId: string; purpose: string; remarks?: string; invoices: InvoiceInput[]; workOrderId?: string };
 
 export interface UpdateRequestInput {
-  categoryId?: string; purpose?: string; workOrderId?: string | null; amount?: string; invoices?: InvoiceInput[];
+  categoryId?: string; purpose?: string; remarks?: string | null; workOrderId?: string | null; amount?: string; invoices?: InvoiceInput[];
 }
 export interface PaymentInput { mode: PaymentMode; reference: string; paidOn: string; note?: string }
 export interface SpendQuery { groupBy?: 'project' | 'category' | 'requester'; projectId?: string; from?: string; to?: string }
@@ -96,6 +100,9 @@ export function listRequests(filter: RequestFilter = {}): Promise<ApiResult<Requ
 
 export const getRequest = (id: string): Promise<ApiResult<FinanceRequestDetail>> => authFetch(`${BASE}/requests/${id}`);
 export const getAdvance = (id: string): Promise<ApiResult<AdvanceView>> => authFetch(`${BASE}/advances/${id}`);
+
+/** The approver's money at a glance: pipeline, queue, spend, cash out and their decisions. */
+export const getFinanceOverview = (): Promise<ApiResult<FinanceOverview>> => authFetch(`${BASE}/overview`);
 
 export const createRequest = (input: CreateRequestInput): Promise<ApiResult<FinanceRequestDetail>> =>
   authFetch(`${BASE}/requests`, { method: 'POST', json: input });

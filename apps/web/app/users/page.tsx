@@ -132,7 +132,12 @@ export default async function UsersPage({
                         <td>
                           {user.roles.length === 0
                             ? <span className="subtle-dash">—</span>
-                            : <span className="role-pills">{user.roles.map((role) => <span key={role.name} className="role-pill">{role.name}</span>)}</span>}
+                            : (
+                              <span className="role-pills">
+                                {user.roles.map((role) => <span key={role.name} className="role-pill">{role.name}</span>)}
+                                {user.financeEnabled === false ? <span className="role-pill role-pill-off" title="Their own company handles their advances and expenses">Finance off</span> : null}
+                              </span>
+                            )}
                         </td>
                         <td>
                           <span className={user.isActive ? 'status-dot on' : 'status-dot'}>{user.isActive ? 'Active' : 'Inactive'}</span>

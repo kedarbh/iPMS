@@ -12,26 +12,14 @@ import {
 import { asJson, recordAudit } from '../templates/audit.js';
 import type { TemplateQueries } from '../templates/template.queries.js';
 import { required, type ProjectDirectoryClient } from './project-directory.client.js';
-import { OPEN, CLOSED, toView, type WorkOrderRow } from './view.js';
+import { OPEN, CLOSED, reachWhere, toView, type WorkOrderRow, type WorkOrderScope } from './view.js';
+import { summarizeWorkOrders } from './work-order-summary.js';
+
+export type { WorkOrderScope } from './view.js';
 
 const CATEGORY_LABEL: Record<string, string> = { QUALITY: 'Quality', EHS: 'EHS', OTHER: 'Other' };
 
 type Tx = Prisma.TransactionClient;
-
-/**
- * What a caller may read. `onlyAssignee` is set for a caller without
- * `task.view_all` — a field engineer — and narrows every read to the work
- * assigned to them, cancelled work excluded: their queue is their own work.
- */
-export type WorkOrderScope = AuthzScope & { onlyAssignee?: string };
-
-/** The scope filter plus, for a restricted caller, the own-work filter. ANDed by every read. */
-function reachWhere(scope: WorkOrderScope): Prisma.WorkOrderWhereInput[] {
-  return [
-    scopeWhere(scope),
-    ...(scope.onlyAssignee ? [{ assigneeId: scope.onlyAssignee, status: { not: 'CANCELLED' } }] : []),
-  ];
-}
 
 /**
  * Work orders: a checklist template assigned to one site of a project.
@@ -99,6 +87,11 @@ export class WorkOrderService {
     });
     const order = new Map(rows.map((row, index) => [row.id, index]));
     return { created: created.sort((a, b) => order.get(a.id)! - order.get(b.id)!).map(toView) };
+  }
+
+  /** Per-project work order counts for the Director's portfolio. */
+  summary(scope: WorkOrderScope, now = new Date()) {
+    return summarizeWorkOrders(this.prisma, scope, now);
   }
 
   /**

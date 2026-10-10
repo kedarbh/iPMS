@@ -35,10 +35,10 @@ function FormError({ state }: { state: FormState }) {
  * Presentation only, and roles only: iam decides, and a user's real access also
  * depends on per-user overrides and project scope.
  */
-function RoleAccessSummary({ selected, roles, catalog }: {
-  selected: string | undefined; roles: RolePermissions[]; catalog: Permission[];
+function RoleAccessSummary({ selected, roles, catalog, financeEnabled = true }: {
+  selected: string | undefined; roles: RolePermissions[]; catalog: Permission[]; financeEnabled?: boolean;
 }) {
-  const { total, groups } = summarizeAccess(selected === undefined ? [] : [selected], roles, catalog);
+  const { total, groups } = summarizeAccess(selected === undefined ? [] : [selected], roles, catalog, { financeEnabled });
   return (
     <section className="role-access" aria-live="polite">
       <div className="role-access-heading">
@@ -82,11 +82,16 @@ function RoleAccessSummary({ selected, roles, catalog }: {
  * `roles` is every role the page could read, locked ones included, so the
  * summary can describe a locked role too.
  */
-function RolePicker({ grantable, held, locked, roles, catalog }: {
+function RolePicker({ grantable, held, locked, roles, catalog, offerFinanceChoice = false }: {
   grantable: Role[]; held: string | undefined; locked: UserRoleSummary[];
   roles: RolePermissions[]; catalog: Permission[];
+  /** Only the new-user form: finance is chosen when the account is created, never afterwards. */
+  offerFinanceChoice?: boolean;
 }) {
   const [selected, setSelected] = useState<string | undefined>(held);
+  const [financeEnabled, setFinanceEnabled] = useState(true);
+  // The choice exists for a Field Engineer alone; for anyone else finance is just what their role grants.
+  const choosesFinance = offerFinanceChoice && selected === 'FIELD_ENGINEER';
   return (
     <>
       <fieldset className="checkbox-grid">
@@ -111,7 +116,25 @@ function RolePicker({ grantable, held, locked, roles, catalog }: {
           ? <p className="subtle">You cannot assign any roles.</p>
           : null}
       </fieldset>
-      <RoleAccessSummary selected={selected} roles={roles} catalog={catalog} />
+      {choosesFinance ? (
+        <div className="finance-choice">
+          <input type="hidden" name="financeOffered" value="1" />
+          <label className="checkbox">
+            <input
+              type="checkbox" name="financeEnabled" checked={financeEnabled}
+              onChange={(event) => setFinanceEnabled(event.target.checked)}
+            />
+            Advances and expenses through Axiom
+          </label>
+          <p className="subtle">
+            Turn off for vendor engineers whose own company pays their advances and settles their expenses.
+          </p>
+        </div>
+      ) : null}
+      <RoleAccessSummary
+        selected={selected} roles={roles} catalog={catalog}
+        financeEnabled={!choosesFinance || financeEnabled}
+      />
     </>
   );
 }
@@ -138,7 +161,7 @@ export function CreateUserForm({ grantable, catalog }: { grantable: Role[]; cata
           <PasswordInput name="confirmPassword" required minLength={8} maxLength={200} autoComplete="new-password" />
         </label>
       </div>
-      <RolePicker grantable={grantable} held={undefined} locked={[]} roles={grantable} catalog={catalog} />
+      <RolePicker grantable={grantable} held={undefined} locked={[]} roles={grantable} catalog={catalog} offerFinanceChoice />
       <FormError state={state} />
       <p className="form-note">
         The new user must change this password the first time they sign in. Until they do, their

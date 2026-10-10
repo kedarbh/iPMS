@@ -1,15 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { resolveSearch } from './search';
 
-const ENG = { mayAct: false, seeAll: false };
-const PM = { mayAct: true, seeAll: false };
-const FIN = { mayAct: true, seeAll: true };
+const ENG = { mayAct: false, seeAll: false, mayRaise: true };
+const PM = { mayAct: true, seeAll: false, mayRaise: true };
+const FIN = { mayAct: true, seeAll: true, mayRaise: false };
+const PM_ALL = { mayAct: true, seeAll: true, mayRaise: true };
 
 describe('resolveSearch', () => {
   it('only offers the tabs the viewer may use', () => {
     expect(resolveSearch({}, ENG).tabs).toEqual(['mine']);
     expect(resolveSearch({}, PM).tabs).toEqual(['awaiting', 'mine']);
-    expect(resolveSearch({}, FIN).tabs).toEqual(['awaiting', 'mine', 'all']);
+    expect(resolveSearch({}, FIN).tabs).toEqual(['awaiting', 'handled', 'all']);
+    expect(resolveSearch({}, PM_ALL).tabs).toEqual(['awaiting', 'handled', 'mine', 'all']);
+  });
+
+  it('opens Decided by me for an approver who sees every request', () => {
+    expect(resolveSearch({ view: 'handled' }, FIN).view).toBe('handled');
+    expect(resolveSearch({ view: 'handled' }, PM).view).toBe('awaiting');
   });
 
   it('falls back to mine when an engineer asks for a view they may not use', () => {

@@ -2,12 +2,14 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
-  approveRequest, cancelRequest, createCategory, createRequest, payRequest, rejectRequest, returnCash, returnRequest,
+  approveRequest, cancelRequest, createCategory, createRequest, listRequests, payRequest, rejectRequest, returnCash, returnRequest,
   submitRequest, updateCategory, updateRequest,
   type CreateRequestInput, type PaymentInput, type PaymentMode, type UpdateRequestInput,
 } from '../lib/finance-api';
+import { getCurrentUser } from '../lib/iam-api';
 import type { FormState } from '../lib/form-state';
 import { optional, settle } from '../lib/settle';
+import { homeFor } from '../overview/model';
 import { parseInvoices, parseMoney } from './form';
 
 const MONEY_ERROR = 'Enter an amount in NPR with at most two decimals.';
@@ -16,6 +18,23 @@ const isMode = (value: string | undefined): value is PaymentMode => value !== un
 
 /** Every page a change to one request shows on: the workspace and the request itself. */
 const pages = (id: string): string[] => ['/finance', `/finance/requests/${id}`];
+
+/** A decision also changes the Director's home, which shows their queue. */
+const decisionPages = (id: string): string[] => [...pages(id), '/'];
+
+/**
+ * After a decision, the next request waiting on the caller (the awaiting view
+ * is oldest first) or, when none is left, their home: the Director's
+ * dashboard, or the finance queue for everyone else. Only the decided
+ * request's id travels in the URL; the page reads the rest.
+ */
+async function nextAfterDecision(decidedId: string): Promise<never> {
+  const [queue, viewer] = await Promise.all([listRequests({ view: 'awaiting', limit: 2 }), getCurrentUser()]);
+  const next = queue.state === 'ready' ? queue.data.items.find((r) => r.id !== decidedId) : undefined;
+  if (next) redirect(`/finance/requests/${next.id}?decided=${decidedId}`);
+  const director = viewer.state === 'ready' && homeFor(viewer.data.roles) === 'director';
+  redirect(director ? `/?decided=${decidedId}` : `/finance?view=awaiting&decided=${decidedId}`);
+}
 
 /** The trimmed request id a form carries, or undefined when it has none. */
 const requiredId = (form: FormData): string | undefined => optional(form, 'id');
@@ -31,6 +50,7 @@ export async function saveRequestAction(_previous: FormState, form: FormData): P
   const kind = optional(form, 'kind');
   const categoryId = optional(form, 'categoryId');
   const purpose = optional(form, 'purpose');
+  const remarks = optional(form, 'remarks');
   const workOrderId = optional(form, 'workOrderId');
   const submit = optional(form, 'intent') === 'submit';
 
@@ -46,21 +66,21 @@ export async function saveRequestAction(_previous: FormState, form: FormData): P
     if (amount === null) return { error: MONEY_ERROR };
     const projectId = optional(form, 'projectId');
     if (!id && !projectId) return { error: 'Choose a project.' };
-    if (id) change = { categoryId, purpose, amount };
-    else create = { kind, projectId: projectId!, categoryId, purpose, amount, ...(workOrderId ? { workOrderId } : {}) };
+    if (id) change = { categoryId, purpose, remarks: remarks ?? null, amount };
+    else create = { kind, projectId: projectId!, categoryId, purpose, ...(remarks ? { remarks } : {}), amount, ...(workOrderId ? { workOrderId } : {}) };
   } else {
     const parsed = parseInvoices(form);
     if ('error' in parsed) return { error: parsed.error };
     if (id) {
-      change = { categoryId, purpose, invoices: parsed.invoices };
+      change = { categoryId, purpose, remarks: remarks ?? null, invoices: parsed.invoices };
     } else if (kind === 'REIMBURSEMENT') {
       const projectId = optional(form, 'projectId');
       if (!projectId) return { error: 'Choose a project.' };
-      create = { kind, projectId, categoryId, purpose, invoices: parsed.invoices, ...(workOrderId ? { workOrderId } : {}) };
+      create = { kind, projectId, categoryId, purpose, ...(remarks ? { remarks } : {}), invoices: parsed.invoices, ...(workOrderId ? { workOrderId } : {}) };
     } else {
       const advanceId = optional(form, 'advanceId');
       if (!advanceId) return { error: 'Choose the advance to settle.' };
-      create = { kind, advanceId, categoryId, purpose, invoices: parsed.invoices, ...(workOrderId ? { workOrderId } : {}) };
+      create = { kind, advanceId, categoryId, purpose, ...(remarks ? { remarks } : {}), invoices: parsed.invoices, ...(workOrderId ? { workOrderId } : {}) };
     }
   }
 
@@ -98,7 +118,8 @@ export async function approveAction(_previous: FormState, form: FormData): Promi
   const amount = typed === undefined ? undefined : parseMoney(typed);
   if (amount === null) return { error: MONEY_ERROR };
   const comment = optional(form, 'comment');
-  return settle(await approveRequest(id, { ...(amount === undefined ? {} : { amount }), ...(comment ? { comment } : {}) }), pages(id));
+  const state = await settle(await approveRequest(id, { ...(amount === undefined ? {} : { amount }), ...(comment ? { comment } : {}) }), decisionPages(id));
+  return state.error ? state : nextAfterDecision(id);
 }
 
 export async function returnAction(_previous: FormState, form: FormData): Promise<FormState> {
@@ -106,7 +127,8 @@ export async function returnAction(_previous: FormState, form: FormData): Promis
   if (!id) return MISSING_REQUEST;
   const comment = optional(form, 'comment');
   if (!comment) return { error: 'Say why.' };
-  return settle(await returnRequest(id, comment), pages(id));
+  const state = await settle(await returnRequest(id, comment), decisionPages(id));
+  return state.error ? state : nextAfterDecision(id);
 }
 
 export async function rejectAction(_previous: FormState, form: FormData): Promise<FormState> {
@@ -114,7 +136,8 @@ export async function rejectAction(_previous: FormState, form: FormData): Promis
   if (!id) return MISSING_REQUEST;
   const comment = optional(form, 'comment');
   if (!comment) return { error: 'Say why.' };
-  return settle(await rejectRequest(id, comment), pages(id));
+  const state = await settle(await rejectRequest(id, comment), decisionPages(id));
+  return state.error ? state : nextAfterDecision(id);
 }
 
 /** Blank details are sent as nothing: the service wants them only when money actually moves. */

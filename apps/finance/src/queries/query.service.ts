@@ -1,15 +1,19 @@
 import { ForbiddenException } from '@nestjs/common';
 import { scopeWhere, type AuthzScope } from '@ipms/authz';
 import type { ListRequestsQuery } from '@ipms/contracts';
+import { createLogger } from '@ipms/observability';
 import type { Prisma, PrismaClient } from '@prisma-clients/finance';
 import { inScope, notFound, type Actor } from '../common.js';
 import { findDuplicates } from '../duplicates.js';
 import { loadBalance } from '../ledger.js';
 import { serializeDetail, serializeRequest } from '../serialize.js';
 import { advanceSettlementDue } from '../settlement.js';
+import { decisionContext } from './context.js';
+import { requestFlags } from './flags.js';
 import { listFacts } from './list-facts.js';
 import { awaitingStatuses } from '../workflow.js';
 
+const log = createLogger('finance');
 const VIEW_ALL = 'finance_request.view_all';
 const PROJECT_ONLY = { project: 'projectId', site: null } as const;
 
@@ -28,25 +32,47 @@ export class QueryService {
       ...(query.projectId ? { projectId: query.projectId } : {}),
     };
     const full: Prisma.FinanceRequestWhereInput = { AND: [where, filters] };
+    // The awaiting queue is read oldest-waiting first; a pending request changes only when it moves, so updatedAt is when it arrived.
+    // The id breaks ties, so rows with the same timestamp keep one order from page to page.
+    const orderBy: Prisma.FinanceRequestOrderByWithRelationInput[] = query.view === 'handled'
+      ? [{ updatedAt: 'desc' }, { id: 'desc' }]
+      : query.view === 'awaiting' ? [{ updatedAt: 'asc' }, { id: 'asc' }] : [{ createdAt: 'desc' }, { id: 'desc' }];
     const [items, total] = await Promise.all([
       this.prisma.financeRequest.findMany({
-        where: full, orderBy: query.view === 'handled' ? { updatedAt: 'desc' } : { createdAt: 'desc' }, skip: (query.page - 1) * query.limit, take: query.limit,
+        where: full, orderBy, skip: (query.page - 1) * query.limit, take: query.limit,
         include: { category: { select: { code: true, name: true } } },
       }),
       this.prisma.financeRequest.count({ where: full }),
     ]);
-    const facts = await listFacts(this.prisma, items);
-    return { items: items.map((row) => ({ ...serializeRequest(row), category: row.category, ...facts.get(row.id) })), total, page: query.page, limit: query.limit };
+    const [facts, flags] = await Promise.all([
+      listFacts(this.prisma, items),
+      query.view === 'awaiting' ? requestFlags(this.prisma, items, scope, new Date()) : Promise.resolve(new Map<string, never[]>()),
+    ]);
+    return {
+      items: items.map((row) => {
+        const rowFlags = flags.get(row.id);
+        return { ...serializeRequest(row), category: row.category, ...facts.get(row.id), ...(rowFlags ? { flags: rowFlags } : {}) };
+      }),
+      total, page: query.page, limit: query.limit,
+    };
   }
 
-  async get(id: string, actor: Actor, scope: AuthzScope) {
+  async get(id: string, actor: Actor, scope: AuthzScope, now = new Date()) {
     const row = await this.prisma.financeRequest.findUnique({
       where: { id },
       include: { invoices: true, actions: { orderBy: { at: 'asc' } }, payments: true, category: { select: { code: true, name: true } } },
     });
     if (!row || !this.mayRead(row, actor, scope)) throw notFound('Request');
     const bills = row.invoices.map((b) => ({ vendor: b.vendor, invoiceNumber: b.invoiceNumber, invoiceDate: b.invoiceDate, amount: b.amount.toFixed(2) }));
-    const detail = { ...serializeDetail(row), category: row.category, duplicates: await findDuplicates(this.prisma, id, bills) };
+    // The context only helps an approver decide; if it cannot be built, the request still opens, without it.
+    const [duplicates, context] = await Promise.all([
+      findDuplicates(this.prisma, id, bills),
+      decisionContext(this.prisma, row, actor, scope, now).catch((err: unknown) => {
+        log.warn({ err, requestId: id }, 'decision context failed; returning the request without it');
+        return null;
+      }),
+    ]);
+    const detail = { ...serializeDetail(row), category: row.category, duplicates, ...(context ? { context } : {}) };
     if (row.kind !== 'ADVANCE' || row.status !== 'PAID') return detail;
     // The due day is a fact about the advance (paid day plus the window); whether it is overdue is for the reader's clock.
     return { ...detail, balance: await loadBalance(this.prisma, id), settlementDueOn: advanceSettlementDue(row, row.payments) };

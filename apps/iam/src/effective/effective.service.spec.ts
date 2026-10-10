@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { EffectiveService } from './effective.service.js';
 import { uuidv7 } from '@ipms/contracts';
+import { FINANCE_OPT_OUT_REASON } from '@ipms/authz';
 
 const USER = uuidv7();
 const FUTURE = new Date('2027-01-01T00:00:00Z');
@@ -218,5 +219,67 @@ describe('EffectiveService.simulate — resource-scoped requests', () => {
       userId: USER, permissionCode: 'task.view', resourceType: 'Task',
     });
     expect(result.allowed).toBe(true);
+  });
+});
+
+/**
+ * A Field Engineer whose own company handles their money. The effective read,
+ * the simulator and `holders` must all say what the token says: no finance.
+ */
+describe('EffectiveService — finance switched off', () => {
+  function buildEngineer(financeEnabled: boolean) {
+    const user = {
+      id: USER, isActive: true, tokenVersion: 0, financeEnabled,
+      globalScopes: [],
+      roles: [{
+        role: {
+          code: 'FIELD_ENGINEER', isActive: true,
+          permissions: [
+            { permission: { code: 'task.view' } },
+            { permission: { code: 'finance_request.view' } },
+            { permission: { code: 'finance_request.create' } },
+          ],
+        },
+        validFrom: null, validUntil: null,
+      }],
+      projectScopes: [{ projectId: 'p-1' }],
+      siteScopes: [],
+      overrides: [],
+    };
+    const prisma = { user: { findUnique: vi.fn().mockResolvedValue(user), findMany: vi.fn().mockResolvedValue([user]) } };
+    return new EffectiveService(prisma as never);
+  }
+
+  it('reports each finance permission as denied, with the reason', async () => {
+    const result = await buildEngineer(false).forUser(USER);
+    expect(result.find((p) => p.code === 'finance_request.create')).toMatchObject({
+      granted: false, source: 'OVERRIDE_DENY', sourceDetail: FINANCE_OPT_OUT_REASON,
+    });
+    expect(result.find((p) => p.code === 'finance_request.view')).toMatchObject({ granted: false });
+  });
+
+  it('still grants everything that is not finance', async () => {
+    const result = await buildEngineer(false).forUser(USER);
+    expect(result.find((p) => p.code === 'task.view')).toMatchObject({ granted: true, source: 'ROLE' });
+  });
+
+  it('leaves finance granted when the switch is on', async () => {
+    const result = await buildEngineer(true).forUser(USER);
+    expect(result.find((p) => p.code === 'finance_request.create')).toMatchObject({ granted: true, source: 'ROLE' });
+  });
+
+  it('refuses a finance permission in the simulator', async () => {
+    const result = await buildEngineer(false).simulate({ userId: USER, permissionCode: 'finance_request.create' });
+    expect(result).toMatchObject({ allowed: false, reason: 'DENIED_BY_OVERRIDE' });
+  });
+
+  it('allows the same permission in the simulator when the switch is on', async () => {
+    const result = await buildEngineer(true).simulate({ userId: USER, permissionCode: 'finance_request.create' });
+    expect(result.allowed).toBe(true);
+  });
+
+  it('never lists such an engineer as a holder of a finance permission', async () => {
+    expect(await buildEngineer(false).holders('finance_request.view', 'p-1')).toEqual([]);
+    expect(await buildEngineer(true).holders('finance_request.view', 'p-1')).toEqual([USER]);
   });
 });

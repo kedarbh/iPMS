@@ -20,15 +20,24 @@ function moduleLabel(module: string): string {
   return [first.charAt(0).toUpperCase() + first.slice(1), ...rest].join(' ');
 }
 
+/** Finance permissions live in `finance_*` modules: `finance_request.view`, `finance_payment.record`, … */
+export function isFinancePermission(code: string): boolean {
+  return code.startsWith('finance_');
+}
+
 export function summarizeAccess(
   selected: readonly string[],
   roles: readonly RolePermissions[],
   catalog: readonly PermissionInfo[],
+  options: { financeEnabled?: boolean } = {},
 ): AccessSummary {
+  const withFinance = options.financeEnabled ?? true;
   const grantedBy = new Map<string, string[]>();
   for (const role of roles) {
     if (!selected.includes(role.code)) continue;
     for (const code of role.permissionCodes) {
+      // An engineer created with finance off never holds these; iam withholds them.
+      if (!withFinance && isFinancePermission(code)) continue;
       grantedBy.set(code, [...(grantedBy.get(code) ?? []), role.name]);
     }
   }

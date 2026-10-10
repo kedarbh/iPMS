@@ -62,6 +62,16 @@ describe('CreateUserSchema', () => {
     expect(parsed).not.toHaveProperty('isActive');
     expect(parsed).not.toHaveProperty('mustChangePassword');
   });
+
+  it('leaves financeEnabled undecided unless the caller sends it', () => {
+    expect(CreateUserSchema.parse(valid).financeEnabled).toBeUndefined();
+    expect(CreateUserSchema.parse({ ...valid, financeEnabled: false }).financeEnabled).toBe(false);
+    expect(CreateUserSchema.parse({ ...valid, financeEnabled: true }).financeEnabled).toBe(true);
+  });
+
+  it('refuses a financeEnabled that is not a boolean', () => {
+    expect(CreateUserSchema.safeParse({ ...valid, financeEnabled: 'no' }).success).toBe(false);
+  });
 });
 
 describe('UpdateUserSchema', () => {
@@ -71,6 +81,10 @@ describe('UpdateUserSchema', () => {
 
   it('has no password field: a credential change must revoke sessions, so it has its own endpoint', () => {
     expect(UpdateUserSchema.parse({ password: 'a-new-password' })).not.toHaveProperty('password');
+  });
+
+  it('has no financeEnabled: finance is chosen when the account is created, and not afterwards', () => {
+    expect(UpdateUserSchema.parse({ fullName: 'Ann Lee', financeEnabled: false })).toEqual({ fullName: 'Ann Lee' });
   });
 
   it('lets employeeCode be cleared with null but not blanked with a space', () => {

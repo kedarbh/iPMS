@@ -321,3 +321,60 @@ describe('AuthService.changePassword', () => {
     })).rejects.toBeInstanceOf(UnauthorizedException);
   });
 });
+
+/**
+ * A Field Engineer whose own company handles their money gets a token with no
+ * finance permission in it, so every service's guard refuses finance for them
+ * without a line of finance-specific code. A DENY outranks the role grant.
+ */
+describe('AuthService and the finance switch', () => {
+  const ENGINEER_ROLE = {
+    role: {
+      code: 'FIELD_ENGINEER', isActive: true,
+      permissions: [
+        { permission: { code: 'task.view' } },
+        { permission: { code: 'finance_request.view' } },
+        { permission: { code: 'finance_request.create' } },
+        { permission: { code: 'finance_settlement.submit' } },
+      ],
+    },
+    validFrom: null, validUntil: null,
+  };
+
+  it('keeps finance in the token when the switch is on', async () => {
+    const { service } = await build({ roles: [ENGINEER_ROLE], financeEnabled: true });
+    const pair = await service.login({ email: 'engineer@ipms.local', password: 'demo12345' });
+    expect(tokens.verifyAccess(pair.accessToken).permissions).toContain('finance_request.create');
+  });
+
+  it('keeps finance in the token for a row that predates the switch', async () => {
+    const { service } = await build({ roles: [ENGINEER_ROLE] });
+    const pair = await service.login({ email: 'engineer@ipms.local', password: 'demo12345' });
+    expect(tokens.verifyAccess(pair.accessToken).permissions).toContain('finance_request.create');
+  });
+
+  it('leaves every finance permission out of the token, and keeps the rest', async () => {
+    const { service } = await build({ roles: [ENGINEER_ROLE], financeEnabled: false });
+    const pair = await service.login({ email: 'engineer@ipms.local', password: 'demo12345' });
+    expect(tokens.verifyAccess(pair.accessToken).permissions).toEqual(['task.view']);
+  });
+
+  it('leaves finance out after a refresh as well', async () => {
+    const { service } = await build({ roles: [ENGINEER_ROLE], financeEnabled: false });
+    const { refreshToken } = await service.login({ email: 'engineer@ipms.local', password: 'demo12345' });
+    const pair = await service.refresh(refreshToken);
+    expect(tokens.verifyAccess(pair.accessToken).permissions).toEqual(['task.view']);
+  });
+
+  it('does not let a stored ALLOW override bring finance back', async () => {
+    const { service } = await build({
+      roles: [ENGINEER_ROLE], financeEnabled: false,
+      overrides: [{
+        permission: { code: 'finance_request.create' }, effect: 'ALLOW',
+        projectId: null, siteId: null, validFrom: null, validUntil: null,
+      }],
+    });
+    const pair = await service.login({ email: 'engineer@ipms.local', password: 'demo12345' });
+    expect(tokens.verifyAccess(pair.accessToken).permissions).not.toContain('finance_request.create');
+  });
+});
