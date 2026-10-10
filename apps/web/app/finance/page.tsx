@@ -4,8 +4,17 @@ import { getCurrentUser, hasPermission } from '../lib/iam-api';
 import { listUserDirectory } from '../lib/user-api';
 import { Sidebar, StatePage, TopActions } from '../shell';
 import { DecidedNotice } from './decided';
-import { RequestsTable, financeHref } from './requests-table';
+import { RequestsTable } from './requests-table';
 import { resolveSearch, type RawSearch } from './search';
+
+/** A workspace link that keeps the view and any filter that is set. */
+function financeHref(view: RequestView, query: { status?: string; kind?: string }, page?: number): string {
+  const params = new URLSearchParams({ view });
+  if (query.status) params.set('status', query.status);
+  if (query.kind) params.set('kind', query.kind);
+  if (page !== undefined) params.set('page', String(page));
+  return `/finance?${params.toString()}`;
+}
 
 const LABEL: Record<RequestView, string> = { awaiting: 'Waiting for me', handled: 'Decided by me', mine: 'My requests', all: 'All requests' };
 
@@ -58,7 +67,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
                 <a key={tab} href={financeHref(tab, query)} aria-current={tab === view ? 'page' : undefined}>{LABEL[tab]}</a>
               ))}
             </nav>
-            <RequestsTable page={result.data} names={names} view={view} query={query} />
+            <RequestsTable page={result.data} names={names} view={view} pageHref={(n) => financeHref(view, query, n)} />
           </section>
         </div>
       </section>

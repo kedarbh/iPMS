@@ -12,9 +12,15 @@ const row = (over: Record<string, unknown> = {}) => ({
 const page = (items: unknown[], extra: Record<string, unknown> = {}) => ({ items, total: items.length, page: 1, limit: 20, ...extra }) as never;
 const names = new Map([['u-eng', 'Sita Rai']]);
 const html = (items: unknown[], extra: Record<string, unknown> = {}) =>
-  renderToStaticMarkup(<RequestsTable page={page(items, extra)} names={names} view="awaiting" />);
+  renderToStaticMarkup(<RequestsTable page={page(items, extra)} names={names} view="awaiting" pageHref={(n) => `/x?page=${n}`} />);
 
 describe('RequestsTable', () => {
+  it('pages through the href the page supplies', () => {
+    const out = html([row()], { total: 45 });
+    expect(out).toContain('Page 1 of 3');
+    expect(out).toContain('href="/x?page=2"');
+  });
+
   it('links each request to its page and shows who, what and how much', () => {
     const out = html([row()]);
     expect(out).toContain('href="/finance/requests/r-1"');
@@ -44,16 +50,6 @@ describe('RequestsTable', () => {
     const out = html([row()]);
     expect(out).toContain('finance-pill');
     expect(out).toContain('finance-num');
-  });
-
-  it('keeps the view and filters in the next-page link', () => {
-    const out = renderToStaticMarkup(
-      <RequestsTable page={page([row()], { total: 45 })} names={names} view="all" query={{ status: 'PAID', kind: 'ADVANCE' }} />,
-    );
-    const href = /href="([^"]*page=2[^"]*)"/.exec(out)?.[1] ?? '';
-    expect(href).toContain('view=all');
-    expect(href).toContain('status=PAID');
-    expect(href).toContain('kind=ADVANCE');
   });
 
   it('offers the next page when there is one', () => {

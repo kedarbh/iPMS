@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveSearch } from './search';
+import { HISTORY_PILLS, historyHref, legacyTarget, resolveHistory, resolveSearch } from './search';
 
 const ENG = { mayAct: false, seeAll: false, mayRaise: true };
 const PM = { mayAct: true, seeAll: false, mayRaise: true };
@@ -48,5 +48,45 @@ describe('resolveSearch', () => {
     expect(resolveSearch({ page: 'x' }, ENG).page).toBe(1);
     expect(resolveSearch({ page: '-3' }, ENG).page).toBe(1);
     expect(resolveSearch({ page: '0' }, ENG).page).toBe(1);
+  });
+});
+
+describe('resolveHistory', () => {
+  const caps = { mayAct: true, seeAll: true };
+  it('shows everything to a viewer who sees all, and only their own to the rest', () => {
+    expect(resolveHistory({}, caps)).toMatchObject({ view: 'all', pill: 'all', page: 1 });
+    expect(resolveHistory({}, { mayAct: false, seeAll: false })).toMatchObject({ view: 'mine' });
+  });
+  it('maps a pill onto the service filters', () => {
+    expect(resolveHistory({ filter: 'approval' }, caps)).toMatchObject({ pill: 'approval', stage: 'approval' });
+    expect(resolveHistory({ filter: 'closed' }, caps)).toMatchObject({ stage: 'closed' });
+    expect(resolveHistory({ filter: 'returned' }, caps)).toMatchObject({ status: 'RETURNED' });
+  });
+  it('offers decided-by-me only to approvers who see all', () => {
+    expect(resolveHistory({ filter: 'handled' }, caps)).toMatchObject({ view: 'handled', pill: 'handled' });
+    expect(resolveHistory({ filter: 'handled' }, { mayAct: false, seeAll: true })).toMatchObject({ view: 'all', pill: 'all' });
+  });
+  it('keeps the old view, status and kind params and a text query', () => {
+    expect(resolveHistory({ view: 'mine', status: 'PENDING_DIRECTOR', kind: 'ADVANCE', q: ' ADV-2026 ', page: '3' }, caps))
+      .toMatchObject({ view: 'mine', status: 'PENDING_DIRECTOR', kind: 'ADVANCE', q: 'ADV-2026', page: 3 });
+    expect(resolveHistory({ view: 'all' }, { mayAct: false, seeAll: false })).toMatchObject({ view: 'mine' });
+  });
+});
+
+describe('historyHref', () => {
+  it('keeps only what is set', () => {
+    expect(historyHref({})).toBe('/finance/history');
+    expect(historyHref({ filter: 'approval', q: 'fuel', page: 2 })).toBe('/finance/history?filter=approval&q=fuel&page=2');
+    expect(historyHref({ filter: 'all' })).toBe('/finance/history');
+  });
+});
+
+describe('legacyTarget', () => {
+  it('sends the old awaiting view to the queue and other views to history', () => {
+    expect(legacyTarget({})).toBeNull();
+    expect(legacyTarget({ view: 'awaiting' })).toBe('/finance/queue');
+    expect(legacyTarget({ view: 'awaiting', decided: 'r-1' })).toBe('/finance/queue?decided=r-1');
+    expect(legacyTarget({ view: 'handled' })).toBe('/finance/history?view=handled');
+    expect(legacyTarget({ view: 'all', status: 'PAID', page: '2' })).toBe('/finance/history?view=all&status=PAID&page=2');
   });
 });
