@@ -145,7 +145,7 @@ export function workOrderRef(id: string): string {
   return `WO-${id.replace(/-/g, '').slice(0, 6).toUpperCase()}`;
 }
 
-export type HomeView = 'admin' | 'manager' | 'qc' | 'finance' | 'engineer';
+export type HomeView = 'admin' | 'manager' | 'director' | 'qc' | 'finance' | 'engineer';
 
 /**
  * Which home a signed-in person lands on. The most senior role wins, and
@@ -155,8 +155,9 @@ export type HomeView = 'admin' | 'manager' | 'qc' | 'finance' | 'engineer';
 export function homeFor(roles: readonly string[]): HomeView {
   if (roles.includes('SUPER_ADMIN')) return 'admin';
   if (roles.includes('PROJECT_MANAGER')) return 'manager';
+  if (roles.includes('PROJECT_DIRECTOR')) return 'director';
   if (roles.includes('QC_MANAGER')) return 'qc';
-  if (roles.includes('FINANCE') || roles.includes('PROJECT_DIRECTOR')) return 'finance';
+  if (roles.includes('FINANCE')) return 'finance';
   if (roles.includes('FIELD_ENGINEER')) return 'engineer';
   return 'admin';
 }

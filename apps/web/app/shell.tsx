@@ -164,8 +164,10 @@ export async function Sidebar({ active }: { active: Section }) {
   const manager = home === 'manager';
   // QC and field staff share the manager's grouped menu; the cash-in-hand records are for everyone else.
   const staff = home === 'qc' || home === 'engineer';
-  // Finance and Directors live in the finance workspace, so their menu is only that and the docs.
+  // Finance lives in the finance workspace, so its menu is only that and the docs.
   const financeHome = home === 'finance' && mayViewFinance;
+  // A Director oversees projects and approves money: their overview, the projects, and finance.
+  const director = home === 'director';
   // A manager's or QC's home is a queue, so the menu says how long theirs is.
   const waiting = (manager || home === 'qc') && mayViewTasks ? await listWorkOrders({ status: 'REVIEWING', limit: 1 }) : null;
   const toReview = waiting?.state === 'ready' ? waiting.data.counts.REVIEWING : 0;
@@ -213,7 +215,7 @@ export async function Sidebar({ active }: { active: Section }) {
             <NavItem section="projects" active={active} href="/projects" icon={<ProjectsIcon />}>
               Projects
             </NavItem>
-            {manager || staff ? (
+            {director ? financeGroup : manager || staff ? (
               <>
                 {mayViewTasks || mayViewTemplates ? (
                   <div className="nav-section" role="group" aria-labelledby="nav-quality">
@@ -252,7 +254,7 @@ export async function Sidebar({ active }: { active: Section }) {
                 ) : null}
               </div>
             )}
-            {!(manager || staff) ? financeGroup : null}
+            {!(manager || staff || director) ? financeGroup : null}
           </>
         )}
 

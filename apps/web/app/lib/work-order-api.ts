@@ -1,6 +1,6 @@
 import 'server-only';
 import type {
-  CancelWorkOrderDto, CreateWorkOrdersDto, UpdateWorkOrderDto, WorkOrderEventKind, WorkOrderPage, WorkOrderType,
+  CancelWorkOrderDto, CreateWorkOrdersDto, UpdateWorkOrderDto, WorkOrderEventKind, WorkOrderPage, WorkOrderProjectSummary, WorkOrderType,
 } from '@ipms/contracts';
 import { authFetch, type ApiResult } from './api-client';
 import type { TaskStatus } from './project-api';
@@ -75,6 +75,11 @@ export async function listWorkOrders(filter: WorkOrderFilter = {}): Promise<ApiR
 /** Every work order of one project the caller can see, in brief. */
 export async function listProjectWorkOrders(projectId: string): Promise<ApiResult<WorkOrderBrief[]>> {
   return authFetch<WorkOrderBrief[]>(`/api/v1/work-orders/by-project/${projectId}`);
+}
+
+/** Per-project work order counts for the Director's portfolio. */
+export async function getWorkOrderSummary(): Promise<ApiResult<WorkOrderProjectSummary[]>> {
+  return authFetch<WorkOrderProjectSummary[]>('/api/v1/work-orders/summary');
 }
 
 export async function getWorkOrder(id: string): Promise<ApiResult<WorkOrderDetail>> {

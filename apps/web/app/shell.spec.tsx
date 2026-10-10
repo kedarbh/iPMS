@@ -183,7 +183,7 @@ describe('Sidebar Finance group', () => {
     expect(links).toEqual(expect.arrayContaining(['/finance', '/finance/categories', '/finance/reports']));
   });
 
-  it('leaves Finance and Project Directors with the Finance group only', async () => {
+  it('leaves Finance with the Finance group only', async () => {
     getCurrentUser.mockResolvedValue(as(['FINANCE'], ['finance_request.view', 'finance_request.view_all', 'finance_category.manage', 'project.view', 'task.view']));
     const links = hrefs(await Sidebar({ active: 'finance' }));
     expect(links).toEqual(expect.arrayContaining(['/finance', '/finance/categories', '/finance/reports']));
@@ -191,6 +191,17 @@ describe('Sidebar Finance group', () => {
     expect(JSON.stringify(await Sidebar({ active: 'finance' }))).not.toContain('Overview');
     expect(links.some((href) => href.startsWith('/quality'))).toBe(false);
     expect(links).not.toContain('/#audit-log');
+  });
+
+  it('gives Project Directors their overview, the projects and the finance group, and nothing of quality', async () => {
+    getCurrentUser.mockResolvedValue(as(['PROJECT_DIRECTOR'], ['project.view', 'site.view', 'milestone.view', 'task.view', 'task.view_all', 'finance_request.view', 'finance_request.view_all', 'finance_approval.director']));
+    const links = hrefs(await Sidebar({ active: 'overview' }));
+    expect(links).toEqual(expect.arrayContaining(['/projects', '/finance', '/finance/reports']));
+    expect(JSON.stringify(await Sidebar({ active: 'overview' }))).toContain('Overview');
+    expect(links).not.toContain('/finance/categories');
+    expect(links.some((href) => href.startsWith('/quality'))).toBe(false);
+    expect(links).not.toContain('/#audit-log');
+    expect(listWorkOrders).not.toHaveBeenCalled();
   });
 });
 
