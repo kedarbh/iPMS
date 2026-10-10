@@ -59,7 +59,7 @@ History is not affected either: if a vendor engineer ever did have requests, app
 
 ## 7. Mobile (`apps/mobile`)
 
-The Finance tab and its page are built only when the signed-in user has `finance_request.view`. Today `main.dart` always includes `FinanceScreen` and the nav bar has a fixed Finance entry, so a user without finance sees "Ask an administrator if you need to raise advances", which is wrong for vendor staff. The nav bar and the page list come from one list, so they cannot get out of step.
+The Finance button leaves the nav bar when the signed-in user lacks `finance_request.view`, and the page behind it becomes an empty placeholder, so the finance screen makes no call that would be refused. The tab keeps its slot, because other code jumps to tabs by index (the task list goes to Profile at `3`, the guide uses `0`–`3`) and removing the slot would shift them. A jump to a hidden tab lands on Tasks. The guide's component list drops its Finance entry.
 
 ## 8. Edge cases
 
