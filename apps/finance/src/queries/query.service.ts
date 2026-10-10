@@ -7,6 +7,7 @@ import { findDuplicates } from '../duplicates.js';
 import { loadBalance } from '../ledger.js';
 import { serializeDetail, serializeRequest } from '../serialize.js';
 import { advanceSettlementDue } from '../settlement.js';
+import { requestFlags } from './flags.js';
 import { listFacts } from './list-facts.js';
 import { awaitingStatuses } from '../workflow.js';
 
@@ -28,15 +29,26 @@ export class QueryService {
       ...(query.projectId ? { projectId: query.projectId } : {}),
     };
     const full: Prisma.FinanceRequestWhereInput = { AND: [where, filters] };
+    // The awaiting queue is read oldest-waiting first; a pending request changes only when it moves, so updatedAt is when it arrived.
+    const orderBy = query.view === 'handled' ? { updatedAt: 'desc' as const } : query.view === 'awaiting' ? { updatedAt: 'asc' as const } : { createdAt: 'desc' as const };
     const [items, total] = await Promise.all([
       this.prisma.financeRequest.findMany({
-        where: full, orderBy: query.view === 'handled' ? { updatedAt: 'desc' } : { createdAt: 'desc' }, skip: (query.page - 1) * query.limit, take: query.limit,
+        where: full, orderBy, skip: (query.page - 1) * query.limit, take: query.limit,
         include: { category: { select: { code: true, name: true } } },
       }),
       this.prisma.financeRequest.count({ where: full }),
     ]);
-    const facts = await listFacts(this.prisma, items);
-    return { items: items.map((row) => ({ ...serializeRequest(row), category: row.category, ...facts.get(row.id) })), total, page: query.page, limit: query.limit };
+    const [facts, flags] = await Promise.all([
+      listFacts(this.prisma, items),
+      query.view === 'awaiting' ? requestFlags(this.prisma, items, scope, new Date()) : Promise.resolve(new Map<string, never[]>()),
+    ]);
+    return {
+      items: items.map((row) => {
+        const rowFlags = flags.get(row.id);
+        return { ...serializeRequest(row), category: row.category, ...facts.get(row.id), ...(rowFlags ? { flags: rowFlags } : {}) };
+      }),
+      total, page: query.page, limit: query.limit,
+    };
   }
 
   async get(id: string, actor: Actor, scope: AuthzScope) {
