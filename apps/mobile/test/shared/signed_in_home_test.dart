@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/features/auth/domain/models/auth_user.dart';
+import 'package:mobile/features/finance/presentation/finance_screen.dart';
 import 'package:mobile/main.dart';
 
 Future<void> pumpHome(WidgetTester tester, AuthUser user) async {
@@ -21,6 +22,8 @@ void main() {
   testWidgets('shows the Finance tab to a user who may use finance', (tester) async {
     await pumpHome(tester, inHouse);
     expect(find.byIcon(Icons.account_balance_wallet_outlined), findsOneWidget);
+    // IndexedStack keeps the non-current pages offstage, which `find` skips.
+    expect(find.byType(FinanceScreen, skipOffstage: false), findsOneWidget);
   });
 
   testWidgets('hides the Finance tab from a user whose finance is handled elsewhere', (tester) async {
@@ -28,6 +31,8 @@ void main() {
     expect(find.byIcon(Icons.account_balance_wallet_outlined), findsNothing);
     // Tasks is the selected tab, so the bar draws its filled icon.
     expect(find.byIcon(Icons.assignment_rounded), findsOneWidget);
+    // The vendor's Finance page is an empty placeholder, so the screen is never built.
+    expect(find.byType(FinanceScreen, skipOffstage: false), findsNothing);
 
     // Profile is still reachable at its own index.
     await tester.tap(find.byIcon(Icons.person_outline_rounded));

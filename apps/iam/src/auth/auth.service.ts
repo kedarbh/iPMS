@@ -47,7 +47,14 @@ interface OverrideRow {
   validUntil: Date | null;
 }
 
-/** Loaded on both login and refresh, because both mint a `permissions` claim. */
+/**
+ * Loaded on both login and refresh, because both mint a `permissions` claim.
+ *
+ * The finance opt-out reads `financeEnabled` from the user row's scalar
+ * columns, which `include` returns. If this is ever changed to a `select` it
+ * must name `financeEnabled`, or the opt-out silently stops applying
+ * (`claimsFor` is called with `user as never`, so the compiler will not notice).
+ */
 const USER_INCLUDE = {
   roles: { include: { role: { include: { permissions: { include: { permission: true } } } } } },
   overrides: { include: { permission: true } },

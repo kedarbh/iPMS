@@ -87,6 +87,8 @@ void main() {
     container.read(navigationIndexProvider.notifier).setIndex(financeTabIndex);
     await tester.pump();
     expect(find.text('Your task'), findsOneWidget);
+    // The bar shows Tasks as the selected tab after the fallback.
+    expect(find.byIcon(Icons.assignment_rounded), findsOneWidget);
 
     // Profile keeps its own index.
     await tester.tap(find.byIcon(Icons.person_outline_rounded));

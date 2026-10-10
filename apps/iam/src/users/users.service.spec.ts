@@ -460,6 +460,12 @@ describe('UsersService.setRoles — the finance switch', () => {
     await service.setRoles(TARGET, { roleCodes: ['QC_MANAGER'] }, ACTOR, ADMIN);
     expect(financeWrites(tx)).toHaveLength(0);
   });
+
+  it('keeps finance off for an engineer left with no role, so a round trip through "no role" cannot restore it', async () => {
+    const { service, tx } = build(row({ financeEnabled: false }));
+    await service.setRoles(TARGET, { roleCodes: [] }, ACTOR, ADMIN);
+    expect(financeWrites(tx)).toHaveLength(0);
+  });
 });
 
 describe('UsersService.resetPassword', () => {

@@ -1,7 +1,7 @@
 # Optional Finance for Field Engineers
 
 Date: 2026-10-10
-Status: Draft for review
+Status: Implemented
 
 ## 1. Why
 
@@ -13,7 +13,7 @@ Finance becomes optional for Field Engineers only. Every other role is unchanged
 
 In scope:
 - A switch on the new-user form for Field Engineers: finance on (the default) or off.
-- With the switch off, the user holds no `finance_*` permission, so the web Finance menu, the finance API and the mobile Finance tab all close, with no change to the finance service itself.
+- With the switch off, the user holds no `finance_*` permission, so the finance API refuses them (403) and the web Finance menu and the mobile Finance button are hidden, with no change to the finance service itself.
 
 Out of scope:
 - Changing the switch after the account exists. It is chosen once, at creation. The app is still in development, so no engineer has requests or advances yet, and nothing needs migrating or checking. If this is later needed on live accounts, it will need a check for open requests and unsettled advances first, and is a separate change.
@@ -32,7 +32,7 @@ Out of scope:
 - `user.financeEnabled Boolean @default(true)`, added by a migration. The user list and get responses carry it.
 - `CreateUserSchema` accepts an optional `financeEnabled`. `false` is accepted only when `roleCodes` is `['FIELD_ENGINEER']`; for any other role (or none) the request is rejected with a 400.
 - `UpdateUserSchema` does not accept it. The schema already strips unknown keys, so an update that sends it is ignored.
-- `setRoles` resets `financeEnabled` to `true` when the new role is not `FIELD_ENGINEER`, so an engineer later made something else does not stay without finance by accident.
+- `setRoles` resets `financeEnabled` to `true` when the new roles are non-empty and do not include `FIELD_ENGINEER`, so an engineer later made something else does not stay without finance by accident. A user left with no role keeps the switch (section 8).
 - Who may set it follows the existing create rules: an administrator, or a Project Manager creating a Field Engineer, which is the only role a PM may create. No new power is granted.
 - The `user.created` audit entry records the value. No tokens exist yet for a new account, so nothing is revoked.
 
@@ -40,7 +40,7 @@ Out of scope:
 
 `libs/authz` gains one pure function, `financeOptOutOverrides()`, returning a global DENY override for every permission whose module starts with `finance_`, taken from the `PERMISSIONS` catalog. A future finance permission is covered without anyone remembering to list it.
 
-IAM appends these overrides whenever a user's `financeEnabled` is `false`, in the two places it builds overrides: `AuthService.claimsFor` (the token) and `EffectiveService.toOverrides` (the effective-permissions read, `simulate`, and `holders`). A DENY outranks a role grant and an ALLOW override alike, so an ALLOW override added by hand cannot bring finance back. The effective-permissions read reports these permissions as denied, with the reason "Finance is handled by this engineer's own company". Nothing is written to `user_permission_override`, so the existing override list never shows these synthetic rows.
+IAM appends these overrides whenever a user's `financeEnabled` is `false`, in two places: `AuthService.claimsFor` (the token), and `EffectiveService`, where they are appended to the loaded user in `load` and in `holders` (via `withFinanceOptOut`), so `forUser`, `simulate` and `holders` all see them and `forUser` can report the reason. A DENY outranks a role grant and an ALLOW override alike, so an ALLOW override added by hand cannot bring finance back. The effective-permissions read reports these permissions as denied, with the reason "Finance is handled by this engineer's own company". Nothing is written to `user_permission_override`, so the existing override list never shows these synthetic rows.
 
 ## 5. Finance service
 
@@ -64,18 +64,20 @@ The Finance button leaves the nav bar when the signed-in user lacks `finance_req
 ## 8. Edge cases
 
 - **Set wrongly at creation.** It cannot be changed from the app in this version. While the app is in development the account can be deactivated and created again.
-- **An engineer later made a Project Manager.** The switch resets to `true` (section 4).
+- **Role changes.** Made some other role, an engineer gets finance back, permanently; made Field Engineer again, it stays on. An engineer left with no role keeps the switch, so a round trip through "no role" cannot restore finance.
 - **Notifications.** Unchanged; a vendor engineer never appears as a requester, so none are sent.
 
 ## 9. Testing
 
 - `libs/authz`: `financeOptOutOverrides` covers every `finance_*` catalog code and nothing else; DENY beats an ALLOW override and a role grant; a new `finance_*` code added to the catalog is included.
-- IAM `users.service`: `false` rejected for a non-engineer and for no role; accepted for a Field Engineer, by an administrator and by a PM; update ignores it; `setRoles` to another role resets it.
+- IAM `users.service`: `false` rejected for a non-engineer and for no role; accepted for a Field Engineer, by an administrator and by a PM; update ignores it; `setRoles` to another role resets it, and to no role leaves it.
 - IAM `auth.service` and `effective.service`: the token and the effective read both lack every finance permission when the switch is off, and `holders` for a finance permission never returns such an engineer.
 - Web: the checkbox shows only for the Field Engineer role; the access summary drops finance; the overview hides the button.
-- Mobile: widget test that the Finance tab is absent without `finance_request.view` and present with it.
-- E2E: an engineer created with finance off sees no Finance menu and the finance API answers 403.
+- Mobile: widget test that the Finance button is absent and `FinanceScreen` is not built without `finance_request.view`, and present with it.
+- E2E: an engineer created with finance off has no `finance_*` permission in the token and the finance API answers 403 (the web menu is covered by its existing `finance_request.view` gate).
 
 ## 10. Rollout
 
 One IAM migration adds the column with a default of `true`, so existing accounts are unchanged. No backfill, no new configuration, and no change to the other services' deployment.
+
+Deploy IAM (`iam-migrate` and `iam`) before or together with web. An older IAM silently ignores `financeEnabled` on create (the schema strips unknown keys), so a vendor engineer would be created with finance on. Rolling IAM back to pre-feature code gives finance back to engineers created with it off, because old code ignores the column.
