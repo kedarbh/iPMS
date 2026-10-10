@@ -11,7 +11,7 @@ type Subject = Pick<FinanceRequest, 'id' | 'number' | 'kind' | 'status' | 'reque
 
 const today = (): string => new Date().toISOString().slice(0, 10);
 
-function PaymentFields({ required }: { required: boolean }) {
+export function PaymentFields({ required }: { required: boolean }) {
   return (
     <div className="form-grid">
       <label className="field">How was it paid?
