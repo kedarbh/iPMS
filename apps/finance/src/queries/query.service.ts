@@ -7,6 +7,7 @@ import { findDuplicates } from '../duplicates.js';
 import { loadBalance } from '../ledger.js';
 import { serializeDetail, serializeRequest } from '../serialize.js';
 import { advanceSettlementDue } from '../settlement.js';
+import { decisionContext } from './context.js';
 import { requestFlags } from './flags.js';
 import { listFacts } from './list-facts.js';
 import { awaitingStatuses } from '../workflow.js';
@@ -51,14 +52,15 @@ export class QueryService {
     };
   }
 
-  async get(id: string, actor: Actor, scope: AuthzScope) {
+  async get(id: string, actor: Actor, scope: AuthzScope, now = new Date()) {
     const row = await this.prisma.financeRequest.findUnique({
       where: { id },
       include: { invoices: true, actions: { orderBy: { at: 'asc' } }, payments: true, category: { select: { code: true, name: true } } },
     });
     if (!row || !this.mayRead(row, actor, scope)) throw notFound('Request');
     const bills = row.invoices.map((b) => ({ vendor: b.vendor, invoiceNumber: b.invoiceNumber, invoiceDate: b.invoiceDate, amount: b.amount.toFixed(2) }));
-    const detail = { ...serializeDetail(row), category: row.category, duplicates: await findDuplicates(this.prisma, id, bills) };
+    const [duplicates, context] = await Promise.all([findDuplicates(this.prisma, id, bills), decisionContext(this.prisma, row, actor, scope, now)]);
+    const detail = { ...serializeDetail(row), category: row.category, duplicates, ...(context ? { context } : {}) };
     if (row.kind !== 'ADVANCE' || row.status !== 'PAID') return detail;
     // The due day is a fact about the advance (paid day plus the window); whether it is overdue is for the reader's clock.
     return { ...detail, balance: await loadBalance(this.prisma, id), settlementDueOn: advanceSettlementDue(row, row.payments) };
