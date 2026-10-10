@@ -3,7 +3,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 // the `output` comment in prisma/schema.prisma.
 import type { PrismaClient } from '@prisma-clients/iam';
 import {
-  check, resolvePermissions, type AuthzOverride, type AuthzResource, type AuthzScope, type AuthzUser,
+  check, FINANCE_OPT_OUT_REASON, financeOptOutOverrides, resolvePermissions,
+  type AuthzOverride, type AuthzResource, type AuthzScope, type AuthzUser,
 } from '@ipms/authz';
 import type { AccessCheckDto, AccessCheckResult, EffectivePermission } from '@ipms/contracts';
 
@@ -20,6 +21,8 @@ interface LoadedUser {
   id: string;
   isActive: boolean;
   tokenVersion: number;
+  /** Absent on a row that predates the column; only an explicit false opts out. */
+  financeEnabled?: boolean;
   roles: Array<{
     role: { code: string; isActive: boolean; permissions: Array<{ permission: { code: string } }> };
     validFrom: Date | null; validUntil: Date | null;
@@ -40,6 +43,23 @@ function isLive(validFrom: Date | null, validUntil: Date | null, now: Date): boo
   return true;
 }
 
+/**
+ * A Field Engineer whose own company handles their money gets a global DENY on
+ * every finance permission, appended to their overrides in memory. Everything
+ * downstream (`forUser`, `simulate`, `holders`, `check()`) already honours a
+ * DENY over any role grant, so none of it needs to know why. Matches the token
+ * claim, which applies the same overrides in `AuthService.claimsFor`.
+ */
+function withFinanceOptOut(user: LoadedUser): LoadedUser {
+  if (user.financeEnabled !== false) return user;
+  const denied = financeOptOutOverrides().map((o) => ({
+    permission: { code: o.permission }, effect: o.effect,
+    projectId: null, siteId: null, validFrom: null, validUntil: null,
+    reason: FINANCE_OPT_OUT_REASON,
+  }));
+  return { ...user, overrides: [...user.overrides, ...denied] };
+}
+
 @Injectable()
 export class EffectiveService {
   constructor(private readonly prisma: PrismaClient) {}
@@ -50,7 +70,7 @@ export class EffectiveService {
       include: USER_INCLUDE,
     });
     if (!user) throw new NotFoundException('User not found');
-    return user as unknown as LoadedUser;
+    return withFinanceOptOut(user as unknown as LoadedUser);
   }
 
   private toAuthzUser(user: LoadedUser, now: Date): AuthzUser {
@@ -245,10 +265,10 @@ export class EffectiveService {
    */
   async holders(permission: string, projectId: string, siteId?: string): Promise<string[]> {
     const now = new Date();
-    const users = (await this.prisma.user.findMany({
+    const users = ((await this.prisma.user.findMany({
       where: { isActive: true },
       include: USER_INCLUDE,
-    })) as unknown as LoadedUser[];
+    })) as unknown as LoadedUser[]).map(withFinanceOptOut);
     return users
       .filter((user) => {
         const authzUser = this.toAuthzUser(user, now);
