@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getCurrentUser } from './lib/iam-api';
+import { getCurrentUser, hasPermission } from './lib/iam-api';
 import { AdminOverview } from './overview/admin-overview';
 import { DirectorOverview } from './overview/director-overview';
 import { EngineerOverview } from './overview/engineer-overview';
@@ -22,7 +22,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
     case 'director': return <DirectorOverview decided={(await searchParams).decided} />;
     case 'qc': return <QcOverview />;
     case 'finance': redirect('/finance?view=awaiting');
-    case 'engineer': return <EngineerOverview />;
+    case 'engineer': return <EngineerOverview canViewFinance={viewer.state === 'ready' && hasPermission(viewer.data, 'finance_request.view')} />;
     default: return <AdminOverview searchParams={searchParams} />;
   }
 }
