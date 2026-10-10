@@ -129,4 +129,20 @@ describe('summarizePortfolio', () => {
     expect(entry!.sites.total).toBe(1);
     expect(entry!.tasks.live).toBe(1);
   });
+
+  it('counts sites for a project with milestone requirements and tasks for one without, side by side', async () => {
+    const measured = await aProject('A1');
+    const plain = await aProject('A2');
+    const ms = await aSite(measured, 'S1');
+    const ps = await aSite(plain, 'S1');
+    const mt = await aType(measured, 'FDN');
+    const pt = await aType(plain, 'FDN');
+    await aMilestone(measured, 'M1', 1, [mt]);
+    await aTask(measured, ms, mt, { status: 'COMPLETED', actualCompletionAt: days(1) });
+    await aTask(plain, ps, pt, { status: 'COMPLETED', actualCompletionAt: days(1) });
+    await aTask(plain, ps, pt, { status: 'COMPLETED', actualCompletionAt: days(9) });
+    const [a1, a2] = await summarizePortfolio(prisma, GLOBAL, NOW);
+    expect(a1).toMatchObject({ code: 'A1', sitesComplete: 1, completedByWeek: [0, 0, 0, 0, 0, 0, 0, 1] });
+    expect(a2).toMatchObject({ code: 'A2', sitesComplete: null, completedByWeek: [0, 0, 0, 0, 0, 0, 1, 1], tasks: { live: 2, completed: 2 } });
+  });
 });

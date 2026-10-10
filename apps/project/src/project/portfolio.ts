@@ -21,7 +21,10 @@ const iso = (date: Date | null): string | null => date?.toISOString() ?? null;
  * portfolio. Completion follows the project page's rule (summarizeProject in
  * the web app): when a milestone declares requirements, a site is complete
  * once it has a completed task of every required type; otherwise the unit is
- * the task. Counts are grouped in SQL, so there is no cap on projects or tasks.
+ * the task. Status and overdue counts, and each site's latest completion per task
+ * type, are grouped in SQL. Site ids, and completed tasks of the last eight weeks for
+ * projects without milestone requirements, are read as rows: one per site, and eight
+ * weeks of completions.
  */
 export async function summarizePortfolio(prisma: PrismaClient, scope: AuthzScope, now = new Date()): Promise<PortfolioProject[]> {
   const projects = await prisma.project.findMany({
@@ -36,15 +39,24 @@ export async function summarizePortfolio(prisma: PrismaClient, scope: AuthzScope
   const tasksWhere = (...more: Prisma.TaskWhereInput[]): Prisma.TaskWhereInput => ({ AND: [inProjects, scopeWhere(scope) as Prisma.TaskWhereInput, ...more] });
   const since = new Date(now.getTime() - SUMMARY_WEEKS * WEEK_MS);
 
-  const [sites, siteCounts, taskCounts, overdue, milestones, done, recent] = await Promise.all([
+  const [sites, siteCounts, taskCounts, overdue, milestones, done] = await Promise.all([
     prisma.site.findMany({ where: sitesWhere, select: { id: true, projectId: true } }),
     prisma.site.groupBy({ by: ['projectId', 'status'], where: sitesWhere, _count: { _all: true } }),
     prisma.task.groupBy({ by: ['projectId', 'status'], where: tasksWhere(), _count: { _all: true } }),
     prisma.task.groupBy({ by: ['projectId'], where: tasksWhere({ status: { in: OPEN } }, { plannedCompletionAt: { lt: now } }), _count: { _all: true } }),
     prisma.milestone.findMany({ where: inProjects, include: { requirements: { select: { taskTypeId: true } } }, orderBy: { sequence: 'asc' } }),
     prisma.task.groupBy({ by: ['siteId', 'taskTypeId'], where: tasksWhere({ status: 'COMPLETED' }), _max: { actualCompletionAt: true } }),
-    prisma.task.findMany({ where: tasksWhere({ status: 'COMPLETED' }, { actualCompletionAt: { gte: since } }), select: { projectId: true, actualCompletionAt: true } }),
   ]);
+
+  // Recent completions are only used for projects with no measured milestone, so read them for those alone.
+  const measuredIds = new Set(milestones.filter((m) => m.requirements.length > 0).map((m) => m.projectId));
+  const unmeasuredIds = projects.filter((p) => !measuredIds.has(p.id)).map((p) => p.id);
+  const recent = unmeasuredIds.length === 0
+    ? []
+    : await prisma.task.findMany({
+        where: tasksWhere({ status: 'COMPLETED' }, { actualCompletionAt: { gte: since } }, { projectId: { in: unmeasuredIds } }),
+        select: { projectId: true, actualCompletionAt: true },
+      });
 
   // Which task types each site has completed, and the latest day it completed each.
   const doneAt = new Map<string, Map<string, Date | null>>();
