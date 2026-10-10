@@ -35,22 +35,25 @@ export const HISTORY_PILLS = [
   { key: 'returned', label: 'Returned', status: 'RETURNED' },
   { key: 'rejected', label: 'Rejected', status: 'REJECTED' },
   { key: 'handled', label: 'Decided by me', view: 'handled' },
-] as const satisfies readonly { key: string; label: string; stage?: 'approval' | 'closed'; status?: RequestStatus; view?: 'handled' }[];
+  { key: 'mine', label: 'My requests', view: 'mine' },
+] as const satisfies readonly { key: string; label: string; stage?: 'approval' | 'closed'; status?: RequestStatus; view?: 'handled' | 'mine' }[];
 
 export interface RawHistory extends RawSearch { filter?: string; q?: string }
 export interface ResolvedHistory {
-  view: RequestView; pill: string; page: number; status?: RequestStatus; stage?: 'approval' | 'closed'; kind?: RequestKind; q?: string;
+  view: RequestView; pill: (typeof HISTORY_PILLS)[number]['key']; page: number; status?: RequestStatus; stage?: 'approval' | 'closed'; kind?: RequestKind; q?: string;
 }
 
 /** The history page's query string, checked. Decided-by-me is for approvers who see everything; `view=awaiting` is the Queue's, never History's. */
 export function resolveHistory(search: RawHistory, caps: { mayAct: boolean; seeAll: boolean }): ResolvedHistory {
-  const pill = HISTORY_PILLS.find((p) => p.key === search.filter && (p.key !== 'handled' || (caps.mayAct && caps.seeAll)));
-  const legacyView = search.view === 'handled' && caps.mayAct && caps.seeAll ? 'handled'
-    : search.view === 'all' && caps.seeAll ? 'all' : search.view === 'mine' ? 'mine' : undefined;
-  const view: RequestView = pill && 'view' in pill ? pill.view : legacyView ?? (caps.seeAll ? 'all' : 'mine');
+  const key = typeof search.filter === 'string' ? search.filter
+    : (search.view === 'handled' || search.view === 'mine' ? search.view : undefined);
+  const pill = HISTORY_PILLS.find((p) => p.key === key
+    && (p.key !== 'handled' || (caps.mayAct && caps.seeAll))
+    && (p.key !== 'mine' || caps.seeAll));
+  const view: RequestView = (pill && 'view' in pill ? pill.view : undefined) ?? (caps.seeAll ? 'all' : 'mine');
   const status = (pill && 'status' in pill ? pill.status : undefined) ?? STATUSES.find((s) => s === search.status);
   const kind = KINDS.find((k) => k === search.kind);
-  const q = search.q?.trim();
+  const q = typeof search.q === 'string' ? search.q.trim() : undefined;
   return {
     view, pill: pill?.key ?? 'all', page: Math.max(1, Math.floor(Number(search.page)) || 1),
     ...(status ? { status } : {}),

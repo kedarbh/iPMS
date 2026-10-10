@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HISTORY_PILLS, historyHref, legacyTarget, resolveHistory, resolveSearch } from './search';
+import { historyHref, legacyTarget, resolveHistory, resolveSearch } from './search';
 
 const ENG = { mayAct: false, seeAll: false, mayRaise: true };
 const PM = { mayAct: true, seeAll: false, mayRaise: true };
@@ -68,8 +68,17 @@ describe('resolveHistory', () => {
   });
   it('keeps the old view, status and kind params and a text query', () => {
     expect(resolveHistory({ view: 'mine', status: 'PENDING_DIRECTOR', kind: 'ADVANCE', q: ' ADV-2026 ', page: '3' }, caps))
-      .toMatchObject({ view: 'mine', status: 'PENDING_DIRECTOR', kind: 'ADVANCE', q: 'ADV-2026', page: 3 });
+      .toMatchObject({ view: 'mine', pill: 'mine', status: 'PENDING_DIRECTOR', kind: 'ADVANCE', q: 'ADV-2026', page: 3 });
     expect(resolveHistory({ view: 'all' }, { mayAct: false, seeAll: false })).toMatchObject({ view: 'mine' });
+    expect(resolveHistory({ view: 'handled' }, caps)).toMatchObject({ view: 'handled', pill: 'handled' });
+  });
+  it('ignores repeated params, the queue view and unknown filters', () => {
+    const out = resolveHistory({ q: ['a', 'b'] as never, filter: ['x'] as never }, caps);
+    expect(out).toMatchObject({ view: 'all', pill: 'all' });
+    expect(out).not.toHaveProperty('q');
+    expect(resolveHistory({ view: 'awaiting' }, caps)).toMatchObject({ view: 'all', pill: 'all' });
+    expect(resolveHistory({ filter: 'nonsense' }, caps)).toMatchObject({ pill: 'all' });
+    expect(resolveHistory({ filter: 'mine' }, { mayAct: false, seeAll: false })).toMatchObject({ view: 'mine', pill: 'all' });
   });
 });
 
@@ -85,6 +94,7 @@ describe('legacyTarget', () => {
   it('sends the old awaiting view to the queue and other views to history', () => {
     expect(legacyTarget({})).toBeNull();
     expect(legacyTarget({ view: 'awaiting' })).toBe('/finance/queue');
+    expect(legacyTarget({ view: 'awaiting', kind: 'ADVANCE' })).toBe('/finance/queue?kind=ADVANCE');
     expect(legacyTarget({ view: 'awaiting', decided: 'r-1' })).toBe('/finance/queue?decided=r-1');
     expect(legacyTarget({ view: 'handled' })).toBe('/finance/history?view=handled');
     expect(legacyTarget({ view: 'all', status: 'PAID', page: '2' })).toBe('/finance/history?view=all&status=PAID&page=2');
