@@ -3,6 +3,7 @@ import { listRequests } from '../lib/finance-api';
 import { getCurrentUser, hasPermission } from '../lib/iam-api';
 import { listUserDirectory } from '../lib/user-api';
 import { Sidebar, StatePage, TopActions } from '../shell';
+import { DecidedNotice } from './decided';
 import { RequestsTable, financeHref } from './requests-table';
 import { resolveSearch, type RawSearch } from './search';
 
@@ -43,6 +44,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
           <TopActions />
         </header>
         <div className="dashboard">
+          <DecidedNotice id={search.decided} viewerId={user.id} />
           <div className="toolbar">
             <div>
               <p className="eyebrow">FINANCE</p><h1>Advances &amp; settlements</h1>
