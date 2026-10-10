@@ -19,3 +19,4 @@ export {
   OVERRIDE_PROVIDER, emptyOverrideProvider, type OverrideProvider,
 } from './nest/authz.guard.js';
 export { resolvePermissions, withinValidity } from './permission-resolution.js';
+export { FINANCE_OPT_OUT_REASON, financeOptOutOverrides } from './finance-opt-out.js';
