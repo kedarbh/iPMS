@@ -30,6 +30,10 @@ describe('scheduleSignal', () => {
     expect(run({ completion: 100, remaining: 0 }).signal).toMatchObject({ label: 'Complete', severity: 'green' });
   });
 
+  it('does not call a project complete while work remains, even when it rounds to 100%', () => {
+    expect(run({ completion: 100, remaining: 1, targetDate: '2026-09-30T00:00:00.000Z' }).signal).toMatchObject({ label: 'Slipping', severity: 'red' });
+  });
+
   it('asks for dates when there are none', () => {
     expect(run({ targetDate: null }).signal).toEqual({ label: 'Not scheduled', severity: 'neutral', reason: 'No target date set' });
   });
@@ -163,6 +167,7 @@ describe('headline', () => {
   it('falls back to at risk, then to every project on track', () => {
     expect(headline({ count: 1, amount: '5000.00' }, [health('amber')])).toBe('1 request worth NPR 5,000 waits on you · 1 of 1 project at risk.');
     expect(headline({ count: 0, amount: '0.00' }, [health('green')])).toBe('Nothing waits on you · every project is on track.');
+    expect(headline({ count: 0, amount: '0.00' }, [health('green'), health('neutral')])).toBe('Nothing waits on you.');
   });
 
   it('leaves out what it cannot know', () => {

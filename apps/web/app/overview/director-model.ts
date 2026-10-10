@@ -86,7 +86,7 @@ export function scheduleSignal(input: ScheduleInput, now: Date): { signal: Signa
   const result = (label: string, severity: Severity, reason: string) => ({ signal: { label, severity, reason }, expected, behind });
 
   if (input.status === 'ON_HOLD') return result('On hold', 'neutral', 'On hold');
-  if (input.completion >= 100) return result('Complete', 'green', 'All work complete');
+  if (input.completion >= 100 && input.remaining <= 0) return result('Complete', 'green', 'All work complete');
   if (!start || !target) return result('Not scheduled', 'neutral', !target ? 'No target date set' : 'No start date set');
   if (today > target) return result('Slipping', 'red', `Target was ${dayText(target)}; ${input.completion}% done`);
   if (daysBetween(start, today) < EARLY_DAYS) {
@@ -174,7 +174,7 @@ export function headline(waiting: { count: number; amount: string } | null, heal
   const atRisk = health.filter((h) => h.schedule.severity === 'amber').length;
   if (slipping > 0) parts.push(`${slipping} of ${plural(health.length, 'project')} slipping`);
   else if (atRisk > 0) parts.push(`${atRisk} of ${plural(health.length, 'project')} at risk`);
-  else if (health.length > 0) parts.push('every project is on track');
+  else if (health.length > 0 && health.every((h) => h.schedule.severity === 'green')) parts.push('every project is on track');
   return parts.length === 0 ? '' : `${parts.join(' · ')}.`;
 }
 
