@@ -75,6 +75,7 @@ export default async function FinanceRequestPage({ params, searchParams }: { par
           <section className="panel finance-facts">
             <dl>
               <dt>For</dt><dd>{request.purpose}</dd>
+              {request.remarks ? <><dt>Remarks</dt><dd style={{ whiteSpace: 'pre-wrap' }}>{request.remarks}</dd></> : null}
               <dt>Category</dt><dd>{request.category?.name ?? '—'}</dd>
               <dt>Requested by</dt><dd>{who(request.requesterId)}</dd>
               <dt>Requested</dt><dd>{formatMoney(request.requestedAmount)}</dd>

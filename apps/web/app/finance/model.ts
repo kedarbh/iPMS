@@ -5,7 +5,7 @@ import type { FinanceRequest, FinanceRequestDetail, FinanceStep, RequestFlag } f
 export const KIND_LABEL: Record<FinanceRequest['kind'], string> = { ADVANCE: 'Advance', SETTLEMENT: 'Settlement', REIMBURSEMENT: 'Reimbursement' };
 
 export const STATUS_LABEL: Record<FinanceRequest['status'], string> = {
-  DRAFT: 'Draft', PENDING_PM: 'With project manager', PENDING_DIRECTOR: 'With project director', PENDING_FINANCE: 'Ready to pay',
+  DRAFT: 'Draft', PENDING_PM: 'Approval', PENDING_DIRECTOR: 'Approval', PENDING_FINANCE: 'Payment',
   PAID: 'Paid', SETTLED: 'Settled', RETURNED: 'Returned', REJECTED: 'Rejected', CANCELLED: 'Cancelled',
 };
 
@@ -29,6 +29,17 @@ export function formatMoney(amount: string | null): string {
 /** A known person's name, otherwise the front of their id. */
 export function personName(id: string, names: ReadonlyMap<string, string>): string {
   return names.get(id) ?? `${id.slice(0, 8)}…`;
+}
+
+/** Who has the request in hand right now, or a dash once nobody does. */
+export function currentHandler(status: FinanceRequest['status']): string {
+  switch (status) {
+    case 'DRAFT': case 'RETURNED': return 'Requester';
+    case 'PENDING_PM': return 'Project manager';
+    case 'PENDING_DIRECTOR': return 'Project director';
+    case 'PENDING_FINANCE': return 'Finance';
+    default: return '—';
+  }
 }
 
 export function waitingOn(status: FinanceRequest['status']): string | null {

@@ -1,5 +1,5 @@
 import type { FinanceRequest, RequestPage, RequestView } from '../lib/finance-api';
-import { KIND_LABEL, STATUS_LABEL, STATUS_TONE, flagText, formatMoney, personName } from './model';
+import { KIND_LABEL, STATUS_LABEL, STATUS_TONE, currentHandler, flagText, formatMoney, personName } from './model';
 
 const DATE = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short' });
 
@@ -23,7 +23,7 @@ export function RequestsTable({ page, names, view, query = {} }: { page: Request
       <div className="finance-table-wrap">
         <table className="finance-table">
           <thead>
-            <tr><th>Request</th><th>Project</th><th>For</th><th>Requested by</th><th className="finance-num">Amount</th><th>Status</th><th>Updated</th></tr>
+            <tr><th>Request</th><th>Project</th><th>For</th><th>Requested by</th><th className="finance-num">Amount</th><th>Status</th><th>Current handler</th><th>Updated</th></tr>
           </thead>
           <tbody>
             {page.items.map((request: FinanceRequest) => (
@@ -45,6 +45,7 @@ export function RequestsTable({ page, names, view, query = {} }: { page: Request
                     ? <span className="subtle">asked {formatMoney(request.requestedAmount)}</span> : null}
                 </td>
                 <td><span className={`finance-pill ${STATUS_TONE[request.status]}`}>{STATUS_LABEL[request.status]}</span></td>
+                <td>{currentHandler(request.status)}</td>
                 <td>{DATE.format(new Date(request.updatedAt))}</td>
               </tr>
             ))}

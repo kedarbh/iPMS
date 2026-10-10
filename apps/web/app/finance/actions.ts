@@ -50,6 +50,7 @@ export async function saveRequestAction(_previous: FormState, form: FormData): P
   const kind = optional(form, 'kind');
   const categoryId = optional(form, 'categoryId');
   const purpose = optional(form, 'purpose');
+  const remarks = optional(form, 'remarks');
   const workOrderId = optional(form, 'workOrderId');
   const submit = optional(form, 'intent') === 'submit';
 
@@ -65,21 +66,21 @@ export async function saveRequestAction(_previous: FormState, form: FormData): P
     if (amount === null) return { error: MONEY_ERROR };
     const projectId = optional(form, 'projectId');
     if (!id && !projectId) return { error: 'Choose a project.' };
-    if (id) change = { categoryId, purpose, amount };
-    else create = { kind, projectId: projectId!, categoryId, purpose, amount, ...(workOrderId ? { workOrderId } : {}) };
+    if (id) change = { categoryId, purpose, remarks: remarks ?? null, amount };
+    else create = { kind, projectId: projectId!, categoryId, purpose, ...(remarks ? { remarks } : {}), amount, ...(workOrderId ? { workOrderId } : {}) };
   } else {
     const parsed = parseInvoices(form);
     if ('error' in parsed) return { error: parsed.error };
     if (id) {
-      change = { categoryId, purpose, invoices: parsed.invoices };
+      change = { categoryId, purpose, remarks: remarks ?? null, invoices: parsed.invoices };
     } else if (kind === 'REIMBURSEMENT') {
       const projectId = optional(form, 'projectId');
       if (!projectId) return { error: 'Choose a project.' };
-      create = { kind, projectId, categoryId, purpose, invoices: parsed.invoices, ...(workOrderId ? { workOrderId } : {}) };
+      create = { kind, projectId, categoryId, purpose, ...(remarks ? { remarks } : {}), invoices: parsed.invoices, ...(workOrderId ? { workOrderId } : {}) };
     } else {
       const advanceId = optional(form, 'advanceId');
       if (!advanceId) return { error: 'Choose the advance to settle.' };
-      create = { kind, advanceId, categoryId, purpose, invoices: parsed.invoices, ...(workOrderId ? { workOrderId } : {}) };
+      create = { kind, advanceId, categoryId, purpose, ...(remarks ? { remarks } : {}), invoices: parsed.invoices, ...(workOrderId ? { workOrderId } : {}) };
     }
   }
 

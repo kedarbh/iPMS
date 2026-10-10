@@ -17,7 +17,7 @@ export type FinanceStep = 'REQUESTER' | 'PM' | 'DIRECTOR' | 'FINANCE';
 export interface FinanceRequest {
   id: string; number: string; kind: RequestKind; status: RequestStatus; revision: number; entryStatus: string | null;
   projectId: string; projectCode: string; projectName: string; workOrderId: string | null;
-  categoryId: string; requesterId: string; advanceId: string | null; purpose: string;
+  categoryId: string; requesterId: string; advanceId: string | null; purpose: string; remarks?: string | null;
   requestedAmount: string; approvedAmount: string | null; appliedAmount: string | null;
   submittedAt: string | null; createdAt: string; updatedAt: string;
   category?: { code: string; name: string };
@@ -76,12 +76,12 @@ export interface InvoiceInput {
 }
 
 export type CreateRequestInput =
-  | { kind: 'ADVANCE'; projectId: string; categoryId: string; purpose: string; amount: string; workOrderId?: string }
-  | { kind: 'REIMBURSEMENT'; projectId: string; categoryId: string; purpose: string; invoices: InvoiceInput[]; workOrderId?: string }
-  | { kind: 'SETTLEMENT'; advanceId: string; categoryId: string; purpose: string; invoices: InvoiceInput[]; workOrderId?: string };
+  | { kind: 'ADVANCE'; projectId: string; categoryId: string; purpose: string; remarks?: string; amount: string; workOrderId?: string }
+  | { kind: 'REIMBURSEMENT'; projectId: string; categoryId: string; purpose: string; remarks?: string; invoices: InvoiceInput[]; workOrderId?: string }
+  | { kind: 'SETTLEMENT'; advanceId: string; categoryId: string; purpose: string; remarks?: string; invoices: InvoiceInput[]; workOrderId?: string };
 
 export interface UpdateRequestInput {
-  categoryId?: string; purpose?: string; workOrderId?: string | null; amount?: string; invoices?: InvoiceInput[];
+  categoryId?: string; purpose?: string; remarks?: string | null; workOrderId?: string | null; amount?: string; invoices?: InvoiceInput[];
 }
 export interface PaymentInput { mode: PaymentMode; reference: string; paidOn: string; note?: string }
 export interface SpendQuery { groupBy?: 'project' | 'category' | 'requester'; projectId?: string; from?: string; to?: string }

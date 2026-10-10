@@ -38,6 +38,8 @@ model FinanceRequest {
   /// SETTLEMENT only: the advance being settled.
   advanceId       String?           @db.Uuid
   purpose         String            @db.VarChar(500)
+  /// The requester's free-text detail on the expense or advance. Optional.
+  remarks         String?           @db.VarChar(1000)
   requestedAmount Decimal           @db.Decimal(14, 2)
   approvedAmount  Decimal?          @db.Decimal(14, 2)
   /// SETTLEMENT only, set when settled: the part set against the advance (the rest was paid out).

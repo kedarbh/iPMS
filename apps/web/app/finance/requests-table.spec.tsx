@@ -22,7 +22,8 @@ describe('RequestsTable', () => {
     expect(out).toContain('Koshi Rollout');
     expect(out).toContain('Sita Rai');
     expect(out).toContain('NPR 50,000.00');
-    expect(out).toContain('With project manager');
+    expect(out).toContain('Approval');
+    expect(out).toContain('Project manager');
   });
 
   it('shows the approved amount beside the requested one once there is one', () => {

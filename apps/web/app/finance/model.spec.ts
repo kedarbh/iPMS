@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { availableActions, decisionLine, describeEntry, flagText, formatMoney, personName, settlementStatus, waitingOn, type Viewer } from './model';
+import { availableActions, currentHandler, decisionLine, describeEntry, flagText, formatMoney, personName, settlementStatus, waitingOn, type Viewer } from './model';
 
 const ENG: Viewer = { id: 'u-eng', permissions: ['finance_request.view', 'finance_request.create', 'finance_request.cancel', 'finance_settlement.submit'] };
 const PM: Viewer = { id: 'u-pm', permissions: ['finance_request.view', 'finance_request.view_all', 'finance_request.create', 'finance_request.cancel', 'finance_settlement.submit', 'finance_approval.pm'] };
@@ -21,6 +21,16 @@ describe('personName', () => {
   it('prefers a known name and otherwise shows a short id', () => {
     expect(personName('u-1', new Map([['u-1', 'Sita Rai']]))).toBe('Sita Rai');
     expect(personName('0193a8c2-1111-7222-8333-444455556666', new Map())).toBe('0193a8c2…');
+  });
+});
+
+describe('currentHandler', () => {
+  it('names who holds the request', () => {
+    expect(currentHandler('PENDING_PM')).toBe('Project manager');
+    expect(currentHandler('PENDING_DIRECTOR')).toBe('Project director');
+    expect(currentHandler('PENDING_FINANCE')).toBe('Finance');
+    expect(currentHandler('RETURNED')).toBe('Requester');
+    expect(currentHandler('PAID')).toBe('—');
   });
 });
 

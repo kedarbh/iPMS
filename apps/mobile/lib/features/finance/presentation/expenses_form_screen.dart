@@ -85,12 +85,15 @@ class ExpensesFormScreen extends ConsumerStatefulWidget {
 class _ExpensesFormScreenState extends ConsumerState<ExpensesFormScreen> {
   final List<_Line> _lines = [];
   late final TextEditingController _title = TextEditingController(text: widget.initial?.purpose ?? '');
+  late final TextEditingController _remarks = TextEditingController(text: widget.initial?.remarks ?? '');
   late FinanceRequest? _advance = widget.advance;
   late String? _project = widget.initial?.projectId;
   late String? _category = widget.initial?.categoryId;
   bool _tried = false;
   bool _busy = false;
   String? _error;
+
+  String? get _remarksOrNull => _remarks.text.trim().isEmpty ? null : _remarks.text.trim();
 
   bool get _isSettlement => widget.kind == RequestKind.settlement;
   bool get _editing => widget.initial != null;
@@ -119,6 +122,7 @@ class _ExpensesFormScreenState extends ConsumerState<ExpensesFormScreen> {
   @override
   void dispose() {
     _title.dispose();
+    _remarks.dispose();
     for (final l in _lines) {
       l.dispose();
     }
@@ -229,6 +233,7 @@ class _ExpensesFormScreenState extends ConsumerState<ExpensesFormScreen> {
         await repo.update(id!, {
           if (!_isSettlement) 'categoryId': _category,
           if (!_isSettlement) 'purpose': _title.text.trim(),
+          'remarks': _remarksOrNull,
           'invoices': invoices,
         });
       } else if (_isSettlement) {
@@ -238,6 +243,7 @@ class _ExpensesFormScreenState extends ConsumerState<ExpensesFormScreen> {
           'advanceId': a.id,
           'categoryId': a.categoryId,
           'purpose': a.purpose,
+          if (_remarksOrNull != null) 'remarks': _remarksOrNull,
           'invoices': invoices,
         }))
             .id;
@@ -247,6 +253,7 @@ class _ExpensesFormScreenState extends ConsumerState<ExpensesFormScreen> {
           'projectId': _project,
           'categoryId': _category,
           'purpose': _title.text.trim(),
+          if (_remarksOrNull != null) 'remarks': _remarksOrNull,
           'invoices': invoices,
         }))
             .id;
@@ -337,6 +344,19 @@ class _ExpensesFormScreenState extends ConsumerState<ExpensesFormScreen> {
                       onPressed: _lines.length >= 100 ? null : () => setState(() => _lines.add(_Line())),
                       icon: const Icon(Icons.add_rounded, size: 18),
                       label: const Text('Add expense', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  FormSection(
+                    label: 'Remarks (optional)',
+                    child: TextField(
+                      controller: _remarks,
+                      maxLength: 1000,
+                      minLines: 3,
+                      maxLines: 6,
+                      textCapitalization: TextCapitalization.sentences,
+                      style: const TextStyle(fontSize: 15),
+                      decoration: fieldDecoration('Details on the expenses').copyWith(counterText: ''),
                     ),
                   ),
                   const SizedBox(height: 18),
