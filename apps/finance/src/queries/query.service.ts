@@ -1,6 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { scopeWhere, type AuthzScope } from '@ipms/authz';
 import type { ListRequestsQuery } from '@ipms/contracts';
+import { createLogger } from '@ipms/observability';
 import type { Prisma, PrismaClient } from '@prisma-clients/finance';
 import { inScope, notFound, type Actor } from '../common.js';
 import { findDuplicates } from '../duplicates.js';
@@ -12,6 +13,7 @@ import { requestFlags } from './flags.js';
 import { listFacts } from './list-facts.js';
 import { awaitingStatuses } from '../workflow.js';
 
+const log = createLogger('finance');
 const VIEW_ALL = 'finance_request.view_all';
 const PROJECT_ONLY = { project: 'projectId', site: null } as const;
 
@@ -31,7 +33,10 @@ export class QueryService {
     };
     const full: Prisma.FinanceRequestWhereInput = { AND: [where, filters] };
     // The awaiting queue is read oldest-waiting first; a pending request changes only when it moves, so updatedAt is when it arrived.
-    const orderBy = query.view === 'handled' ? { updatedAt: 'desc' as const } : query.view === 'awaiting' ? { updatedAt: 'asc' as const } : { createdAt: 'desc' as const };
+    // The id breaks ties, so rows with the same timestamp keep one order from page to page.
+    const orderBy: Prisma.FinanceRequestOrderByWithRelationInput[] = query.view === 'handled'
+      ? [{ updatedAt: 'desc' }, { id: 'desc' }]
+      : query.view === 'awaiting' ? [{ updatedAt: 'asc' }, { id: 'asc' }] : [{ createdAt: 'desc' }, { id: 'desc' }];
     const [items, total] = await Promise.all([
       this.prisma.financeRequest.findMany({
         where: full, orderBy, skip: (query.page - 1) * query.limit, take: query.limit,
@@ -59,7 +64,14 @@ export class QueryService {
     });
     if (!row || !this.mayRead(row, actor, scope)) throw notFound('Request');
     const bills = row.invoices.map((b) => ({ vendor: b.vendor, invoiceNumber: b.invoiceNumber, invoiceDate: b.invoiceDate, amount: b.amount.toFixed(2) }));
-    const [duplicates, context] = await Promise.all([findDuplicates(this.prisma, id, bills), decisionContext(this.prisma, row, actor, scope, now)]);
+    // The context only helps an approver decide; if it cannot be built, the request still opens, without it.
+    const [duplicates, context] = await Promise.all([
+      findDuplicates(this.prisma, id, bills),
+      decisionContext(this.prisma, row, actor, scope, now).catch((err: unknown) => {
+        log.warn({ err, requestId: id }, 'decision context failed; returning the request without it');
+        return null;
+      }),
+    ]);
     const detail = { ...serializeDetail(row), category: row.category, duplicates, ...(context ? { context } : {}) };
     if (row.kind !== 'ADVANCE' || row.status !== 'PAID') return detail;
     // The due day is a fact about the advance (paid day plus the window); whether it is overdue is for the reader's clock.

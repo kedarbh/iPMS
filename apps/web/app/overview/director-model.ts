@@ -175,7 +175,9 @@ export function headline(waiting: { count: number; amount: string } | null, heal
   if (slipping > 0) parts.push(`${slipping} of ${plural(health.length, 'project')} slipping`);
   else if (atRisk > 0) parts.push(`${atRisk} of ${plural(health.length, 'project')} at risk`);
   else if (health.length > 0 && health.every((h) => h.schedule.severity === 'green')) parts.push('every project is on track');
-  return parts.length === 0 ? '' : `${parts.join(' · ')}.`;
+  if (parts.length === 0) return '';
+  const sentence = `${parts.join(' · ')}.`;
+  return `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}`;
 }
 
 /** "today", "1 day", "5 days": how long something has waited, in Kathmandu days. */

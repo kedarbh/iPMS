@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import type { AuthzScope } from '@ipms/authz';
 import type { RequestFlag } from '@ipms/contracts';
 import type { PrismaClient } from '@prisma-clients/finance';
 import { startTestDb } from '../../prisma/test-db.js';
@@ -25,26 +26,27 @@ beforeAll(async () => {
 afterAll(async () => { await db?.stop(); });
 beforeEach(async () => { await resetDb(prisma); });
 
-const advance = async (amount = '1000', requester = ACTORS.engineer) => {
-  const r = await requests.create({ kind: 'ADVANCE', projectId: PROJECT.id, categoryId, purpose: 'Travel', amount }, requester, scopes.project, PROJECT);
+const scopeOf = (project: typeof PROJECT) => (project.id === PROJECT.id ? scopes.project : scopes.otherProject);
+const advance = async (amount = '1000', requester = ACTORS.engineer, project = PROJECT) => {
+  const r = await requests.create({ kind: 'ADVANCE', projectId: project.id, categoryId, purpose: 'Travel', amount }, requester, scopeOf(project), project);
   return requests.submit(r.id, requester);
 };
 const reimbursement = async (amount: string, invoice: { vendor: string; invoiceNumber?: string; invoiceDate?: Date }, requester = ACTORS.engineer, project = PROJECT) => {
-  const scope = project.id === PROJECT.id ? scopes.project : scopes.otherProject;
   const r = await requests.create({
     kind: 'REIMBURSEMENT', projectId: project.id, categoryId, purpose: 'Fuel',
     invoices: [{ vendor: invoice.vendor, ...(invoice.invoiceNumber ? { invoiceNumber: invoice.invoiceNumber } : {}), invoiceDate: invoice.invoiceDate ?? new Date('2026-10-01'), amount }],
-  }, requester, scope, project);
+  }, requester, scopeOf(project), project);
   return requests.submit(r.id, requester);
 };
-const close = async (id: string, paidOn = new Date('2026-10-09')) => {
-  await approvals.approve(id, {}, ACTORS.pm, scopes.project);
-  await approvals.approve(id, {}, ACTORS.director, scopes.project);
+/** Approves in the project's own scope and has Finance pay with global scope, as in production. */
+const close = async (id: string, paidOn = new Date('2026-10-09'), project = PROJECT) => {
+  await approvals.approve(id, {}, ACTORS.pm, scopeOf(project));
+  await approvals.approve(id, {}, ACTORS.director, scopeOf(project));
   await payments.pay(id, { mode: 'CASH', reference: `V-${id.slice(-6)}`, paidOn }, ACTORS.finance, scopes.global);
 };
-const flagsFor = async (id: string, now = NOW): Promise<RequestFlag[]> => {
+const flagsFor = async (id: string, now = NOW, scope: AuthzScope = scopes.project): Promise<RequestFlag[]> => {
   const row = await prisma.financeRequest.findUniqueOrThrow({ where: { id }, include: { category: { select: { name: true } } } });
-  return (await requestFlags(prisma, [row], scopes.project, now)).get(id) ?? [];
+  return (await requestFlags(prisma, [row], scope, now)).get(id) ?? [];
 };
 
 describe('requestFlags', () => {
@@ -81,10 +83,28 @@ describe('requestFlags', () => {
     expect(await flagsFor(big.id)).toContainEqual({ code: 'UNUSUAL_AMOUNT', tone: 'amber', ratio: 2.5, median: '1000.00', category: expect.any(String) });
   });
 
+  it('does not count cash the requester holds on a project outside the caller\'s scope', async () => {
+    const elsewhere = await advance('1000', ACTORS.engineer, OTHER_PROJECT); await close(elsewhere.id, new Date('2026-10-09'), OTHER_PROJECT);
+    const pending = await advance('300');
+    expect(await flagsFor(pending.id)).toEqual([]);
+    // The same advance is counted for a caller who can see its project, so the empty list above is the scope at work.
+    expect((await flagsFor(pending.id, NOW, scopes.global)).map((f) => f.code)).toContain('REQUESTER_HOLDS_CASH');
+  });
+
+  it('does not take the usual amount from requests outside the caller\'s scope', async () => {
+    for (let n = 1; n <= 5; n += 1) {
+      const r = await reimbursement('1000', { vendor: 'Fuel stop', invoiceNumber: `OP-${n}` }, ACTORS.engineer, OTHER_PROJECT);
+      await close(r.id, new Date('2026-10-09'), OTHER_PROJECT);
+    }
+    const big = await reimbursement('2500', { vendor: 'Fuel stop', invoiceNumber: 'IP-99' });
+    expect((await flagsFor(big.id)).map((f) => f.code)).not.toContain('UNUSUAL_AMOUNT');
+    expect((await flagsFor(big.id, NOW, scopes.global)).map((f) => f.code)).toContain('UNUSUAL_AMOUNT');
+  });
+
   it('flags a bill already on another live request in scope, and not one outside it', async () => {
     const first = await reimbursement('750', { vendor: 'Hardware' });
     const second = await reimbursement('750', { vendor: 'Hardware' }, ACTORS.otherEngineer);
-    expect(await flagsFor(second.id)).toContainEqual({ code: 'DUPLICATE_BILL', tone: 'red', matches: [{ requestId: first.id, number: first.number }] });
+    expect(await flagsFor(second.id)).toContainEqual({ code: 'DUPLICATE_BILL', tone: 'red', matches: [{ requestId: first.id, number: first.number, vendor: 'Hardware', invoiceNumber: null }] });
 
     await resetDb(prisma);
     await reimbursement('750', { vendor: 'Hardware' }, ACTORS.otherEngineer, OTHER_PROJECT);
@@ -96,6 +116,13 @@ describe('requestFlags', () => {
     const r = await advance();
     await prisma.$executeRaw`UPDATE "finance_request" SET "updatedAt" = ${new Date(Date.now() - 5 * DAY)} WHERE "id" = ${r.id}::uuid`;
     expect(await flagsFor(r.id, new Date())).toEqual([{ code: 'WAITING_LONG', tone: 'amber', days: 5 }]);
+  });
+
+  it('counts the wait in Kathmandu calendar days, as the page does', async () => {
+    const r = await advance();
+    // 22:45 on 6 Oct in Kathmandu: 3.5 days (84 hours) before NOW, which is 11:45 on 10 Oct, but 4 calendar days.
+    await prisma.$executeRaw`UPDATE "finance_request" SET "updatedAt" = ${new Date('2026-10-06T17:00:00Z')} WHERE "id" = ${r.id}::uuid`;
+    expect(await flagsFor(r.id)).toContainEqual({ code: 'WAITING_LONG', tone: 'amber', days: 4 });
   });
 
   it('flags only requests that are waiting for someone', async () => {

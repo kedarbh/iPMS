@@ -105,16 +105,19 @@ export function describeEntry(entry: { step: FinanceStep; action: string }): str
   return `${VERB[entry.action] ?? entry.action} by ${STEP_NAME[entry.step]}`;
 }
 
+/** "1 day", "9 days". */
+export const dayCount = (n: number): string => `${n} day${n === 1 ? '' : 's'}`;
+
 /** One warning as a sentence. */
 export function flagText(flag: RequestFlag): string {
   switch (flag.code) {
     case 'DUPLICATE_BILL':
-      return `Possible duplicate bill: also on ${flag.matches.map((m) => m.number).join(', ')}`;
+      return `Possible duplicate: ${flag.matches.map((m) => `${m.vendor}${m.invoiceNumber ? ` #${m.invoiceNumber}` : ''} on ${m.number}`).join('; ')}`;
     case 'REQUESTER_HOLDS_CASH': {
       const held = `Already holds ${formatMoney(flag.outstanding)} from ${flag.advances} advance${flag.advances === 1 ? '' : 's'}`;
       if (flag.overdue === 0) return held;
-      if (flag.overdue === 1) return `${held}, one ${flag.oldestOverdueDays} days past settle-by`;
-      return `${held}, ${flag.overdue} past settle-by (oldest ${flag.oldestOverdueDays} days)`;
+      if (flag.overdue === 1) return `${held}, one ${flag.oldestOverdueDays === null ? '' : `${dayCount(flag.oldestOverdueDays)} `}past settle-by`;
+      return `${held}, ${flag.overdue} past settle-by${flag.oldestOverdueDays === null ? '' : ` (oldest ${dayCount(flag.oldestOverdueDays)})`}`;
     }
     case 'UNUSUAL_AMOUNT':
       return `About ${flag.ratio}× the usual for ${flag.category}`;

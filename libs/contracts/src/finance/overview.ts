@@ -2,7 +2,7 @@ import type { RequestKind } from './finance.js';
 
 /** A warning on a request waiting for an approver. The web phrases it; amounts are two-decimal strings. */
 export type RequestFlag =
-  | { code: 'DUPLICATE_BILL'; tone: 'red'; matches: { requestId: string; number: string }[] }
+  | { code: 'DUPLICATE_BILL'; tone: 'red'; matches: { requestId: string; number: string; vendor: string; invoiceNumber: string | null }[] }
   | { code: 'REQUESTER_HOLDS_CASH'; tone: 'red' | 'amber'; outstanding: string; advances: number; overdue: number; oldestOverdueDays: number | null }
   | { code: 'UNUSUAL_AMOUNT'; tone: 'amber'; ratio: number; median: string; category: string }
   | { code: 'WAITING_LONG'; tone: 'amber'; days: number };

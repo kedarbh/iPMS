@@ -171,7 +171,7 @@ describe('headline', () => {
   });
 
   it('leaves out what it cannot know', () => {
-    expect(headline(null, [health('green')])).toBe('every project is on track.');
+    expect(headline(null, [health('green')])).toBe('Every project is on track.');
     expect(headline(null, [])).toBe('');
   });
 });

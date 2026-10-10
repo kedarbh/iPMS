@@ -14,7 +14,7 @@ export function financeHref(view: RequestView, query: TableQuery = {}, page?: nu
   return `/finance?${params.toString()}`;
 }
 
-/** The finance workspace's list: one row per request, newest first, linking to the request. */
+/** The finance workspace's list: one row per request, in the order the view gives them (the awaiting view oldest first), linking to the request. */
 export function RequestsTable({ page, names, view, query = {} }: { page: RequestPage; names: ReadonlyMap<string, string>; view: RequestView; query?: TableQuery }) {
   if (page.items.length === 0) return <p className="finance-empty">{view === 'awaiting' ? 'All caught up. Nothing is waiting for you.' : 'Nothing here yet.'}</p>;
   const last = Math.max(1, Math.ceil(page.total / page.limit));

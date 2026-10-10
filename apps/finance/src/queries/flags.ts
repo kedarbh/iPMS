@@ -1,5 +1,5 @@
 import { scopeWhere, type AuthzScope } from '@ipms/authz';
-import type { RequestFlag } from '@ipms/contracts';
+import { kathmanduDay, type RequestFlag } from '@ipms/contracts';
 import type { Prisma, PrismaClient } from '@prisma-clients/finance';
 import { findDuplicates, type DuplicateHit } from '../duplicates.js';
 import { sumMoney, toMinor } from '../money.js';
@@ -12,6 +12,7 @@ export const UNUSUAL_RATIO = 2;
 const DAY_MS = 86_400_000;
 
 type Money = { toFixed(digits: number): string };
+type DuplicateMatch = Extract<RequestFlag, { code: 'DUPLICATE_BILL' }>['matches'][number];
 
 /** The fields a flag is computed from; a Prisma row with its category satisfies it. */
 export interface FlaggedRow {
@@ -69,7 +70,10 @@ export async function requestFlags(prisma: PrismaClient, rows: readonly FlaggedR
 
     const hits = (found.get(row.id) ?? []).filter((h) => visible.has(h.requestId));
     if (hits.length > 0) {
-      list.push({ code: 'DUPLICATE_BILL', tone: 'red', matches: [...new Map(hits.map((h) => [h.requestId, { requestId: h.requestId, number: h.number }])).values()] });
+      // One match per request, the first (best) hit, naming the bill that matched.
+      const matches = new Map<string, DuplicateMatch>();
+      for (const h of hits) if (!matches.has(h.requestId)) matches.set(h.requestId, { requestId: h.requestId, number: h.number, vendor: h.vendor, invoiceNumber: h.invoiceNumber });
+      list.push({ code: 'DUPLICATE_BILL', tone: 'red', matches: [...matches.values()] });
     }
 
     const standing = standingOf(row, open);
@@ -83,7 +87,8 @@ export async function requestFlags(prisma: PrismaClient, rows: readonly FlaggedR
       list.push({ code: 'UNUSUAL_AMOUNT', tone: 'amber', ratio: Math.round((Number(amount) / Number(norm.median)) * 10) / 10, median: norm.median, category: row.category.name });
     }
 
-    const days = Math.floor((now.getTime() - row.updatedAt.getTime()) / DAY_MS);
+    // Calendar days in Kathmandu, as the page counts them, so a row never shows two different numbers.
+    const days = Math.round((Date.parse(kathmanduDay(now)) - Date.parse(kathmanduDay(row.updatedAt))) / DAY_MS);
     if (days > WAITING_LONG_DAYS) list.push({ code: 'WAITING_LONG', tone: 'amber', days });
 
     flags.set(row.id, list);

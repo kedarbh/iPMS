@@ -47,7 +47,7 @@ export class OverviewService {
       this.prisma.financeRequest.findMany({
         where: { AND: [inProjects, { status: { in: [...PENDING_STATUSES] } }] },
         include: { category: { select: { name: true } } },
-        orderBy: { updatedAt: 'asc' },
+        orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }],
       }),
       loadClosed(this.prisma, inProjects),
       loadOpenAdvances(this.prisma, scope, now),

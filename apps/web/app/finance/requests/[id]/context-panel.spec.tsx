@@ -28,6 +28,14 @@ describe('ContextPanel', () => {
     const out = html(context({ flags: [{ code: 'WAITING_LONG', tone: 'amber', days: 4 }] }));
     expect(out).toContain('Holds no unsettled advances.');
     expect(out).toContain('Too few closed requests like this to compare.');
+    expect(out).toContain('Waiting 4 days');
     expect(out.indexOf('Waiting 4 days')).toBeLessThan(out.indexOf('Requester'));
+  });
+
+  it('counts a single day as one day, and leaves the days out when there are none to give', () => {
+    expect(html(context({ requester: { openAdvances: 1, outstanding: '9000.00', overdue: 1, oldestOverdueDays: 1 } })))
+      .toContain('Holds NPR 9,000.00 from 1 open advance, 1 overdue (oldest 1 day).');
+    expect(html(context({ requester: { openAdvances: 2, outstanding: '9000.00', overdue: 1, oldestOverdueDays: null } })))
+      .toContain('Holds NPR 9,000.00 from 2 open advances, 1 overdue.');
   });
 });

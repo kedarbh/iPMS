@@ -8,6 +8,18 @@ import { PENDING_STATUSES } from '../workflow.js';
 
 const DAY_MS = 86_400_000;
 
+/** Rows by key, in their original order. A null key (a row with nothing to attach to) is left out. */
+function groupBy<T>(rows: readonly T[], key: (row: T) => string | null): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
+  for (const row of rows) {
+    const k = key(row);
+    if (k === null) continue;
+    const group = groups.get(k);
+    if (group) group.push(row); else groups.set(k, [row]);
+  }
+  return groups;
+}
+
 /** A paid advance with money still out. */
 export interface OpenAdvance {
   id: string; requesterId: string; projectId: string; projectCode: string; projectName: string;
@@ -46,19 +58,23 @@ export async function loadOpenAdvances(prisma: PrismaClient, scope: AuthzScope, 
     prisma.payment.findMany({ where: { requestId: { in: ids } }, select: { requestId: true, kind: true, amount: true, paidOn: true } }),
     prisma.financeRequest.findMany({ where: { advanceId: { in: ids }, status: { in: [...PENDING_STATUSES] } }, select: { advanceId: true } }),
   ]);
+  // Grouped once, so each advance reads its own rows instead of scanning every row.
+  const paymentsOf = groupBy(payments, (p) => p.requestId);
+  const settledOf = groupBy(settled, (s) => s.advanceId);
+  const underReview = new Set(pending.map((s) => s.advanceId));
   const today = kathmanduDay(now);
   const open: OpenAdvance[] = [];
   for (const advance of advances) {
-    const mine = payments.filter((p) => p.requestId === advance.id);
+    const mine = paymentsOf.get(advance.id) ?? [];
     const balance = advanceBalance({
       paid: advance.approvedAmount?.toFixed(2) ?? '0.00',
-      applied: settled.filter((s) => s.advanceId === advance.id).map((s) => s.appliedAmount?.toFixed(2) ?? '0.00'),
+      applied: (settledOf.get(advance.id) ?? []).map((s) => s.appliedAmount?.toFixed(2) ?? '0.00'),
       cashReturned: mine.filter((p) => p.kind === 'CASH_RETURN').map((p) => p.amount.toFixed(2)),
     });
     if (compareMoney(balance.outstanding, '0') <= 0) continue;
     const payout = mine.find((p) => p.kind === 'PAYOUT');
     const dueOn = payout ? settlementDueOn(payout.paidOn) : null;
-    const inReview = pending.some((s) => s.advanceId === advance.id);
+    const inReview = underReview.has(advance.id);
     const overdue = dueOn !== null && dueOn < today && !inReview;
     open.push({
       id: advance.id, requesterId: advance.requesterId, projectId: advance.projectId, projectCode: advance.projectCode, projectName: advance.projectName,

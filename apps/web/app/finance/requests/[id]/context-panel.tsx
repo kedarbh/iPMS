@@ -1,12 +1,12 @@
 import type { DecisionContext } from '@ipms/contracts';
-import { flagText, formatMoney } from '../../model';
+import { dayCount, flagText, formatMoney } from '../../model';
 
 /** "Before you decide": what the approver at this step should weigh. Shown only when the service sends it. */
 export function ContextPanel({ context, category, project }: { context: DecisionContext; category: string; project: string }) {
   const { requester, category: norm } = context;
   const holds = requester.openAdvances === 0
     ? 'Holds no unsettled advances.'
-    : `Holds ${formatMoney(requester.outstanding)} from ${requester.openAdvances} open advance${requester.openAdvances === 1 ? '' : 's'}${requester.overdue > 0 ? `, ${requester.overdue} overdue (oldest ${requester.oldestOverdueDays} days)` : ''}.`;
+    : `Holds ${formatMoney(requester.outstanding)} from ${requester.openAdvances} open advance${requester.openAdvances === 1 ? '' : 's'}${requester.overdue > 0 ? `, ${requester.overdue} overdue${requester.oldestOverdueDays === null ? '' : ` (oldest ${dayCount(requester.oldestOverdueDays)})`}` : ''}.`;
   return (
     <section className="panel finance-facts finance-context" aria-labelledby="before-you-decide">
       <h2 id="before-you-decide">Before you decide</h2>

@@ -123,10 +123,19 @@ describe('settlementStatus', () => {
 
 describe('flagText', () => {
   it('phrases each flag', () => {
-    expect(flagText({ code: 'DUPLICATE_BILL', tone: 'red', matches: [{ requestId: 'r-2', number: 'REI-2026-0031' }] })).toBe('Possible duplicate bill: also on REI-2026-0031');
+    expect(flagText({ code: 'DUPLICATE_BILL', tone: 'red', matches: [{ requestId: 'r-2', number: 'SET-2026-0031', vendor: 'Himal Traders', invoiceNumber: '4471' }] })).toBe('Possible duplicate: Himal Traders #4471 on SET-2026-0031');
+    expect(flagText({ code: 'DUPLICATE_BILL', tone: 'red', matches: [{ requestId: 'r-2', number: 'REI-2026-0031', vendor: 'Himal Traders', invoiceNumber: null }] })).toBe('Possible duplicate: Himal Traders on REI-2026-0031');
+    expect(flagText({ code: 'DUPLICATE_BILL', tone: 'red', matches: [
+      { requestId: 'r-2', number: 'REI-2026-0031', vendor: 'Himal Traders', invoiceNumber: '4471' },
+      { requestId: 'r-3', number: 'ADV-2026-0007', vendor: 'Everest Fuel', invoiceNumber: null },
+    ] })).toBe('Possible duplicate: Himal Traders #4471 on REI-2026-0031; Everest Fuel on ADV-2026-0007');
     expect(flagText({ code: 'REQUESTER_HOLDS_CASH', tone: 'amber', outstanding: '45000.00', advances: 2, overdue: 0, oldestOverdueDays: null })).toBe('Already holds NPR 45,000.00 from 2 advances');
     expect(flagText({ code: 'REQUESTER_HOLDS_CASH', tone: 'red', outstanding: '45000.00', advances: 2, overdue: 1, oldestOverdueDays: 9 })).toBe('Already holds NPR 45,000.00 from 2 advances, one 9 days past settle-by');
     expect(flagText({ code: 'REQUESTER_HOLDS_CASH', tone: 'red', outstanding: '9000.00', advances: 3, overdue: 2, oldestOverdueDays: 12 })).toBe('Already holds NPR 9,000.00 from 3 advances, 2 past settle-by (oldest 12 days)');
+    expect(flagText({ code: 'REQUESTER_HOLDS_CASH', tone: 'red', outstanding: '9000.00', advances: 1, overdue: 1, oldestOverdueDays: 1 })).toBe('Already holds NPR 9,000.00 from 1 advance, one 1 day past settle-by');
+    expect(flagText({ code: 'REQUESTER_HOLDS_CASH', tone: 'red', outstanding: '9000.00', advances: 3, overdue: 2, oldestOverdueDays: 1 })).toBe('Already holds NPR 9,000.00 from 3 advances, 2 past settle-by (oldest 1 day)');
+    expect(flagText({ code: 'REQUESTER_HOLDS_CASH', tone: 'red', outstanding: '9000.00', advances: 2, overdue: 1, oldestOverdueDays: null })).toBe('Already holds NPR 9,000.00 from 2 advances, one past settle-by');
+    expect(flagText({ code: 'REQUESTER_HOLDS_CASH', tone: 'red', outstanding: '9000.00', advances: 3, overdue: 2, oldestOverdueDays: null })).toBe('Already holds NPR 9,000.00 from 3 advances, 2 past settle-by');
     expect(flagText({ code: 'UNUSUAL_AMOUNT', tone: 'amber', ratio: 3, median: '1000.00', category: 'Fuel' })).toBe('About 3× the usual for Fuel');
     expect(flagText({ code: 'WAITING_LONG', tone: 'amber', days: 5 })).toBe('Waiting 5 days');
   });
