@@ -1469,7 +1469,8 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
     return <StatePage title="Finance is not available"><p>{result.state === 'unauthenticated' ? 'Sign in again to continue.' : result.message}</p><a className="primary-button" href="/finance">Back to finance</a></StatePage>;
   }
   const names = new Map(directory.state === 'ready' ? directory.data.map((person) => [person.id, person.fullName]) : []);
-  const pills = HISTORY_PILLS.filter((p) => p.key !== 'handled' || (mayAct && seeAll));
+  // "Decided by me" is for approvers who see everything; "My requests" only matters to someone whose default view is everyone's.
+  const pills = HISTORY_PILLS.filter((p) => (p.key !== 'handled' || (mayAct && seeAll)) && (p.key !== 'mine' || seeAll));
 
   return (
     <main className="app-shell">

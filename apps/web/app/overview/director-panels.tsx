@@ -24,7 +24,7 @@ export function WaitingPanel({ finance, names, now }: { finance: FinanceOverview
     return (
       <section className="ov-card ov-panel" id="waiting">
         <header className="ov-panel-head"><div><h2>Waiting on you</h2></div></header>
-        <p className="ov-note">Finance did not answer, so what waits on you cannot be shown here. <a className="ov-link" href="/finance?view=awaiting">Open the finance queue</a></p>
+        <p className="ov-note">Finance did not answer, so what waits on you cannot be shown here. <a className="ov-link" href="/finance/queue">Open the finance queue</a></p>
       </section>
     );
   }
@@ -32,12 +32,12 @@ export function WaitingPanel({ finance, names, now }: { finance: FinanceOverview
     <section className="ov-card ov-panel" id="waiting">
       <header className="ov-panel-head">
         <div><h2>Waiting on you</h2><p>Longest waiting first</p></div>
-        <a className="ov-link" href="/finance?view=awaiting">Open queue <span aria-hidden="true">→</span></a>
+        <a className="ov-link" href="/finance/queue">Open queue <span aria-hidden="true">→</span></a>
       </header>
       <ol className="dr-pipeline" aria-label="Where requests are">
         {finance.pipeline.steps.map((step) => (
           <li key={step.status} className={step.mine ? 'mine' : undefined}>
-            <a href={`/finance?view=all&status=${step.status}`}>
+            <a href={`/finance/history?status=${step.status}`}>
               <span>{step.mine ? 'With you' : STEP_NAME[step.status]}</span>
               <b>{step.count}</b>
               <em>{nprShort(step.amount)}{step.count > 0 ? ` · oldest ${waitingFor(step.oldestSince, now)}` : ''}</em>
@@ -45,7 +45,7 @@ export function WaitingPanel({ finance, names, now }: { finance: FinanceOverview
           </li>
         ))}
         <li>
-          <a href="/finance?view=all&status=PAID">
+          <a href="/finance/history?filter=closed">
             <span>Paid this month</span>
             <b>{finance.pipeline.paidThisMonth.count}</b>
             <em>{nprShort(finance.pipeline.paidThisMonth.amount)}</em>
@@ -179,7 +179,7 @@ export function DecisionsPanel({ finance }: { finance: FinanceOverview | null })
     <section className="ov-card ov-panel" id="decisions">
       <header className="ov-panel-head">
         <div><h2>Your decisions</h2><p>Last 30 days</p></div>
-        <a className="ov-link" href="/finance?view=handled">Decided by me <span aria-hidden="true">→</span></a>
+        <a className="ov-link" href="/finance/history?filter=handled">Decided by me <span aria-hidden="true">→</span></a>
       </header>
       <dl className="dr-stats">
         <div><dt>Approved</dt><dd><b>{d.approved.count}</b><span>{nprShort(d.approved.amount)}</span></dd></div>

@@ -16,8 +16,8 @@ const MONEY_ERROR = 'Enter an amount in NPR with at most two decimals.';
 const MODES: readonly PaymentMode[] = ['BANK_TRANSFER', 'CASH', 'CHEQUE', 'MOBILE_WALLET'];
 const isMode = (value: string | undefined): value is PaymentMode => value !== undefined && (MODES as readonly string[]).includes(value);
 
-/** Every page a change to one request shows on: the workspace and the request itself. */
-const pages = (id: string): string[] => ['/finance', `/finance/requests/${id}`];
+/** Every page a change to one request shows on: the workspace, its lists and the request itself. */
+const pages = (id: string): string[] => ['/finance', '/finance/queue', '/finance/history', `/finance/requests/${id}`];
 
 /** A decision also changes the Director's home, which shows their queue. */
 const decisionPages = (id: string): string[] => [...pages(id), '/'];
@@ -33,12 +33,15 @@ async function nextAfterDecision(decidedId: string): Promise<never> {
   const next = queue.state === 'ready' ? queue.data.items.find((r) => r.id !== decidedId) : undefined;
   if (next) redirect(`/finance/requests/${next.id}?decided=${decidedId}`);
   const director = viewer.state === 'ready' && homeFor(viewer.data.roles) === 'director';
-  redirect(director ? `/?decided=${decidedId}` : `/finance?view=awaiting&decided=${decidedId}`);
+  redirect(director ? `/?decided=${decidedId}` : `/finance/queue?decided=${decidedId}`);
 }
 
 /** The trimmed request id a form carries, or undefined when it has none. */
 const requiredId = (form: FormData): string | undefined => optional(form, 'id');
 const MISSING_REQUEST: FormState = { error: 'Missing request.' };
+
+/** A decision made in the queue's dialog finishes there; the list refreshes and the dialog closes. */
+const fromQueue = (form: FormData): boolean => optional(form, 'from') === 'queue';
 
 /**
  * Creates or edits a request and, when asked, submits it. `id` present means
@@ -119,7 +122,8 @@ export async function approveAction(_previous: FormState, form: FormData): Promi
   if (amount === null) return { error: MONEY_ERROR };
   const comment = optional(form, 'comment');
   const state = await settle(await approveRequest(id, { ...(amount === undefined ? {} : { amount }), ...(comment ? { comment } : {}) }), decisionPages(id));
-  return state.error ? state : nextAfterDecision(id);
+  if (state.error) return state;
+  return fromQueue(form) ? { done: true } : nextAfterDecision(id);
 }
 
 export async function returnAction(_previous: FormState, form: FormData): Promise<FormState> {
@@ -128,7 +132,8 @@ export async function returnAction(_previous: FormState, form: FormData): Promis
   const comment = optional(form, 'comment');
   if (!comment) return { error: 'Say why.' };
   const state = await settle(await returnRequest(id, comment), decisionPages(id));
-  return state.error ? state : nextAfterDecision(id);
+  if (state.error) return state;
+  return fromQueue(form) ? { done: true } : nextAfterDecision(id);
 }
 
 export async function rejectAction(_previous: FormState, form: FormData): Promise<FormState> {
@@ -137,7 +142,8 @@ export async function rejectAction(_previous: FormState, form: FormData): Promis
   const comment = optional(form, 'comment');
   if (!comment) return { error: 'Say why.' };
   const state = await settle(await rejectRequest(id, comment), decisionPages(id));
-  return state.error ? state : nextAfterDecision(id);
+  if (state.error) return state;
+  return fromQueue(form) ? { done: true } : nextAfterDecision(id);
 }
 
 /** Blank details are sent as nothing: the service wants them only when money actually moves. */
@@ -152,7 +158,8 @@ export async function payAction(_previous: FormState, form: FormData): Promise<F
   const body: Partial<PaymentInput> = {
     ...(mode ? { mode } : {}), ...(reference ? { reference } : {}), ...(paidOn ? { paidOn } : {}), ...(note ? { note } : {}),
   };
-  return settle(await payRequest(id, body), pages(id));
+  const state = await settle(await payRequest(id, body), pages(id));
+  return !state.error && fromQueue(form) ? { done: true } : state;
 }
 
 export async function cashReturnAction(_previous: FormState, form: FormData): Promise<FormState> {

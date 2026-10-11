@@ -12,6 +12,8 @@ import { NotificationCenter } from './components/notification-center';
 import { SidebarToggle } from './components/sidebar-toggle';
 import { TopSearch } from './components/top-search';
 import { ProjectGuideTrigger } from './components/project-guide';
+import { APPROVAL_PERMISSIONS } from './finance/model';
+import { listRequests } from './lib/finance-api';
 import { getCurrentUser, hasPermission, mayReadDocs } from './lib/iam-api';
 import { getMyProfile } from './lib/user-api';
 import { listWorkOrders } from './lib/work-order-api';
@@ -105,7 +107,7 @@ function ProfileIcon({ size = 18 }: { size?: number }) {
   );
 }
 
-type Section = 'overview' | 'projects' | 'checklists' | 'work-orders' | 'users' | 'docs' | 'profile' | 'audit' | 'finance' | 'finance-categories' | 'finance-reports';
+type Section = 'overview' | 'projects' | 'checklists' | 'work-orders' | 'users' | 'docs' | 'profile' | 'audit' | 'finance' | 'finance-queue' | 'finance-history' | 'finance-categories' | 'finance-reports';
 
 function NavItem({
   section,
@@ -158,6 +160,10 @@ export async function Sidebar({ active }: { active: Section }) {
   const mayViewFinance = viewer.state === 'ready' && hasPermission(viewer.data, 'finance_request.view');
   const mayManageCategories = viewer.state === 'ready' && hasPermission(viewer.data, 'finance_category.manage');
   const maySeeSpend = viewer.state === 'ready' && hasPermission(viewer.data, 'finance_request.view_all');
+  const mayApprove = viewer.state === 'ready' && maySeeSpend
+    && APPROVAL_PERMISSIONS.some((p) => hasPermission(viewer.data, p));
+  const queue = mayApprove ? await listRequests({ view: 'awaiting', limit: 1 }) : null;
+  const queued = queue?.state === 'ready' ? queue.data.total : 0;
   const mayReadDocumentation = viewer.state === 'ready' && mayReadDocs(viewer.data);
   const collapsed = (await cookies()).get(SIDEBAR_COOKIE)?.value === SIDEBAR_COLLAPSED;
   const home = viewer.state === 'ready' ? homeFor(viewer.data.roles) : 'admin';
@@ -195,9 +201,18 @@ export async function Sidebar({ active }: { active: Section }) {
   const financeGroup = mayViewFinance ? (
     <div className="nav-section" role="group" aria-labelledby="nav-finance">
       <p className="nav-section-label" id="nav-finance">Finance</p>
-      <NavItem section="finance" active={active} href="/finance" icon={<CashIcon />}>
-        Requests
-      </NavItem>
+      {mayApprove ? (
+        <>
+          <NavItem section="finance" active={active} href="/finance" icon={<CashIcon />}>Overview</NavItem>
+          <NavItem section="finance-queue" active={active} href="/finance/queue" icon={<CashIcon />} badge={queued}>Queue</NavItem>
+          <NavItem section="finance-history" active={active} href="/finance/history" icon={<CashIcon />}>History</NavItem>
+        </>
+      ) : (
+        <>
+          <NavItem section="finance" active={active} href="/finance" icon={<CashIcon />}>Requests</NavItem>
+          {maySeeSpend ? <NavItem section="finance-history" active={active} href="/finance/history" icon={<CashIcon />}>History</NavItem> : null}
+        </>
+      )}
       {mayManageCategories ? (
         <NavItem section="finance-categories" active={active} href="/finance/categories" icon={<CashIcon />}>
           Categories

@@ -134,4 +134,25 @@ describe('OverviewService', () => {
     expect(view.pipeline.steps.every((s) => s.count === 0)).toBe(true);
     expect(view.projects).toEqual([]);
   });
+
+  it('totals everything waiting at the caller’s step, beyond the five the queue shows, by kind', async () => {
+    for (let i = 0; i < 6; i += 1) await raise(ACTORS.pm, '100');
+    await raise(ACTORS.pm, '50.50');
+    await raise(ACTORS.engineer, '999'); // at the PM step, not the Director's
+    const { waiting, queue } = await overviews.overview(ACTORS.director, scopes.project);
+    expect(queue).toHaveLength(5);
+    expect(waiting).toEqual({
+      total: 7, amount: '650.50', oldestSince: expect.any(String),
+      byKind: {
+        ADVANCE: { count: 7, amount: '650.50' },
+        SETTLEMENT: { count: 0, amount: '0.00' },
+        REIMBURSEMENT: { count: 0, amount: '0.00' },
+      },
+    });
+  });
+
+  it('reports nothing waiting as zero with no oldest date', async () => {
+    const { waiting } = await overviews.overview(ACTORS.director, scopes.project);
+    expect(waiting).toMatchObject({ total: 0, amount: '0.00', oldestSince: null });
+  });
 });

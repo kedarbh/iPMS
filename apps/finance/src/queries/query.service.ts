@@ -17,6 +17,8 @@ const log = createLogger('finance');
 const VIEW_ALL = 'finance_request.view_all';
 const PROJECT_ONLY = { project: 'projectId', site: null } as const;
 
+const STAGE_STATUSES = { approval: ['PENDING_PM', 'PENDING_DIRECTOR', 'PENDING_FINANCE'], closed: ['PAID', 'SETTLED'] } as const;
+
 /**
  * Reads. Visibility is the caller's own requests, or, with view_all, every
  * request in their project scope. Out of scope reads as "not found".
@@ -31,7 +33,13 @@ export class QueryService {
       ...(query.kind ? { kind: query.kind } : {}),
       ...(query.projectId ? { projectId: query.projectId } : {}),
     };
-    const full: Prisma.FinanceRequestWhereInput = { AND: [where, filters] };
+    const extra: Prisma.FinanceRequestWhereInput[] = [];
+    if (query.stage) extra.push({ status: { in: [...STAGE_STATUSES[query.stage]] } });
+    if (query.q) {
+      const has = { contains: query.q, mode: 'insensitive' as const };
+      extra.push({ OR: [{ number: has }, { purpose: has }, { projectCode: has }, { projectName: has }] });
+    }
+    const full: Prisma.FinanceRequestWhereInput = { AND: [where, filters, ...extra] };
     // The awaiting queue is read oldest-waiting first; a pending request changes only when it moves, so updatedAt is when it arrived.
     // The id breaks ties, so rows with the same timestamp keep one order from page to page.
     const orderBy: Prisma.FinanceRequestOrderByWithRelationInput[] = query.view === 'handled'

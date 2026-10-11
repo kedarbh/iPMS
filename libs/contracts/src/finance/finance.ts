@@ -120,6 +120,10 @@ export const ListRequestsQuerySchema = PaginationSchema.extend({
   status: RequestStatusSchema.optional(),
   kind: RequestKindSchema.optional(),
   projectId: UuidSchema.optional(),
+  /** approval: any pending step. closed: paid or settled. Combines with `status` as AND. */
+  stage: z.enum(['approval', 'closed']).optional(),
+  /** Text in the request number, purpose, project code or project name. */
+  q: z.string().trim().min(1).max(100).optional(),
 });
 export type ListRequestsQuery = z.infer<typeof ListRequestsQuerySchema>;
 

@@ -21,7 +21,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
     case 'manager': return <ManagerOverview />;
     case 'director': return <DirectorOverview decided={(await searchParams).decided} />;
     case 'qc': return <QcOverview />;
-    case 'finance': redirect('/finance?view=awaiting');
+    case 'finance': redirect('/finance');
     case 'engineer': return <EngineerOverview canViewFinance={viewer.state === 'ready' && hasPermission(viewer.data, 'finance_request.view')} />;
     default: return <AdminOverview searchParams={searchParams} />;
   }

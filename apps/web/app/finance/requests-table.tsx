@@ -3,19 +3,8 @@ import { KIND_LABEL, STATUS_LABEL, STATUS_TONE, currentHandler, flagText, format
 
 const DATE = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short' });
 
-export interface TableQuery { status?: string; kind?: string }
-
-/** A workspace link that keeps the view and any filter that is set. */
-export function financeHref(view: RequestView, query: TableQuery = {}, page?: number): string {
-  const params = new URLSearchParams({ view });
-  if (query.status) params.set('status', query.status);
-  if (query.kind) params.set('kind', query.kind);
-  if (page !== undefined) params.set('page', String(page));
-  return `/finance?${params.toString()}`;
-}
-
 /** The finance workspace's list: one row per request, in the order the view gives them (the awaiting view oldest first), linking to the request. */
-export function RequestsTable({ page, names, view, query = {} }: { page: RequestPage; names: ReadonlyMap<string, string>; view: RequestView; query?: TableQuery }) {
+export function RequestsTable({ page, names, view, pageHref }: { page: RequestPage; names: ReadonlyMap<string, string>; view: RequestView; pageHref?: (page: number) => string }) {
   if (page.items.length === 0) return <p className="finance-empty">{view === 'awaiting' ? 'All caught up. Nothing is waiting for you.' : 'Nothing here yet.'}</p>;
   const last = Math.max(1, Math.ceil(page.total / page.limit));
   return (
@@ -52,11 +41,11 @@ export function RequestsTable({ page, names, view, query = {} }: { page: Request
           </tbody>
         </table>
       </div>
-      {last > 1 ? (
+      {last > 1 && pageHref ? (
         <nav className="pager" aria-label="Pages">
-          {page.page > 1 ? <a className="ghost-button" href={financeHref(view, query, page.page - 1)}>Previous</a> : <span />}
+          {page.page > 1 ? <a className="ghost-button" href={pageHref(page.page - 1)}>Previous</a> : <span />}
           <span className="subtle">Page {page.page} of {last}</span>
-          {page.page < last ? <a className="ghost-button" href={financeHref(view, query, page.page + 1)}>Next</a> : <span />}
+          {page.page < last ? <a className="ghost-button" href={pageHref(page.page + 1)}>Next</a> : <span />}
         </nav>
       ) : null}
     </>

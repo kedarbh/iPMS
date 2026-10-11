@@ -66,6 +66,7 @@ export type RequestView = 'mine' | 'awaiting' | 'all' | 'handled';
 export interface RequestFilter {
   view?: RequestView | undefined; status?: RequestStatus | undefined; kind?: RequestKind | undefined;
   projectId?: string | undefined; page?: number | undefined; limit?: number | undefined;
+  stage?: 'approval' | 'closed' | undefined; q?: string | undefined;
 }
 
 /** Invoice rows as a form sends them: the date is a `YYYY-MM-DD` string, the amount a two-decimal string. */
@@ -91,7 +92,7 @@ const BASE = '/api/v1/finance';
 export function listRequests(filter: RequestFilter = {}): Promise<ApiResult<RequestPage>> {
   return authFetch<RequestPage>(`${BASE}/requests`, {
     query: {
-      view: filter.view, status: filter.status, kind: filter.kind, projectId: filter.projectId,
+      view: filter.view, status: filter.status, kind: filter.kind, projectId: filter.projectId, stage: filter.stage, q: filter.q,
       page: filter.page === undefined ? undefined : String(filter.page),
       limit: filter.limit === undefined ? undefined : String(filter.limit),
     },
