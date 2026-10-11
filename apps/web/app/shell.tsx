@@ -12,6 +12,7 @@ import { NotificationCenter } from './components/notification-center';
 import { SidebarToggle } from './components/sidebar-toggle';
 import { TopSearch } from './components/top-search';
 import { ProjectGuideTrigger } from './components/project-guide';
+import { APPROVAL_PERMISSIONS } from './finance/model';
 import { listRequests } from './lib/finance-api';
 import { getCurrentUser, hasPermission, mayReadDocs } from './lib/iam-api';
 import { getMyProfile } from './lib/user-api';
@@ -160,7 +161,7 @@ export async function Sidebar({ active }: { active: Section }) {
   const mayManageCategories = viewer.state === 'ready' && hasPermission(viewer.data, 'finance_category.manage');
   const maySeeSpend = viewer.state === 'ready' && hasPermission(viewer.data, 'finance_request.view_all');
   const mayApprove = viewer.state === 'ready' && maySeeSpend
-    && ['finance_approval.pm', 'finance_approval.director', 'finance_payment.record'].some((p) => hasPermission(viewer.data, p));
+    && APPROVAL_PERMISSIONS.some((p) => hasPermission(viewer.data, p));
   const queue = mayApprove ? await listRequests({ view: 'awaiting', limit: 1 }) : null;
   const queued = queue?.state === 'ready' ? queue.data.total : 0;
   const mayReadDocumentation = viewer.state === 'ready' && mayReadDocs(viewer.data);

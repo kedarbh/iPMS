@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addMoney, approverRole, availableActions, decisionLine, describeEntry, flagText, formatMoney, initials, overdueSummary, personName, queueActions, settlementStatus, waitLabel, waitTone, waitingDays, waitingOn, waitingTitle, type Viewer } from './model';
+import { addMoney, approverRole, availableActions, decisionLine, describeEntry, flagText, formatMoney, holdsApproval, initials, overdueSummary, personName, queueActions, settlementStatus, waitLabel, waitTone, waitingDays, waitingOn, waitingTitle, type Viewer } from './model';
 
 const ENG: Viewer = { id: 'u-eng', permissions: ['finance_request.view', 'finance_request.create', 'finance_request.cancel', 'finance_settlement.submit'] };
 const PM: Viewer = { id: 'u-pm', permissions: ['finance_request.view', 'finance_request.view_all', 'finance_request.create', 'finance_request.cancel', 'finance_settlement.submit', 'finance_approval.pm'] };
@@ -162,6 +162,16 @@ describe('addMoney', () => {
     expect(addMoney('0.10', '0.20')).toBe('0.30');
     expect(addMoney('1000.00', '250.50', '99.99')).toBe('1350.49');
     expect(addMoney()).toBe('0.00');
+  });
+});
+
+describe('holdsApproval', () => {
+  it('is true for any approval or payment permission, false otherwise', () => {
+    expect(holdsApproval(DIR.permissions)).toBe(true);
+    expect(holdsApproval(PM.permissions)).toBe(true);
+    expect(holdsApproval(FIN.permissions)).toBe(true);
+    expect(holdsApproval(ENG.permissions)).toBe(false);
+    expect(holdsApproval([])).toBe(false);
   });
 });
 

@@ -3,7 +3,7 @@ import { getCurrentUser, hasPermission } from '../../lib/iam-api';
 import { listUserDirectory } from '../../lib/user-api';
 import { Sidebar, StatePage, TopActions } from '../../shell';
 import { RequestsTable } from '../requests-table';
-import { KIND_LABEL, STATUS_LABEL } from '../model';
+import { APPROVAL_PERMISSIONS, KIND_LABEL, STATUS_LABEL } from '../model';
 import { HISTORY_PILLS, historyHref, rawFilters, resolveHistory, type RawHistory } from '../search';
 
 export default async function HistoryPage({ searchParams }: { searchParams: Promise<RawHistory> }) {
@@ -15,7 +15,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
   }
   const user = viewer.data;
   const seeAll = hasPermission(user, 'finance_request.view_all');
-  const mayAct = ['finance_approval.pm', 'finance_approval.director', 'finance_payment.record'].some((p) => hasPermission(user, p));
+  const mayAct = APPROVAL_PERMISSIONS.some((p) => hasPermission(user, p));
   const query = resolveHistory(search, { mayAct, seeAll });
 
   const [result, directory] = await Promise.all([

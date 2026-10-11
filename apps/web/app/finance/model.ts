@@ -151,6 +151,10 @@ export function addMoney(...amounts: readonly string[]): string {
 export type ApproverRole = 'DIRECTOR' | 'PM' | 'FINANCE';
 export const ROLE_LABEL: Record<ApproverRole, string> = { DIRECTOR: 'Project director', PM: 'Project manager', FINANCE: 'Finance' };
 
+/** The permissions that make someone an approver: either approval step, or recording payment. */
+export const APPROVAL_PERMISSIONS = ['finance_approval.pm', 'finance_approval.director', 'finance_payment.record'] as const;
+export const holdsApproval = (permissions: readonly string[]): boolean => APPROVAL_PERMISSIONS.some((p) => permissions.includes(p));
+
 /** The approval the viewer is framed by, most senior first; null for someone who approves nothing. */
 export function approverRole(permissions: readonly string[]): ApproverRole | null {
   if (permissions.includes('finance_approval.director')) return 'DIRECTOR';
