@@ -1,5 +1,5 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { FormError, SubmitButton } from '../components/forms';
 import { useActionStateWithToast } from '../components/toast';
 import { EMPTY } from '../lib/form-state';
@@ -26,6 +26,17 @@ export function DecisionDialog({ request, kind, onClose }: { request: DialogRequ
   const copy = kind === 'pay' && settlement ? { title: 'Settle', button: 'Confirm settlement', success: 'Settled' } : COPY[kind];
   const [state, run] = useActionStateWithToast(action, EMPTY, copy.success);
 
+  // A drag that starts in a field and ends on the overlay is not a click on the overlay.
+  const pressedOverlay = useRef(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = `fin-dialog-title-${request.id}`;
+
+  useEffect(() => {
+    const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const first = dialogRef.current?.querySelector<HTMLElement>('input:not([type="hidden"]), textarea, select');
+    (first ?? dialogRef.current)?.focus();
+    return () => before?.focus();
+  }, []);
   useEffect(() => { if (state.done) onClose(); }, [state.done, onClose]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
@@ -34,12 +45,16 @@ export function DecisionDialog({ request, kind, onClose }: { request: DialogRequ
   }, [onClose]);
 
   return (
-    <div className="fin-dialog-overlay" onClick={onClose}>
-      <div className="fin-dialog" role="dialog" aria-modal="true" aria-label={`${copy.title} ${request.number}`} onClick={(event) => event.stopPropagation()}>
+    <div
+      className="fin-dialog-overlay"
+      onMouseDown={(event) => { pressedOverlay.current = event.target === event.currentTarget; }}
+      onClick={() => { const closing = pressedOverlay.current; pressedOverlay.current = false; if (closing) onClose(); }}
+    >
+      <div ref={dialogRef} tabIndex={-1} className="fin-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} onClick={(event) => event.stopPropagation()}>
         <header className="fin-dialog-head">
           <div>
             <p className="eyebrow">{KIND_LABEL[request.kind].toUpperCase()} · {request.number}</p>
-            <h2>{copy.title}</h2>
+            <h2 id={titleId}>{copy.title}</h2>
             <p className="subtle">{request.purpose} · {formatMoney(request.approvedAmount ?? request.requestedAmount)}</p>
           </div>
           <button type="button" className="icon-button" aria-label="Close" onClick={onClose}>×</button>

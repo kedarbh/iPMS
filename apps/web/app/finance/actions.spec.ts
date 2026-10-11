@@ -214,6 +214,7 @@ describe('decisions made from the queue', () => {
     expect(redirect).not.toHaveBeenCalled();
     expect(revalidatePath).toHaveBeenCalledWith('/finance/queue');
     expect(revalidatePath).toHaveBeenCalledWith('/finance/history');
+    expect(api.listRequests).not.toHaveBeenCalled();
   });
 
   it('returns with a reason and stays put, and still asks for the reason', async () => {
@@ -231,11 +232,22 @@ describe('decisions made from the queue', () => {
   it('records a payment and reports it done', async () => {
     const state = await actions.payAction(EMPTY, form({ id: 'r-1', from: 'queue', mode: 'CASH', reference: 'V-1', paidOn: '2026-10-10' }));
     expect(state).toEqual({ done: true });
+    expect(api.payRequest).toHaveBeenCalledWith('r-1', { mode: 'CASH', reference: 'V-1', paidOn: '2026-10-10' });
   });
 
   it('shows the service’s refusal and does not report done', async () => {
     api.approveRequest.mockResolvedValue({ state: 'forbidden', message: 'You already approved this' });
     expect(await actions.approveAction(EMPTY, form({ id: 'r-1', from: 'queue' }))).toEqual({ error: 'You already approved this' });
+  });
+
+  it('shows the service’s refusal of a payment, a return or a rejection, and does not report done', async () => {
+    const refused = { state: 'forbidden', message: 'No' };
+    api.payRequest.mockResolvedValue(refused);
+    expect(await actions.payAction(EMPTY, form({ id: 'r-1', from: 'queue', mode: 'CASH', reference: 'V-1', paidOn: '2026-10-10' }))).toEqual({ error: 'No' });
+    api.returnRequest.mockResolvedValue(refused);
+    expect(await actions.returnAction(EMPTY, form({ id: 'r-1', from: 'queue', comment: 'Bill missing' }))).toEqual({ error: 'No' });
+    api.rejectRequest.mockResolvedValue(refused);
+    expect(await actions.rejectAction(EMPTY, form({ id: 'r-1', from: 'queue', comment: 'Not in budget' }))).toEqual({ error: 'No' });
   });
 
   it('without the flag, a decision still opens the next request', async () => {
