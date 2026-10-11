@@ -135,7 +135,7 @@ export default async function UsersPage({
                             : (
                               <span className="role-pills">
                                 {user.roles.map((role) => <span key={role.name} className="role-pill">{role.name}</span>)}
-                                {user.financeEnabled ? null : <span className="role-pill role-pill-off" title="Their own company handles their advances and expenses">Finance off</span>}
+                                {user.financeEnabled === false ? <span className="role-pill role-pill-off" title="Their own company handles their advances and expenses">Finance off</span> : null}
                               </span>
                             )}
                         </td>

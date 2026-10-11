@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/layout/main_scaffold.dart';
+import '../../auth/providers/auth_provider.dart';
 
 /// Data structure for a step in the field engineer rollout lifecycle.
 class FieldWorkflowStep {
@@ -1044,7 +1045,10 @@ class _AppGuideModalState extends ConsumerState<AppGuideModal> {
   // Tab 2: Mobile Component Catalog
   // --------------------------------------------------------------------------
   Widget _buildComponentsView(ThemeData theme) {
-    final filtered = _kComponentsCatalog.where((c) {
+    // The Finance entry describes a tab this user may not have.
+    final mayUseFinance = ref.watch(authStateProvider).value?.can('finance_request.view') ?? false;
+    final catalog = _kComponentsCatalog.where((c) => c.id != 'finance' || mayUseFinance).toList();
+    final filtered = catalog.where((c) {
       if (_searchQuery.isEmpty) return true;
       final q = _searchQuery.toLowerCase();
       return c.name.toLowerCase().contains(q) ||
@@ -1099,7 +1103,7 @@ class _AppGuideModalState extends ConsumerState<AppGuideModal> {
           child: Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              'Showing ${filtered.length} of ${_kComponentsCatalog.length} mobile components',
+              'Showing ${filtered.length} of ${catalog.length} mobile components',
               style: GoogleFonts.inter(
                 fontSize: 11,
                 color: AppColors.textSecondary,

@@ -11,7 +11,7 @@ export interface ProjectChoice { id: string; code: string; name: string }
 export interface CategoryChoice { id: string; code: string; name: string }
 export interface AdvanceContext { id: string; number: string; projectName: string; outstanding: string }
 export interface RequestInitial {
-  id: string; categoryId: string; purpose: string; requestedAmount: string;
+  id: string; categoryId: string; purpose: string; remarks: string; requestedAmount: string;
   invoices: Invoice[];
 }
 
@@ -74,6 +74,10 @@ export function RequestForm({
           </label>
         ) : null}
       </div>
+
+      <label className="field">Remarks (optional)
+        <textarea name="remarks" rows={3} maxLength={1000} defaultValue={initial?.remarks ?? ''} placeholder={kind === 'ADVANCE' ? 'Details on what the advance will cover' : 'Details on the expenses'} />
+      </label>
 
       {kind !== 'ADVANCE' ? (
         <fieldset className="invoice-rows">

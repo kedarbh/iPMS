@@ -50,9 +50,13 @@ export type InvoiceInput = z.infer<typeof InvoiceInputSchema>;
 
 const InvoicesSchema = z.array(InvoiceInputSchema).min(1).max(100);
 
+/** The requester's own detail on the expense or advance. */
+const RemarksSchema = TextSchema(1000);
+
 const Common = {
   categoryId: UuidSchema,
   purpose: TextSchema(500),
+  remarks: RemarksSchema.optional(),
   workOrderId: UuidSchema.optional(),
 };
 
@@ -68,6 +72,8 @@ export type CreateRequestDto = z.infer<typeof CreateRequestSchema>;
 export const UpdateRequestSchema = z.object({
   categoryId: UuidSchema.optional(),
   purpose: TextSchema(500).optional(),
+  /** `null` clears the remarks. */
+  remarks: RemarksSchema.nullable().optional(),
   workOrderId: UuidSchema.nullable().optional(),
   amount: MoneySchema.optional(),
   invoices: InvoicesSchema.optional(),

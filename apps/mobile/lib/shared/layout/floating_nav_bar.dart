@@ -8,11 +8,16 @@ class FloatingNavBar extends StatelessWidget {
     required this.currentIndex,
     required this.onTap,
     this.onQuickAction,
+    this.hiddenTabs = const {},
   });
 
   final int currentIndex;
   final ValueChanged<int> onTap;
   final VoidCallback? onQuickAction;
+
+  /// Indexes whose button is not offered. The page stays in place so every
+  /// other index keeps its meaning.
+  final Set<int> hiddenTabs;
 
   @override
   Widget build(BuildContext context) {
@@ -33,30 +38,34 @@ class FloatingNavBar extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildNavItem(
-            index: 0,
-            icon: Icons.assignment_outlined,
-            selectedIcon: Icons.assignment_rounded,
-            label: 'Tasks',
-          ),
-          _buildNavItem(
-            index: 1,
-            icon: Icons.business_outlined,
-            selectedIcon: Icons.business_rounded,
-            label: 'Projects',
-          ),
-          _buildNavItem(
-            index: 2,
-            icon: Icons.account_balance_wallet_outlined,
-            selectedIcon: Icons.account_balance_wallet_rounded,
-            label: 'Finance',
-          ),
-          _buildNavItem(
-            index: 3,
-            icon: Icons.person_outline_rounded,
-            selectedIcon: Icons.person_rounded,
-            label: 'Profile',
-          ),
+          if (!hiddenTabs.contains(0))
+            _buildNavItem(
+              index: 0,
+              icon: Icons.assignment_outlined,
+              selectedIcon: Icons.assignment_rounded,
+              label: 'Tasks',
+            ),
+          if (!hiddenTabs.contains(1))
+            _buildNavItem(
+              index: 1,
+              icon: Icons.business_outlined,
+              selectedIcon: Icons.business_rounded,
+              label: 'Projects',
+            ),
+          if (!hiddenTabs.contains(2))
+            _buildNavItem(
+              index: 2,
+              icon: Icons.account_balance_wallet_outlined,
+              selectedIcon: Icons.account_balance_wallet_rounded,
+              label: 'Finance',
+            ),
+          if (!hiddenTabs.contains(3))
+            _buildNavItem(
+              index: 3,
+              icon: Icons.person_outline_rounded,
+              selectedIcon: Icons.person_rounded,
+              label: 'Profile',
+            ),
         ],
       ),
     );

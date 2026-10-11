@@ -6,6 +6,7 @@ import 'package:mobile/features/finance/presentation/advance_form_screen.dart';
 import 'package:mobile/features/finance/presentation/expenses_form_screen.dart';
 import 'package:mobile/features/finance/presentation/finance_screen.dart';
 import 'package:mobile/features/finance/presentation/finance_widgets.dart';
+import 'package:mobile/features/finance/presentation/form_parts.dart';
 import 'package:mobile/features/finance/presentation/notifications_screen.dart';
 import 'package:mobile/features/finance/presentation/request_detail_screen.dart';
 import 'package:mobile/features/finance/presentation/statement_screen.dart';
@@ -567,7 +568,8 @@ void main() {
       await tester.tap(find.text('Travel'));
       await tester.pump();
       await tester.enterText(find.byType(TextField).first, 'Fuel for the survey');
-      await tester.enterText(find.byType(TextField).last, '25000.50');
+      await tester.enterText(find.descendant(of: find.byType(AmountField), matching: find.byType(TextField)), '25000.50');
+      await tester.enterText(find.widgetWithText(TextField, 'Details on what the advance will cover'), '  For the Kos survey team  ');
       await tester.pump();
       await tester.tap(find.text('Submit for approval'));
       await tester.pumpAndSettle();
@@ -575,7 +577,7 @@ void main() {
       await tester.pump();
 
       final create = server.calls.firstWhere((c) => c.method == 'POST' && c.path == '/api/v1/finance/requests');
-      expect(create.data, {'kind': 'ADVANCE', 'projectId': 'p-1', 'categoryId': 'c-1', 'purpose': 'Fuel for the survey', 'amount': '25000.50'});
+      expect(create.data, {'kind': 'ADVANCE', 'projectId': 'p-1', 'categoryId': 'c-1', 'purpose': 'Fuel for the survey', 'remarks': 'For the Kos survey team', 'amount': '25000.50'});
       expect(server.posts('/new-1/submit'), hasLength(1));
     });
 
@@ -589,7 +591,7 @@ void main() {
       await tester.tap(find.text('Travel'));
       await tester.pump();
       await tester.enterText(find.byType(TextField).first, 'Ladder');
-      await tester.enterText(find.byType(TextField).last, '7500');
+      await tester.enterText(find.descendant(of: find.byType(AmountField), matching: find.byType(TextField)), '7500');
       await tester.pump();
       await tester.tap(find.text('Save draft'));
       await tester.pumpAndSettle();
@@ -610,7 +612,7 @@ void main() {
 
       expect(find.textContaining('Attach the supplier quote'), findsOneWidget);
       expect(find.text('Resubmit'), findsOneWidget);
-      await tester.enterText(find.byType(TextField).last, '8500');
+      await tester.enterText(find.descendant(of: find.byType(AmountField), matching: find.byType(TextField)), '8500');
       await tester.pump();
       await tester.tap(find.text('Resubmit'));
       await tester.pumpAndSettle();
@@ -618,7 +620,7 @@ void main() {
       await tester.pump();
 
       final patch = server.calls.firstWhere((c) => c.method == 'PATCH');
-      expect(patch.data, {'categoryId': 'c-1', 'purpose': 'Safety harness', 'amount': '8500'});
+      expect(patch.data, {'categoryId': 'c-1', 'purpose': 'Safety harness', 'remarks': null, 'amount': '8500'});
       expect(server.posts('/r1/submit'), hasLength(1));
     });
   });

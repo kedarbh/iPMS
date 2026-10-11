@@ -2,7 +2,7 @@
 .finance-table-wrap { overflow-x: auto; max-width: 100%; margin-top: 4px; }
 .finance-table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 760px; }
 .finance-table th { text-align: left; font-weight: 600; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); padding: 10px 12px; white-space: nowrap; }
-.finance-table td { padding: 12px; border-top: 1px solid var(--line); vertical-align: top; }
+.finance-table td { padding: 12px; border-top: 1px solid var(--line); vertical-align: baseline; }
 .finance-table tr:hover td { background: color-mix(in srgb, var(--blue) 4%, transparent); }
 .finance-table td a { color: var(--blue); }
 .finance-table td .subtle, .finance-facts .subtle { display: block; margin: 3px 0 0; font-size: 12px; }

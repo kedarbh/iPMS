@@ -449,9 +449,13 @@ export class UsersService {
       // The permissions claim is resolved at issuance, so without this the old
       // authority stays live for the access token's full TTL.
       await this.revokeTokens(tx, id);
-      // An engineer made something else is no longer one: finance is theirs
-      // again, rather than withheld by a switch only an engineer can carry.
-      const restoresFinance = existing.financeEnabled === false && !dto.roleCodes.includes(FIELD_ENGINEER);
+      // An engineer made some other role is no longer one: finance is theirs
+      // again, rather than withheld by a switch only an engineer can carry. A
+      // user left with no role keeps the switch, so a round trip through "no
+      // role" cannot restore finance to a vendor engineer.
+      const restoresFinance = existing.financeEnabled === false
+        && dto.roleCodes.length > 0
+        && !dto.roleCodes.includes(FIELD_ENGINEER);
       if (restoresFinance) await tx.user.update({ where: { id }, data: { financeEnabled: true } });
 
       await this.audit(tx, actorId, 'user.roles_changed', id,

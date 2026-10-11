@@ -330,6 +330,7 @@ class FinanceRequest {
     required this.purpose,
     required this.requestedAmount,
     required this.createdAt,
+    this.remarks,
     this.projectCode,
     this.projectName,
     this.categoryName,
@@ -365,6 +366,7 @@ class FinanceRequest {
       requesterId: json['requesterId'] as String? ?? '',
       advanceId: json['advanceId'] as String?,
       purpose: json['purpose'] as String? ?? '',
+      remarks: json['remarks'] as String?,
       requestedAmount: json['requestedAmount']?.toString() ?? '0.00',
       approvedAmount: json['approvedAmount']?.toString(),
       appliedAmount: json['appliedAmount']?.toString(),
@@ -394,6 +396,9 @@ class FinanceRequest {
   final String requesterId;
   final String? advanceId;
   final String purpose;
+
+  /// The requester's own detail on the expense or advance; null when none was given.
+  final String? remarks;
   final String requestedAmount;
   final String? approvedAmount;
   final String? appliedAmount;

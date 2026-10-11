@@ -58,7 +58,7 @@ describe('saveRequestAction', () => {
 
   it('updates an existing request instead of creating one', async () => {
     await expect(actions.saveRequestAction(EMPTY, form({ ...advance, id: 'r-9', intent: 'draft' }))).rejects.toThrow('NEXT_REDIRECT:/finance/requests/r-9');
-    expect(api.updateRequest).toHaveBeenCalledWith('r-9', { categoryId: 'c-1', purpose: 'Site travel', amount: '50000.00' });
+    expect(api.updateRequest).toHaveBeenCalledWith('r-9', { categoryId: 'c-1', purpose: 'Site travel', remarks: null, amount: '50000.00' });
     expect(api.createRequest).not.toHaveBeenCalled();
   });
 
@@ -107,8 +107,15 @@ describe('saveRequestAction coverage', () => {
   it('edits a reimbursement with category, purpose and invoices only', async () => {
     await expect(actions.saveRequestAction(EMPTY, form({ ...base, ...rows, kind: 'REIMBURSEMENT', id: 'r-5', projectId: 'p-1' }))).rejects.toThrow('NEXT_REDIRECT:/finance/requests/r-5');
     expect(api.updateRequest).toHaveBeenCalledWith('r-5', {
-      categoryId: 'c-1', purpose: 'Fuel', invoices: [{ vendor: 'V', invoiceNumber: 'I-1', invoiceDate: '2026-10-01', amount: '100.00' }],
+      categoryId: 'c-1', purpose: 'Fuel', remarks: null, invoices: [{ vendor: 'V', invoiceNumber: 'I-1', invoiceDate: '2026-10-01', amount: '100.00' }],
     });
+  });
+
+  it('sends remarks when given, and clears them on an edit when emptied', async () => {
+    await expect(actions.saveRequestAction(EMPTY, form({ ...base, kind: 'ADVANCE', projectId: 'p-1', amount: '10', remarks: ' Fuel for the survey ' }))).rejects.toThrow('NEXT_REDIRECT');
+    expect(api.createRequest).toHaveBeenCalledWith(expect.objectContaining({ remarks: 'Fuel for the survey' }));
+    await expect(actions.saveRequestAction(EMPTY, form({ ...base, ...rows, kind: 'SETTLEMENT', id: 'r-6', remarks: '' }))).rejects.toThrow('NEXT_REDIRECT');
+    expect(api.updateRequest).toHaveBeenCalledWith('r-6', expect.objectContaining({ remarks: null }));
   });
 
   it('asks for a project and for an advance to settle', async () => {

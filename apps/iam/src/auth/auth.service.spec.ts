@@ -365,4 +365,16 @@ describe('AuthService and the finance switch', () => {
     const pair = await service.refresh(refreshToken);
     expect(tokens.verifyAccess(pair.accessToken).permissions).toEqual(['task.view']);
   });
+
+  it('does not let a stored ALLOW override bring finance back', async () => {
+    const { service } = await build({
+      roles: [ENGINEER_ROLE], financeEnabled: false,
+      overrides: [{
+        permission: { code: 'finance_request.create' }, effect: 'ALLOW',
+        projectId: null, siteId: null, validFrom: null, validUntil: null,
+      }],
+    });
+    const pair = await service.login({ email: 'engineer@ipms.local', password: 'demo12345' });
+    expect(tokens.verifyAccess(pair.accessToken).permissions).not.toContain('finance_request.create');
+  });
 });

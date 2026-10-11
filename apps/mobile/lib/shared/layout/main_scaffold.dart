@@ -19,13 +19,22 @@ class NavigationIndexNotifier extends Notifier<int> {
 final navigationIndexProvider =
     NotifierProvider<NavigationIndexNotifier, int>(NavigationIndexNotifier.new);
 
+/// The Finance tab's slot in [MainScaffold.pages]. A user whose finance is
+/// handled elsewhere keeps the slot, which keeps every other tab's index valid
+/// (the task list jumps to Profile by index), but not the button.
+const int financeTabIndex = 2;
+
 class MainScaffold extends ConsumerStatefulWidget {
   const MainScaffold({
     super.key,
     required this.pages,
+    this.hiddenTabs = const {},
   });
 
   final List<Widget> pages;
+
+  /// Tabs whose page stays in place but whose button is not offered.
+  final Set<int> hiddenTabs;
 
   @override
   ConsumerState<MainScaffold> createState() => _MainScaffoldState();
@@ -72,7 +81,10 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
   @override
   Widget build(BuildContext context) {
     final pages = widget.pages;
-    final currentIndex = ref.watch(navigationIndexProvider);
+    final requested = ref.watch(navigationIndexProvider);
+    // A shortcut to a tab this user does not have (a guide button) lands on the
+    // first tab instead of a blank page.
+    final currentIndex = widget.hiddenTabs.contains(requested) ? 0 : requested;
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
@@ -92,6 +104,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
             child: SafeArea(
               child: FloatingNavBar(
                 currentIndex: currentIndex,
+                hiddenTabs: widget.hiddenTabs,
                 onTap: (index) {
                   ref.read(navigationIndexProvider.notifier).setIndex(index);
                 },

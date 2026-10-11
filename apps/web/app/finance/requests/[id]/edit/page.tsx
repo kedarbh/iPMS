@@ -54,6 +54,7 @@ export default async function EditRequestPage({ params }: { params: Promise<{ id
                 id: request.id,
                 categoryId: request.categoryId,
                 purpose: request.purpose,
+                remarks: request.remarks ?? '',
                 requestedAmount: request.requestedAmount,
                 invoices: request.invoices.map(({ vendor, invoiceNumber, invoiceDate, amount, vat, supplierTaxNo, mediaId }) => ({
                   vendor, invoiceDate, amount,

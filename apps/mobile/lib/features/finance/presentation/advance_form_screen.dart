@@ -21,6 +21,7 @@ class AdvanceFormScreen extends ConsumerStatefulWidget {
 
 class _AdvanceFormScreenState extends ConsumerState<AdvanceFormScreen> {
   late final TextEditingController _title = TextEditingController(text: widget.initial?.purpose ?? '');
+  late final TextEditingController _remarks = TextEditingController(text: widget.initial?.remarks ?? '');
   late final TextEditingController _amount = TextEditingController(text: widget.initial?.requestedAmount ?? '');
   late String? _project = widget.initial?.projectId;
   late String? _category = widget.initial?.categoryId;
@@ -30,10 +31,13 @@ class _AdvanceFormScreenState extends ConsumerState<AdvanceFormScreen> {
 
   bool get _editing => widget.initial != null;
 
+  String? get _remarksOrNull => _remarks.text.trim().isEmpty ? null : _remarks.text.trim();
+
   @override
   void dispose() {
     _title.dispose();
     _amount.dispose();
+    _remarks.dispose();
     super.dispose();
   }
 
@@ -54,13 +58,14 @@ class _AdvanceFormScreenState extends ConsumerState<AdvanceFormScreen> {
     var id = widget.initial?.id;
     try {
       if (_editing) {
-        await repo.update(id!, {'categoryId': _category, 'purpose': _title.text.trim(), 'amount': _amount.text.trim()});
+        await repo.update(id!, {'categoryId': _category, 'purpose': _title.text.trim(), 'remarks': _remarksOrNull, 'amount': _amount.text.trim()});
       } else {
         id = (await repo.create({
           'kind': RequestKind.advance,
           'projectId': _project,
           'categoryId': _category,
           'purpose': _title.text.trim(),
+          if (_remarksOrNull != null) 'remarks': _remarksOrNull,
           'amount': _amount.text.trim(),
         }))
             .id;
@@ -163,6 +168,19 @@ class _AdvanceFormScreenState extends ConsumerState<AdvanceFormScreen> {
                     label: 'Amount',
                     error: _tried && !isValidMoney(_amount.text) ? 'Enter an amount with at most two decimals' : null,
                     child: AmountField(controller: _amount, onChanged: (_) => setState(() {}), error: _tried && !isValidMoney(_amount.text)),
+                  ),
+                  const SizedBox(height: 20),
+                  FormSection(
+                    label: 'Remarks (optional)',
+                    child: TextField(
+                      controller: _remarks,
+                      maxLength: 1000,
+                      minLines: 3,
+                      maxLines: 6,
+                      textCapitalization: TextCapitalization.sentences,
+                      style: const TextStyle(fontSize: 15),
+                      decoration: fieldDecoration('Details on what the advance will cover').copyWith(counterText: ''),
+                    ),
                   ),
                   const SizedBox(height: 20),
                   FCard(

@@ -33,4 +33,9 @@ describe('users list', () => {
     listUsers.mockResolvedValue(listed([person()]));
     expect(await render()).not.toContain('Finance off');
   });
+
+  it('shows no tag when the API did not say (an older iam without the field)', async () => {
+    listUsers.mockResolvedValue(listed([person({ financeEnabled: undefined })]));
+    expect(await render()).not.toContain('Finance off');
+  });
 });

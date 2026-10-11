@@ -48,7 +48,7 @@ describe('RequestForm', () => {
   it('edits an existing request: carries its id, keeps the kind and cannot change the project', () => {
     const out = renderToStaticMarkup(
       <RequestForm kind="ADVANCE" projects={projects} categories={categories}
-        initial={{ id: 'r-9', categoryId: 'c-1', purpose: 'Site travel', requestedAmount: '50000.00', invoices: [] }} />,
+        initial={{ id: 'r-9', categoryId: 'c-1', purpose: 'Site travel', remarks: '', requestedAmount: '50000.00', invoices: [] }} />,
     );
     expect(out).toContain('name="id"');
     expect(out).toContain('value="r-9"');
@@ -73,7 +73,7 @@ describe('RequestForm', () => {
   it('labels each invoice Remove button with its row number', () => {
     const out = renderToStaticMarkup(
       <RequestForm kind="REIMBURSEMENT" projects={projects} categories={categories}
-        initial={{ id: 'r-9', categoryId: 'c-1', purpose: 'x', requestedAmount: '1.00', invoices: [
+        initial={{ id: 'r-9', categoryId: 'c-1', purpose: 'x', remarks: '', requestedAmount: '1.00', invoices: [
           { vendor: 'A', invoiceNumber: '1', invoiceDate: '2026-10-01', amount: '1' },
           { vendor: 'B', invoiceNumber: '2', invoiceDate: '2026-10-02', amount: '2' }] }} />,
     );

@@ -53,4 +53,47 @@ void main() {
 
     expect(find.text('Security'), findsOneWidget);
   });
+
+  testWidgets('MainScaffold leaves out the button of a hidden tab and falls back from it',
+      (WidgetTester tester) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: MainScaffold(
+            hiddenTabs: {financeTabIndex},
+            pages: [
+              TaskListScreen(),
+              ProjectListScreen(),
+              SizedBox.shrink(),
+              ProfileScreen(),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byIcon(Icons.account_balance_wallet_outlined), findsNothing);
+    // Tasks is the selected tab, so the bar draws its filled icon.
+    expect(find.byIcon(Icons.assignment_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.business_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.person_outline_rounded), findsOneWidget);
+
+    // A shortcut to the hidden tab lands on the first tab, not on a blank page.
+    container.read(navigationIndexProvider.notifier).setIndex(financeTabIndex);
+    await tester.pump();
+    expect(find.text('Your task'), findsOneWidget);
+    // The bar shows Tasks as the selected tab after the fallback.
+    expect(find.byIcon(Icons.assignment_rounded), findsOneWidget);
+
+    // Profile keeps its own index.
+    await tester.tap(find.byIcon(Icons.person_outline_rounded));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('Security'), findsOneWidget);
+  });
 }
