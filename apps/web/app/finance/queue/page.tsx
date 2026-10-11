@@ -6,6 +6,7 @@ import { Sidebar, StatePage, TopActions } from '../../shell';
 import { DecidedNotice } from '../decided';
 import { KIND_PLURAL, ROLE_LABEL, approverRole, formatMoney } from '../model';
 import { QueueTable } from '../queue-table';
+import { queueHref } from '../search';
 
 const KINDS: readonly RequestKind[] = ['ADVANCE', 'SETTLEMENT', 'REIMBURSEMENT'];
 
@@ -28,6 +29,7 @@ export default async function QueuePage({ searchParams }: { searchParams: Promis
   if (list.state !== 'ready') {
     return <StatePage title="Finance is not available"><p>{list.state === 'unauthenticated' ? 'Sign in again to continue.' : list.message}</p><a className="primary-button" href="/finance">Back to finance</a></StatePage>;
   }
+  const last = Math.max(1, Math.ceil(list.data.total / list.data.limit));
   const waiting = overview.state === 'ready' ? overview.data.waiting : null;
   const names = Object.fromEntries(directory.state === 'ready' ? directory.data.map((person) => [person.id, person.fullName]) : []);
   const pill = (key: string, label: string, count: number | null, href: string, current: boolean) => (
@@ -57,6 +59,13 @@ export default async function QueuePage({ searchParams }: { searchParams: Promis
               {waiting ? <span className="fin-pills-total">{waiting.total} waiting · {formatMoney(waiting.amount)}</span> : null}
             </nav>
             <QueueTable items={list.data.items} names={names} permissions={[...user.permissions]} now={new Date().toISOString()} />
+            {last > 1 ? (
+              <nav className="pager" aria-label="Pages">
+                {list.data.page > 1 ? <a className="ghost-button" href={queueHref({ ...(kind ? { kind } : {}), page: list.data.page - 1 })}>Previous</a> : <span />}
+                <span className="subtle">Page {list.data.page} of {last}</span>
+                {list.data.page < last ? <a className="ghost-button" href={queueHref({ ...(kind ? { kind } : {}), page: list.data.page + 1 })}>Next</a> : <span />}
+              </nav>
+            ) : null}
           </section>
         </div>
       </section>

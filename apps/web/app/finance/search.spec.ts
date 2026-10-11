@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { historyHref, legacyTarget, resolveHistory, resolveSearch } from './search';
+import { historyHref, legacyTarget, queueHref, rawFilters, resolveHistory, resolveSearch } from './search';
 
 const ENG = { mayAct: false, seeAll: false, mayRaise: true };
 const PM = { mayAct: true, seeAll: false, mayRaise: true };
@@ -87,6 +87,32 @@ describe('historyHref', () => {
     expect(historyHref({})).toBe('/finance/history');
     expect(historyHref({ filter: 'approval', q: 'fuel', page: 2 })).toBe('/finance/history?filter=approval&q=fuel&page=2');
     expect(historyHref({ filter: 'all' })).toBe('/finance/history');
+  });
+});
+
+describe('queueHref', () => {
+  it('keeps only what is set, and omits page 1', () => {
+    expect(queueHref({})).toBe('/finance/queue');
+    expect(queueHref({ kind: 'ADVANCE' })).toBe('/finance/queue?kind=ADVANCE');
+    expect(queueHref({ kind: 'ADVANCE', page: 1 })).toBe('/finance/queue?kind=ADVANCE');
+    expect(queueHref({ kind: 'ADVANCE', page: 2 })).toBe('/finance/queue?kind=ADVANCE&page=2');
+    expect(queueHref({ page: 3 })).toBe('/finance/queue?page=3');
+  });
+});
+
+describe('rawFilters', () => {
+  const caps = { mayAct: true, seeAll: true };
+  it('is empty when the status comes from a pill', () => {
+    expect(rawFilters(resolveHistory({ filter: 'returned' }, caps))).toEqual({});
+    expect(rawFilters(resolveHistory({}, caps))).toEqual({});
+  });
+  it('reports a status that came from the URL', () => {
+    expect(rawFilters(resolveHistory({ status: 'PENDING_PM' }, caps))).toEqual({ status: 'PENDING_PM' });
+    expect(rawFilters(resolveHistory({ view: 'all', status: 'PAID' }, caps))).toEqual({ status: 'PAID' });
+  });
+  it('reports a kind', () => {
+    expect(rawFilters(resolveHistory({ kind: 'ADVANCE' }, caps))).toEqual({ kind: 'ADVANCE' });
+    expect(rawFilters(resolveHistory({ filter: 'rejected', kind: 'SETTLEMENT' }, caps))).toEqual({ kind: 'SETTLEMENT' });
   });
 });
 

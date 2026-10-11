@@ -74,6 +74,23 @@ export function historyHref(params: { filter?: string; q?: string; status?: stri
   return text ? `/finance/history?${text}` : '/finance/history';
 }
 
+export function queueHref(params: { kind?: string; page?: number }): string {
+  const out = new URLSearchParams();
+  if (params.kind) out.set('kind', params.kind);
+  if (params.page !== undefined && params.page > 1) out.set('page', String(params.page));
+  const text = out.toString();
+  return text ? `/finance/queue?${text}` : '/finance/queue';
+}
+
+/** The status/kind filters in force that no pill shows: they came from the URL itself (a Director-home link, a legacy redirect). */
+export function rawFilters(query: ResolvedHistory): { status?: RequestStatus; kind?: RequestKind } {
+  const fromPill = HISTORY_PILLS.some((p) => 'status' in p && p.status === query.status);
+  return {
+    ...(query.status && !fromPill ? { status: query.status } : {}),
+    ...(query.kind ? { kind: query.kind } : {}),
+  };
+}
+
 /** Where an old `/finance?view=…` link now lives, or null when the URL carries no old view. */
 export function legacyTarget(search: RawSearch): string | null {
   if (!search.view) return null;
