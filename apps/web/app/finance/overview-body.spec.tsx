@@ -66,6 +66,12 @@ describe('OverviewBody', () => {
     expect(none).toContain('with others, past');
   });
 
+  it('says the cash list is the top holders only when it is full', () => {
+    const holder = (n: number) => ({ requesterId: `u-${n}`, outstanding: '1000.00', open: 1, overdue: 0 });
+    expect(html(overview({ cashHolders: [1, 2, 3, 4, 5].map(holder) }))).toContain('Showing the 5 holding the most.');
+    expect(html(overview())).not.toContain('holding the most');
+  });
+
   it('uses singular wording', () => {
     const one = overview({
       waiting: { total: 1, amount: '2400.00', oldestSince: '2026-10-07T08:00:00Z', byKind: { ADVANCE: { count: 0, amount: '0.00' }, SETTLEMENT: { count: 0, amount: '0.00' }, REIMBURSEMENT: { count: 1, amount: '2400.00' } } },

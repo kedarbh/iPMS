@@ -56,14 +56,14 @@
 .fin-card-head { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--muted); }
 .fin-card.dark { background: var(--ink); border-color: var(--ink); color: #fff; }
 .fin-card.dark .fin-card-head, .fin-card.dark small { color: rgba(255, 255, 255, .72); }
-.fin-kind { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 6px; font-style: normal; font-size: 12px; font-weight: 700; background: color-mix(in srgb, var(--blue) 14%, transparent); color: var(--blue); }
-.fin-kind.SETTLEMENT { background: color-mix(in srgb, var(--green) 15%, transparent); color: var(--green); }
-.fin-kind.REIMBURSEMENT { background: color-mix(in srgb, var(--amber) 18%, transparent); color: var(--amber); }
+.fin-kind { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 6px; font-style: normal; font-size: 12px; font-weight: 700; background: color-mix(in srgb, var(--blue) 14%, transparent); color: color-mix(in srgb, var(--blue) 70%, #000); }
+.fin-kind.SETTLEMENT { background: color-mix(in srgb, var(--green) 15%, transparent); color: color-mix(in srgb, var(--green) 70%, #000); }
+.fin-kind.REIMBURSEMENT { background: color-mix(in srgb, var(--amber) 18%, transparent); color: color-mix(in srgb, var(--amber) 70%, #000); }
 
 .fin-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; padding: 14px 18px; border-radius: 10px; background: color-mix(in srgb, var(--red) 10%, #fff); border: 1px solid color-mix(in srgb, var(--red) 28%, transparent); }
 .fin-banner strong { color: var(--red); }
 .fin-banner p { margin: 4px 0 0; font-size: 13px; color: var(--ink); }
-.fin-banner-link { flex: none; padding: 9px 14px; border-radius: var(--radius-btn, 4px); background: var(--red); color: #fff; font-weight: 650; }
+.fin-banner-link { flex: none; padding: 9px 14px; border-radius: var(--radius-btn, 4px); background: color-mix(in srgb, var(--red) 78%, #000); color: #fff; font-weight: 650; }
 
 .fin-two { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 18px; align-items: start; }
 .fin-list { list-style: none; margin: 8px 0 0; padding: 0; }

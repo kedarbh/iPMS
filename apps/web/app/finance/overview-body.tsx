@@ -5,6 +5,7 @@ import {
 } from './model';
 
 const KINDS: readonly RequestKind[] = ['ADVANCE', 'SETTLEMENT', 'REIMBURSEMENT'];
+const TOP_HOLDERS = 5; // matches the finance service
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /** The approver's home: what waits, what is overdue, who holds cash. Pure markup over `FinanceOverview`. */
@@ -92,6 +93,7 @@ export function OverviewBody({ overview, names, role, now }: { overview: Finance
               })}
             </ul>
           )}
+          {overview.cashHolders.length >= TOP_HOLDERS ? <p className="subtle">Showing the {TOP_HOLDERS} holding the most.</p> : null}
         </section>
       </div>
     </>
