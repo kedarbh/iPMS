@@ -27,6 +27,13 @@ describe('DecisionDialog', () => {
     expect(out).toContain('name="id" value="r-1"');
   });
 
+  it('is named by its title and the request reference', () => {
+    const out = html('approve');
+    expect(out).toContain('aria-labelledby="fin-dialog-title-r-1 fin-dialog-title-r-1-ref"');
+    expect(out).toContain('<h2 id="fin-dialog-title-r-1">');
+    expect(out).toMatch(/<p class="eyebrow" id="fin-dialog-title-r-1-ref">ADVANCE/);
+  });
+
   it('lets only the director trim the amount', () => {
     expect(html('approve')).toContain('name="amount"');
     expect(html('approve', { status: 'PENDING_PM' })).not.toContain('name="amount"');

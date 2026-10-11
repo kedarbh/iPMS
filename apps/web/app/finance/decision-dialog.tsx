@@ -50,10 +50,10 @@ export function DecisionDialog({ request, kind, onClose }: { request: DialogRequ
       onMouseDown={(event) => { pressedOverlay.current = event.target === event.currentTarget; }}
       onClick={() => { const closing = pressedOverlay.current; pressedOverlay.current = false; if (closing) onClose(); }}
     >
-      <div ref={dialogRef} tabIndex={-1} className="fin-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} onClick={(event) => event.stopPropagation()}>
+      <div ref={dialogRef} tabIndex={-1} className="fin-dialog" role="dialog" aria-modal="true" aria-labelledby={`${titleId} ${titleId}-ref`} onClick={(event) => event.stopPropagation()}>
         <header className="fin-dialog-head">
           <div>
-            <p className="eyebrow">{KIND_LABEL[request.kind].toUpperCase()} · {request.number}</p>
+            <p className="eyebrow" id={`${titleId}-ref`}>{KIND_LABEL[request.kind].toUpperCase()} · {request.number}</p>
             <h2 id={titleId}>{copy.title}</h2>
             <p className="subtle">{request.purpose} · {formatMoney(request.approvedAmount ?? request.requestedAmount)}</p>
           </div>

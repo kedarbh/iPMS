@@ -57,8 +57,8 @@
 .fin-card.dark { background: var(--ink); border-color: var(--ink); color: #fff; }
 .fin-card.dark .fin-card-head, .fin-card.dark small { color: rgba(255, 255, 255, .72); }
 .fin-kind { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 6px; font-style: normal; font-size: 12px; font-weight: 700; background: color-mix(in srgb, var(--blue) 14%, transparent); color: color-mix(in srgb, var(--blue) 70%, #000); }
-.fin-kind.SETTLEMENT { background: color-mix(in srgb, var(--green) 15%, transparent); color: color-mix(in srgb, var(--green) 70%, #000); }
-.fin-kind.REIMBURSEMENT { background: color-mix(in srgb, var(--amber) 18%, transparent); color: color-mix(in srgb, var(--amber) 70%, #000); }
+.fin-kind.SETTLEMENT { background: color-mix(in srgb, var(--green) 15%, transparent); color: color-mix(in srgb, var(--green) 60%, #000); }
+.fin-kind.REIMBURSEMENT { background: color-mix(in srgb, var(--amber) 18%, transparent); color: color-mix(in srgb, var(--amber) 55%, #000); }
 
 .fin-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; padding: 14px 18px; border-radius: 10px; background: color-mix(in srgb, var(--red) 10%, #fff); border: 1px solid color-mix(in srgb, var(--red) 28%, transparent); }
 .fin-banner strong { color: var(--red); }
