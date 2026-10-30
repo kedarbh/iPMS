@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { AuthController } from './auth.controller.js';
 import { GENERIC_FAILURE } from './auth.service.js';
 
@@ -17,6 +17,7 @@ function build() {
     login: vi.fn().mockResolvedValue({ accessToken: 'a', refreshToken: 'r', expiresIn: 900 }),
     refresh: vi.fn().mockResolvedValue({ accessToken: 'a', refreshToken: 'r', expiresIn: 900 }),
     revokeAll: vi.fn().mockResolvedValue(undefined),
+    changePassword: vi.fn().mockResolvedValue(undefined),
   };
   return { controller: new AuthController(auth as never), auth };
 }
@@ -75,5 +76,16 @@ describe('AuthController.refresh', () => {
 
     await expect(controller.refresh(body)).rejects.toBeInstanceOf(UnauthorizedException);
     expect(auth.refresh).not.toHaveBeenCalled();
+  });
+});
+
+describe('AuthController.changePassword', () => {
+  it('refuses malformed or invalid password payload with 400 BadRequestException', async () => {
+    const { controller, auth } = build();
+    const req = { user: { id: 'user-1', roles: [], scopes: [] } };
+
+    await expect(controller.changePassword({ oldPassword: 'old', newPassword: 'short' }, req as never))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(auth.changePassword).not.toHaveBeenCalled();
   });
 });

@@ -31,7 +31,8 @@ function requireEnv(name: string): string {
  * decides which bucket to count against, and falls back to the IP when the
  * token is absent or unverifiable.
  */
-function rateLimitKey(secret: string, req: { headers: Record<string, string | string[] | undefined>; ip: string }): string {
+function rateLimitKey(secret: string, req: { headers: Record<string, string | string[] | undefined>; ip: string; url?: string }): string {
+  if (req.url === '/api/v1/auth/login') return `auth_login:${req.ip}`;
   const token = extractToken(req);
   if (token) {
     try {
@@ -48,7 +49,7 @@ async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter(),
+    new FastifyAdapter({ trustProxy: true }),
     { bufferLogs: true },
   );
 
@@ -70,6 +71,13 @@ async function bootstrap(): Promise<void> {
   const defaultMax = Number(process.env['RATE_LIMIT_MAX'] ?? 300);
   await app.register(fastifyRateLimit, {
     max: (req) => {
+      // Sensitive auth endpoints carry strict limits to prevent credential stuffing.
+      if (req.url === '/api/v1/auth/login' && req.method === 'POST') {
+        return 10;
+      }
+      if (req.url === '/api/v1/auth/refresh' && req.method === 'POST') {
+        return 30;
+      }
       // Sensitive profile mutations carry a tighter bucket to prevent abuse.
       if (req.url?.startsWith('/api/v1/users/me') && req.method === 'PATCH') {
         return 20;

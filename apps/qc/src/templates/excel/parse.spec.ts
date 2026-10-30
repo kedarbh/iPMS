@@ -51,6 +51,30 @@ describe('round-trip', () => {
     const filled = await buildWorkbook({ metadata: { code: 'X', name: 'X', category: 'OTHER' }, version: null, document: EXAMPLE_DOCUMENT });
     expect((await parseWorkbook(filled)).document).toEqual(EXAMPLE_DOCUMENT);
   });
+
+  it('escapes and round-trips potential formula injection characters', async () => {
+    const injectionDoc: TemplateDocument = TemplateDocumentSchema.parse({
+      sections: [
+        {
+          number: '1',
+          title: '=SUM(1,2)',
+          items: [
+            { number: '1.1', requirementText: '+45 degrees azimuth', guidanceText: '@check antenna tilt' },
+          ],
+        },
+      ],
+    });
+    const file = await buildWorkbook({
+      metadata: { code: 'FORMULA-TEST', name: '-Formula Test', category: 'OTHER' },
+      version: null,
+      document: injectionDoc,
+    });
+    const parsed = await parseWorkbook(file);
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.document?.sections[0]?.title).toBe('=SUM(1,2)');
+    expect(parsed.document?.sections[0]?.items[0]?.requirementText).toBe('+45 degrees azimuth');
+    expect(parsed.document?.sections[0]?.items[0]?.guidanceText).toBe('@check antenna tilt');
+  });
 });
 
 describe('sections', () => {

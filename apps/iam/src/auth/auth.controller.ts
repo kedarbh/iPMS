@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post, Req, UnauthorizedException } from '@nestjs/common';
 import { ChangePasswordSchema, LoginSchema, RefreshSchema, type TokenPair } from '@ipms/contracts';
 import { Public, type AuthzUser } from '@ipms/authz';
 import { AuthService, GENERIC_FAILURE } from './auth.service.js';
@@ -57,7 +57,11 @@ export class AuthController {
   @Post('change-password')
   async changePassword(@Body() body: unknown, @Req() req: { user?: AuthzUser }): Promise<{ status: 'ok' }> {
     if (!req.user) throw new UnauthorizedException('Authentication required');
-    await this.auth.changePassword(req.user.id, ChangePasswordSchema.parse(body));
+    const parsed = ChangePasswordSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.issues[0]?.message ?? 'Invalid password payload');
+    }
+    await this.auth.changePassword(req.user.id, parsed.data);
     return { status: 'ok' };
   }
 

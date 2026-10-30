@@ -43,6 +43,11 @@ const VALIDATED_ROWS = 1000;
 const listOf = (values: string[]) => ({ type: 'list' as const, allowBlank: true, formulae: [`"${values.join(',')}"`] });
 const columnNumber = (key: ColumnKey): number => COLUMNS.findIndex((column) => column.key === key) + 1;
 
+/** Escapes leading characters that Excel parses as formula execution triggers. */
+export function sanitizeCell(value: string): string {
+  return /^[\=\+\-\@\t\r]/.test(value) ? `'${value}` : value;
+}
+
 export async function buildWorkbook(source: WorkbookSource): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
 
@@ -50,7 +55,7 @@ export async function buildWorkbook(source: WorkbookSource): Promise<Buffer> {
   meta.addRow(['Field', 'Value']);
   meta.getRow(1).font = { bold: true };
   meta.addRow(['Code', source.metadata?.code ?? '']);
-  meta.addRow(['Name', source.metadata?.name ?? '']);
+  meta.addRow(['Name', source.metadata?.name ? sanitizeCell(source.metadata.name) : '']);
   meta.addRow(['Category', source.metadata ? CATEGORY_LABELS[source.metadata.category] : '']);
   meta.getCell('B4').dataValidation = listOf(Object.values(CATEGORY_LABELS));
   if (source.version) {
@@ -67,13 +72,13 @@ export async function buildWorkbook(source: WorkbookSource): Promise<Buffer> {
   COLUMNS.forEach((column, index) => { sheet.getColumn(index + 1).width = column.width; });
   for (const section of source.document.sections) {
     // A draft may hold an empty section; it exports as a heading row so it survives the round-trip.
-    if (section.items.length === 0) sheet.addRow([section.number, section.title]);
+    if (section.items.length === 0) sheet.addRow([section.number, sanitizeCell(section.title)]);
     section.items.forEach((item, index) => {
       sheet.addRow([
-        index === 0 ? section.number : '', index === 0 ? section.title : '',
-        item.number, item.requirementText, SEVERITY_LABELS[item.severity], RESPONSE_TYPE_LABELS[item.responseType],
-        item.selectOptions.join('; '), item.minPhotos, item.maxPhotos, item.minVideos, item.maxVideos, yesNo(item.allowsNa), yesNo(item.isRequired),
-        item.guidanceText ?? '',
+        index === 0 ? section.number : '', index === 0 ? sanitizeCell(section.title) : '',
+        item.number, sanitizeCell(item.requirementText), SEVERITY_LABELS[item.severity], RESPONSE_TYPE_LABELS[item.responseType],
+        item.selectOptions.map(sanitizeCell).join('; '), item.minPhotos, item.maxPhotos, item.minVideos, item.maxVideos, yesNo(item.allowsNa), yesNo(item.isRequired),
+        item.guidanceText ? sanitizeCell(item.guidanceText) : '',
       ]);
     });
   }

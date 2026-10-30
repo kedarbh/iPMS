@@ -317,6 +317,13 @@ describe('UsersService.updateSelf', () => {
     expect(audit.payload.action).toBe('user.self_updated');
     expect(audit.payload.newState).toEqual({ employeeCode: 'EMP-999' });
   });
+
+  it('revokes tokens when email is changed', async () => {
+    const { service, tx, versions } = build(row({ id: ACTOR, email: 'old@ipms.local' }));
+    tx.user.findUnique = vi.fn().mockImplementation(({ where }) => Promise.resolve(where.id ? row({ id: ACTOR, email: 'old@ipms.local' }) : null));
+    await service.updateSelf(ACTOR, { email: 'new@ipms.local' });
+    expect(versions.publish).toHaveBeenCalledWith(ACTOR, 4, 2_592_000);
+  });
 });
 
 describe('UsersService.deactivate', () => {

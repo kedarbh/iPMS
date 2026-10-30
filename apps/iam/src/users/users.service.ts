@@ -318,6 +318,7 @@ export class UsersService {
       if (dto.email !== undefined && dto.email !== existing.email) {
         const clash = await tx.user.findUnique({ where: { email: dto.email } });
         if (clash) throw new BadRequestException(`Email ${dto.email} is already in use`);
+        await this.revokeTokens(tx, id);
       }
 
       await tx.user.update({ where: { id }, data: data as never });
@@ -335,7 +336,7 @@ export class UsersService {
         ...(dto.employeeCode !== undefined ? { employeeCode: dto.employeeCode } : {}),
       }, actorId);
 
-      // No token revocation: a profile edit changes no authority.
+      // Revokes tokens only when email changes; name/code edits change no authority.
       const updated = await tx.user.findUniqueOrThrow({ where: { id }, select: USER_SELECT });
       return toResponse(updated as UserRow);
     });
@@ -355,6 +356,7 @@ export class UsersService {
       if (dto.email !== undefined && dto.email !== existing.email) {
         const clash = await tx.user.findUnique({ where: { email: dto.email } });
         if (clash) throw new BadRequestException(`Email ${dto.email} is already in use`);
+        await this.revokeTokens(tx, id);
       }
 
       if (Object.keys(data).length > 0) {

@@ -25,7 +25,10 @@ const FIELD_COLUMNS: Record<string, ColumnKey> = {
   isRequired: 'required', guidanceText: 'guidance',
 };
 
-const cellText = (cell: ExcelJS.Cell): string => String(cell.text ?? '').trim();
+const cellText = (cell: ExcelJS.Cell): string => {
+  const text = String(cell.text ?? '').trim();
+  return text.startsWith("'") && /^'[\=\+\-\@\t\r]/.test(text) ? text.slice(1) : text;
+};
 
 function findSheet(workbook: ExcelJS.Workbook, name: string): ExcelJS.Worksheet | undefined {
   return workbook.worksheets.find((sheet) => sheet.name.trim().toLowerCase() === name.toLowerCase());
