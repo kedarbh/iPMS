@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { StatePage } from './shell';
+import { StatePage } from './components/state-page';
 
 export default function ErrorBoundary({
   error,

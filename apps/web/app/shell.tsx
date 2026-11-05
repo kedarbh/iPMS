@@ -351,15 +351,4 @@ export function TopActions({ children, role }: { children?: React.ReactNode; rol
 }
 
 /** The signed-out / error surface, which stands on its own without the shell. */
-export function StatePage({ eyebrow, title, children }: { eyebrow?: string; title: string; children: React.ReactNode }) {
-  return (
-    <main className="state-page">
-      <section className="state-card">
-        <a className="brand" href="/" aria-label="Axiom home"><BrandMark /></a>
-        {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
-        <h1>{title}</h1>
-        {children}
-      </section>
-    </main>
-  );
-}
+export { StatePage } from './components/state-page';

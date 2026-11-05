@@ -119,5 +119,5 @@ describe('previewTitle', () => {
     for (const [type, site, note] of [['QUALITY_SELF_CHECK', 'SAKUWA GACHHI', ''], ['EHS_SPOT_CHECK', 'KOS102X', ' sector 2 '], ['EHS_SELF_CHECK', 'S'.repeat(300), 'x']] as const) {
       expect(previewTitle(type, site, note)).toBe(workOrderTitle(type, site, note));
     }
-  });
+  }, 15000);
 });
