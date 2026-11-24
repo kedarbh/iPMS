@@ -3,6 +3,9 @@ import { UuidSchema } from '../common/ids.js';
 
 export const MIB = 1024 * 1024;
 
+/** Most files one work-order submission can carry; media's check and attach take at most this many ids per call. */
+export const MAX_MEDIA_PER_SUBMISSION = 1500;
+
 export type MediaKind = 'PHOTO' | 'VIDEO' | 'DOCUMENT';
 export type MediaCategory = 'EVIDENCE' | 'GALLERY' | 'TEMPLATE_DOCUMENT' | 'FINANCE_DOCUMENT';
 export type MediaStatus =
@@ -98,14 +101,14 @@ export const AttachRequestSchema = z.object({
   submissionId: UuidSchema,
   workOrderId: UuidSchema,
   siteId: UuidSchema,
-  mediaIds: z.array(UuidSchema).min(1).max(500),
+  mediaIds: z.array(UuidSchema).min(1).max(MAX_MEDIA_PER_SUBMISSION),
 }).strip();
 export type AttachRequestDto = z.infer<typeof AttachRequestSchema>;
 
 export const MediaCheckRequestSchema = z.object({
   workOrderId: UuidSchema,
   siteId: UuidSchema,
-  mediaIds: z.array(UuidSchema).min(1).max(500),
+  mediaIds: z.array(UuidSchema).min(1).max(MAX_MEDIA_PER_SUBMISSION),
 }).strip();
 export type MediaCheckRequestDto = z.infer<typeof MediaCheckRequestSchema>;
 export type MediaCheckReason = 'UPLOADING' | 'VERIFYING' | 'REJECTED' | 'NOT_FOUND' | 'WRONG_WORK_ORDER';
