@@ -193,9 +193,9 @@ describe('SubmissionService', () => {
       });
     });
 
-    it('refuses more than 500 files in one submission before asking media', async () => {
-      const ids = Array.from({ length: 501 }, (_, n) => `0192f7a0-0000-7000-8000-${String(n).padStart(12, '0')}`);
-      await expect(service.createSubmission(dtoWith(ids) as any, actorId, 'b')).rejects.toMatchObject({ status: 400, message: 'A submission can carry at most 500 files' });
+    it('refuses more than 1500 files in one submission before asking media', async () => {
+      const ids = Array.from({ length: 1501 }, (_, n) => `0192f7a0-0000-7000-8000-${String(n).padStart(12, '0')}`);
+      await expect(service.createSubmission(dtoWith(ids) as any, actorId, 'b')).rejects.toMatchObject({ status: 400, message: 'A submission can carry at most 1500 files' });
       expect(media.check).not.toHaveBeenCalled();
     });
 

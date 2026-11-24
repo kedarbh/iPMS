@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { createHash } from 'node:crypto';
 import { Prisma, type PrismaClient } from '@prisma-clients/qc';
 import { scopeWhere, type AuthzScope } from '@ipms/authz';
-import { uuidv7, type CreateSubmissionDto, type MediaKind, type ReviewSubmissionDto } from '@ipms/contracts';
+import { MAX_MEDIA_PER_SUBMISSION, uuidv7, type CreateSubmissionDto, type MediaKind, type ReviewSubmissionDto } from '@ipms/contracts';
 import { SUBJECTS, type QcSubmissionReviewed, type QcSubmissionSubmitted } from '@ipms/events';
 import { getCorrelationId } from '@ipms/observability';
 import { buildOutboxRecord } from '@ipms/persistence';
@@ -18,9 +18,6 @@ const REFUSAL = {
   NOT_PUBLISHED: () => new ConflictException('This checklist version has not been published'),
   SUPERSEDED: () => new ConflictException('This checklist has been updated. Refresh to get the latest version.'),
 } as const;
-
-/** media's check and attach take at most this many ids per call. */
-const MAX_FILES_PER_SUBMISSION = 500;
 
 type Submittable = { assigneeId: string; status: string };
 type DraftHolder = { deviceId: string; deviceLabel: string; updatedAt: Date };
@@ -128,7 +125,7 @@ export class SubmissionService {
     }
     const allIds = dto.responses.flatMap((response) => response.mediaIds);
     if (new Set(allIds).size !== allIds.length) throw new BadRequestException('The same file is used by more than one item');
-    if (allIds.length > MAX_FILES_PER_SUBMISSION) throw new BadRequestException(`A submission can carry at most ${MAX_FILES_PER_SUBMISSION} files`);
+    if (allIds.length > MAX_MEDIA_PER_SUBMISSION) throw new BadRequestException(`A submission can carry at most ${MAX_MEDIA_PER_SUBMISSION} files`);
 
     // Ask media before anything is attached: a submission that fails its counts must not lock files in as evidence.
     const kinds = new Map<string, MediaKind>();

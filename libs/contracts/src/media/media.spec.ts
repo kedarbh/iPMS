@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  AttachRequestSchema, MEDIA_LIMITS, MIB, RegisterUploadSchema, UploadStatusRequestSchema, ViewUrlQuerySchema, partCountFor,
+  AttachRequestSchema, MAX_MEDIA_PER_SUBMISSION, MEDIA_LIMITS, MIB, MediaCheckRequestSchema, RegisterUploadSchema, UploadStatusRequestSchema, ViewUrlQuerySchema, partCountFor,
 } from './media.js';
 
 const id = (n: number) => `0192f7a0-0000-7000-8000-${n.toString().padStart(12, '0')}`;
@@ -51,6 +51,17 @@ describe('batch sizes', () => {
   it('caps the status check at 200 ids', () => {
     expect(UploadStatusRequestSchema.safeParse({ ids: Array.from({ length: 200 }, (_, i) => id(i)) }).success).toBe(true);
     expect(UploadStatusRequestSchema.safeParse({ ids: Array.from({ length: 201 }, (_, i) => id(i)) }).success).toBe(false);
+  });
+
+  it('takes up to 1500 files per submission on check and attach', () => {
+    expect(MAX_MEDIA_PER_SUBMISSION).toBe(1500);
+    const ids = (n: number) => Array.from({ length: n }, (_, i) => id(i + 10));
+    const attach = (n: number) => ({ submissionId: id(1), workOrderId: id(2), siteId: id(3), mediaIds: ids(n) });
+    const check = (n: number) => ({ workOrderId: id(2), siteId: id(3), mediaIds: ids(n) });
+    expect(AttachRequestSchema.safeParse(attach(1500)).success).toBe(true);
+    expect(AttachRequestSchema.safeParse(attach(1501)).success).toBe(false);
+    expect(MediaCheckRequestSchema.safeParse(check(1500)).success).toBe(true);
+    expect(MediaCheckRequestSchema.safeParse(check(1501)).success).toBe(false);
   });
 
   it('refuses an empty attach', () => {
