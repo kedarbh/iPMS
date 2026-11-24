@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
@@ -21,6 +22,12 @@ class FakeMediaRepository extends MediaRepository {
   final List<String> completed = [];
   String statusAfterVerify = 'READY';
   int preconditionFailures = 0;
+  final List<int> statusBatchSizes = [];
+
+  /// When set, each `putBytes` waits on it, so a test can hold uploads open.
+  Completer<void>? holdPuts;
+  int activePuts = 0;
+  int maxActivePuts = 0;
 
   @override
   Future<UploadRegistration> register({
@@ -54,7 +61,14 @@ class FakeMediaRepository extends MediaRepository {
 
   @override
   Future<void> putBytes(UploadRegistration registration, Uint8List bytes) async {
-    bucket[registration.id] = bytes;
+    activePuts++;
+    if (activePuts > maxActivePuts) maxActivePuts = activePuts;
+    try {
+      if (holdPuts != null) await holdPuts!.future;
+      bucket[registration.id] = bytes;
+    } finally {
+      activePuts--;
+    }
   }
 
   @override
@@ -68,7 +82,9 @@ class FakeMediaRepository extends MediaRepository {
   }
 
   @override
-  Future<List<UploadStatusItem>> status(List<String> ids) async => [
+  Future<List<UploadStatusItem>> status(List<String> ids) async {
+    statusBatchSizes.add(ids.length);
+    return [
         for (final id in ids)
           UploadStatusItem(
             id: id,
@@ -76,6 +92,7 @@ class FakeMediaRepository extends MediaRepository {
             rejectReason: statusAfterVerify == 'REJECTED' ? 'HASH_MISMATCH' : null,
           ),
       ];
+  }
 }
 
 void main() {
@@ -89,8 +106,8 @@ void main() {
   const taskId = '0192f000-0000-7000-8000-00000000aaaa';
   const itemId = '0192f000-0000-7000-8000-00000000bbbb';
 
-  TaskEvidence evidence({String? checklistItemId = itemId, double accuracy = 4}) => TaskEvidence(
-        id: '0192f000-0000-7000-8000-00000000cccc',
+  TaskEvidence evidence({String? checklistItemId = itemId, double accuracy = 4, String id = '0192f000-0000-7000-8000-00000000cccc'}) => TaskEvidence(
+        id: id,
         taskId: taskId,
         filePath: photo.path,
         siteCode: 'KOS121',
@@ -178,5 +195,33 @@ void main() {
     await uploader.upload(taskId, current().id);
     expect(current().mediaId, isNot(firstId));
     expect(media.registrations.last['id'], current().mediaId);
+  });
+
+  String nthId(int n) => '0192f000-0000-7000-8000-${n.toRadixString(16).padLeft(12, '0')}';
+
+  test('runs at most maxConcurrentUploads uploads at once and finishes them all', () async {
+    final notifier = container.read(taskEvidenceProvider.notifier);
+    for (var n = 0; n < 12; n++) {
+      notifier.addEvidence(evidence(id: nthId(n)));
+    }
+    media.holdPuts = Completer<void>();
+    final done = container.read(evidenceUploaderProvider).uploadPending(taskId);
+    // Let every upload that can start reach putBytes.
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    expect(media.activePuts, EvidenceUploader.maxConcurrentUploads);
+    media.holdPuts!.complete();
+    await done;
+    expect(media.maxActivePuts, EvidenceUploader.maxConcurrentUploads);
+    expect(media.completed, hasLength(12));
+  });
+
+  test('asks for upload statuses in batches the server accepts', () async {
+    final notifier = container.read(taskEvidenceProvider.notifier);
+    for (var n = 0; n < 450; n++) {
+      notifier.addEvidence(evidence(id: nthId(n)).copyWith(uploadStatus: EvidenceUploadStatus.verifying));
+    }
+    await container.read(evidenceUploaderProvider).refreshStatuses(taskId);
+    expect(media.statusBatchSizes, [200, 200, 50]);
+    expect(container.read(taskEvidenceProvider)[taskId]!.every((e) => e.uploadStatus == EvidenceUploadStatus.ready), isTrue);
   });
 }
