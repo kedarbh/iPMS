@@ -1,4 +1,7 @@
 import './overview.css';
+import './director.css';
+import '../finance/finance.css';
+import { getFinanceOverview } from '../lib/finance-api';
 import { getCurrentUser, hasPermission } from '../lib/iam-api';
 import { listAuditEvents } from '../lib/audit-api';
 import { getProjectDashboard } from '../lib/project-api';
@@ -9,6 +12,7 @@ import {
   LOG_FILTERS, auditRow, filterLog, parseLogFilter, percent, statusBreakdown, whenLabel, type LogRow,
 } from './model';
 import { Sidebar, StatePage, TopActions, initialsOf } from '../shell';
+import { MoneyPanel } from './director-panels';
 
 function Kpi({ label, value, unit, note, tone = 'muted' }: {
   label: string; value: string; unit?: string; note: string; tone?: 'muted' | 'green' | 'amber' | 'red';
@@ -24,12 +28,13 @@ function Kpi({ label, value, unit, note, tone = 'muted' }: {
 
 export async function AdminOverview({ searchParams }: { searchParams: Promise<{ log?: string }> }) {
   const logFilter = parseLogFilter((await searchParams).log);
-  const [result, org, viewer, audit, users] = await Promise.all([
+  const [result, org, viewer, audit, users, finance] = await Promise.all([
     getProjectDashboard(),
     listWorkOrders({ limit: 1 }),
     getCurrentUser(),
     listAuditEvents(40),
     listUsers(),
+    getFinanceOverview(),
   ]);
 
   if (result.state === 'unauthenticated') return <StatePage eyebrow="SECURE WORKSPACE" title="Sign in to see your projects"><p>Your dashboard reads live portfolio data through the Axiom gateway.</p><a className="primary-button" href="/login">Sign in</a></StatePage>;
@@ -69,6 +74,9 @@ export async function AdminOverview({ searchParams }: { searchParams: Promise<{ 
       return auditRow(event, actor?.fullName ?? (event.actorId ? 'Unknown user' : 'System'), actor?.roles[0]?.name ?? (event.actorId ? '' : 'Automated'));
     })
     : [];
+  // Organisation-wide money, for whoever reads finance across projects. Without the permission there is no panel.
+  const showMoney = finance.state === 'ready' || finance.state === 'unavailable';
+  const names = new Map([...people.values()].map((u) => [u.id, u.fullName]));
   const log = filterLog([...real].sort((a, b) => b.at.getTime() - a.at.getTime()), logFilter).slice(0, 8);
 
   return (
@@ -196,6 +204,8 @@ export async function AdminOverview({ searchParams }: { searchParams: Promise<{ 
               )}
             </section>
           </div>
+
+          {showMoney ? <MoneyPanel finance={finance.state === 'ready' ? finance.data : null} names={names} /> : null}
 
           <section className="ov-card ov-panel" id="audit-log">
               <header className="ov-panel-head">

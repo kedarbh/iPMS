@@ -19,11 +19,13 @@ function Progress({ health }: { health: ProjectHealth }) {
 }
 
 /** Where requests stand, and what waits on the viewer with its flags. */
-export function WaitingPanel({ finance, names, now }: { finance: FinanceOverview | null; names: ReadonlyMap<string, string>; now: Date }) {
+export function WaitingPanel({ finance, names, now, title = 'Waiting on you', emptyText = 'Requests reach you once the project manager approves them.' }: {
+  finance: FinanceOverview | null; names: ReadonlyMap<string, string>; now: Date; title?: string; emptyText?: string;
+}) {
   if (!finance) {
     return (
       <section className="ov-card ov-panel" id="waiting">
-        <header className="ov-panel-head"><div><h2>Waiting on you</h2></div></header>
+        <header className="ov-panel-head"><div><h2>{title}</h2></div></header>
         <p className="ov-note">Finance did not answer, so what waits on you cannot be shown here. <a className="ov-link" href="/finance/queue">Open the finance queue</a></p>
       </section>
     );
@@ -31,7 +33,7 @@ export function WaitingPanel({ finance, names, now }: { finance: FinanceOverview
   return (
     <section className="ov-card ov-panel" id="waiting">
       <header className="ov-panel-head">
-        <div><h2>Waiting on you</h2><p>Longest waiting first</p></div>
+        <div><h2>{title}</h2><p>Longest waiting first</p></div>
         <a className="ov-link" href="/finance/queue">Open queue <span aria-hidden="true">→</span></a>
       </header>
       <ol className="dr-pipeline" aria-label="Where requests are">
@@ -53,7 +55,7 @@ export function WaitingPanel({ finance, names, now }: { finance: FinanceOverview
         </li>
       </ol>
       {finance.queue.length === 0 ? (
-        <div className="ov-empty"><strong>All caught up</strong><p>Requests reach you once the project manager approves them.</p></div>
+        <div className="ov-empty"><strong>All caught up</strong><p>{emptyText}</p></div>
       ) : (
         <ul className="mg-queue">
           {finance.queue.map((item) => {
@@ -86,7 +88,9 @@ export function WaitingPanel({ finance, names, now }: { finance: FinanceOverview
 }
 
 /** Every project in scope, worst first, with the reason behind each signal. */
-export function PortfolioPanel({ health, failure, workOrdersMissing }: { health: readonly ProjectHealth[]; failure: string | null; workOrdersMissing: boolean }) {
+export function PortfolioPanel({ health, failure, workOrdersMissing, showMoney = true }: {
+  health: readonly ProjectHealth[]; failure: string | null; workOrdersMissing: boolean; showMoney?: boolean;
+}) {
   return (
     <section className="ov-card ov-panel" id="portfolio">
       <header className="ov-panel-head">
@@ -100,7 +104,7 @@ export function PortfolioPanel({ health, failure, workOrdersMissing }: { health:
               {workOrdersMissing ? <p className="ov-note">Work orders unavailable: quality is not shown, and projects without milestone requirements count planned tasks only.</p> : null}
               <div className="ov-scroll">
                 <table className="ov-table dr-portfolio">
-                  <thead><tr><th>Project</th><th>Progress</th><th>Schedule</th><th>Quality</th><th>Money</th></tr></thead>
+                  <thead><tr><th>Project</th><th>Progress</th><th>Schedule</th><th>Quality</th>{showMoney ? <th>Money</th> : null}</tr></thead>
                   <tbody>
                     {health.map((h) => (
                       <tr key={h.id}>
@@ -108,7 +112,7 @@ export function PortfolioPanel({ health, failure, workOrdersMissing }: { health:
                         <td><b>{h.completion}%</b>{h.partial ? <span className="ov-sub">partial</span> : null}<Progress health={h} /></td>
                         <td><Badge signal={h.schedule} /><span className="ov-sub">{h.schedule.reason}</span></td>
                         <td><Badge signal={h.quality} />{h.quality ? <span className="ov-sub">{h.quality.reason}</span> : null}</td>
-                        <td><Badge signal={h.money} />{h.money ? <span className="ov-sub">{h.money.reason}</span> : null}</td>
+                        {showMoney ? <td><Badge signal={h.money} />{h.money ? <span className="ov-sub">{h.money.reason}</span> : null}</td> : null}
                       </tr>
                     ))}
                   </tbody>
