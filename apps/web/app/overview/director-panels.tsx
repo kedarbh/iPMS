@@ -1,6 +1,8 @@
 import type { FinanceOverview, PipelineStep } from '@ipms/contracts';
 import { KIND_LABEL, flagText, formatMoney, personName } from '../finance/model';
 import { decideTimeText, nprShort, waitingFor, type ProjectHealth, type Signal } from './director-model';
+import { Sparkline, StackedColumns } from './charts';
+import { monthShort, type Series } from '../reports/report-model';
 
 const STEP_NAME: Record<PipelineStep['status'], string> = { PENDING_PM: 'With PM', PENDING_DIRECTOR: 'With Director', PENDING_FINANCE: 'With Finance' };
 const monthName = (key: string): string => new Date(`${key}-01T00:00:00Z`).toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' });
@@ -19,11 +21,13 @@ function Progress({ health }: { health: ProjectHealth }) {
 }
 
 /** Where requests stand, and what waits on the viewer with its flags. */
-export function WaitingPanel({ finance, names, now }: { finance: FinanceOverview | null; names: ReadonlyMap<string, string>; now: Date }) {
+export function WaitingPanel({ finance, names, now, title = 'Waiting on you', emptyText = 'Requests reach you once the project manager approves them.' }: {
+  finance: FinanceOverview | null; names: ReadonlyMap<string, string>; now: Date; title?: string; emptyText?: string;
+}) {
   if (!finance) {
     return (
       <section className="ov-card ov-panel" id="waiting">
-        <header className="ov-panel-head"><div><h2>Waiting on you</h2></div></header>
+        <header className="ov-panel-head"><div><h2>{title}</h2></div></header>
         <p className="ov-note">Finance did not answer, so what waits on you cannot be shown here. <a className="ov-link" href="/finance/queue">Open the finance queue</a></p>
       </section>
     );
@@ -31,7 +35,7 @@ export function WaitingPanel({ finance, names, now }: { finance: FinanceOverview
   return (
     <section className="ov-card ov-panel" id="waiting">
       <header className="ov-panel-head">
-        <div><h2>Waiting on you</h2><p>Longest waiting first</p></div>
+        <div><h2>{title}</h2><p>Longest waiting first</p></div>
         <a className="ov-link" href="/finance/queue">Open queue <span aria-hidden="true">→</span></a>
       </header>
       <ol className="dr-pipeline" aria-label="Where requests are">
@@ -53,11 +57,14 @@ export function WaitingPanel({ finance, names, now }: { finance: FinanceOverview
         </li>
       </ol>
       {finance.queue.length === 0 ? (
-        <div className="ov-empty"><strong>All caught up</strong><p>Requests reach you once the project manager approves them.</p></div>
+        <div className="ov-empty"><strong>All caught up</strong><p>{emptyText}</p></div>
       ) : (
         <ul className="mg-queue">
           {finance.queue.map((item) => {
             const age = waitingFor(item.waitingSince, now);
+            // The age already shows beside the amount; a long wait tints it instead of repeating as a flag.
+            const longWait = item.flags.some((flag) => flag.code === 'WAITING_LONG');
+            const flags = item.flags.filter((flag) => flag.code !== 'WAITING_LONG');
             return (
               <li key={item.id}>
                 <span className="mg-icon" aria-hidden="true">₨</span>
@@ -65,15 +72,15 @@ export function WaitingPanel({ finance, names, now }: { finance: FinanceOverview
                   <p><a href={`/finance/requests/${item.id}`}>{item.purpose}</a><code>{item.number}</code></p>
                   <span>{KIND_LABEL[item.kind]} · {item.category} · {item.projectCode} {item.projectName}</span>
                   <span>{personName(item.requesterId, names)}</span>
-                  {item.flags.length > 0 ? (
+                  {flags.length > 0 ? (
                     <ul className="finance-flags" aria-label="Warnings">
-                      {item.flags.map((flag) => <li key={flag.code} className={flag.tone}>{flagText(flag)}</li>)}
+                      {flags.map((flag) => <li key={flag.code} className={flag.tone}>{flagText(flag)}</li>)}
                     </ul>
                   ) : null}
                 </div>
                 <div className="mg-end">
                   <b>{formatMoney(item.amount)}</b>
-                  <span className="ov-sub">{age === 'today' ? 'Arrived today' : `Waiting ${age}`}</span>
+                  <span className={`ov-sub${longWait ? ' amber' : ''}`}>{age === 'today' ? 'Arrived today' : `Waiting ${age}`}</span>
                   <a className="mg-review" href={`/finance/requests/${item.id}`}>Review</a>
                 </div>
               </li>
@@ -86,7 +93,11 @@ export function WaitingPanel({ finance, names, now }: { finance: FinanceOverview
 }
 
 /** Every project in scope, worst first, with the reason behind each signal. */
-export function PortfolioPanel({ health, failure, workOrdersMissing }: { health: readonly ProjectHealth[]; failure: string | null; workOrdersMissing: boolean }) {
+export function PortfolioPanel({ health, failure, workOrdersMissing, showMoney = true, pace }: {
+  health: readonly ProjectHealth[]; failure: string | null; workOrdersMissing: boolean; showMoney?: boolean;
+  /** Completions per rolling week by project id; adds a pace column when given. */
+  pace?: ReadonlyMap<string, readonly number[]> | undefined;
+}) {
   return (
     <section className="ov-card ov-panel" id="portfolio">
       <header className="ov-panel-head">
@@ -100,15 +111,16 @@ export function PortfolioPanel({ health, failure, workOrdersMissing }: { health:
               {workOrdersMissing ? <p className="ov-note">Work orders unavailable: quality is not shown, and projects without milestone requirements count planned tasks only.</p> : null}
               <div className="ov-scroll">
                 <table className="ov-table dr-portfolio">
-                  <thead><tr><th>Project</th><th>Progress</th><th>Schedule</th><th>Quality</th><th>Money</th></tr></thead>
+                  <thead><tr><th>Project</th><th>Progress</th>{pace ? <th>Pace, 8 weeks</th> : null}<th>Schedule</th><th>Quality</th>{showMoney ? <th>Money</th> : null}</tr></thead>
                   <tbody>
                     {health.map((h) => (
                       <tr key={h.id}>
                         <td><a className="ov-project" href={`/projects/${h.id}`}>{h.name}</a><span className="ov-sub">{h.code}</span></td>
                         <td><b>{h.completion}%</b>{h.partial ? <span className="ov-sub">partial</span> : null}<Progress health={h} /></td>
+                        {pace ? <td><Sparkline values={pace.get(h.id) ?? []} label={`${h.code} completed per week: ${(pace.get(h.id) ?? []).join(', ')}`} /></td> : null}
                         <td><Badge signal={h.schedule} /><span className="ov-sub">{h.schedule.reason}</span></td>
                         <td><Badge signal={h.quality} />{h.quality ? <span className="ov-sub">{h.quality.reason}</span> : null}</td>
-                        <td><Badge signal={h.money} />{h.money ? <span className="ov-sub">{h.money.reason}</span> : null}</td>
+                        {showMoney ? <td><Badge signal={h.money} />{h.money ? <span className="ov-sub">{h.money.reason}</span> : null}</td> : null}
                       </tr>
                     ))}
                   </tbody>
@@ -121,7 +133,11 @@ export function PortfolioPanel({ health, failure, workOrdersMissing }: { health:
 }
 
 /** Spend over six months, this month by category, and cash still with engineers. */
-export function MoneyPanel({ finance, names }: { finance: FinanceOverview | null; names: ReadonlyMap<string, string> }) {
+export function MoneyPanel({ finance, names, series }: {
+  finance: FinanceOverview | null; names: ReadonlyMap<string, string>;
+  /** Spend split by project; replaces the single-series bars when given. */
+  series?: readonly Series[] | undefined;
+}) {
   if (!finance) {
     return (
       <section className="ov-card ov-panel" id="money">
@@ -137,14 +153,21 @@ export function MoneyPanel({ finance, names }: { finance: FinanceOverview | null
   return (
     <section className="ov-card ov-panel" id="money">
       <header className="ov-panel-head">
-        <div><h2>Money</h2><p>Spent is reimbursed plus settled, by the month Finance closed it (the spend report filters by the day a request was raised). Cash still out on advances is shown apart.</p></div>
+        <div><h2>Money</h2><p>Reimbursed plus settled, by the month Finance closed it. Cash still out on advances is shown apart.</p></div>
         <a className="ov-link" href="/finance/reports">Spend report <span aria-hidden="true">→</span></a>
       </header>
-      <ol className="dr-bars" aria-label="Spend by month">
-        {totals.map((t) => (
-          <li key={t.month}><i style={{ height: `${Math.round((t.amount / peak) * 100)}%` }} /><b>{nprShort(t.amount)}</b><span>{monthName(t.month)}</span></li>
-        ))}
-      </ol>
+      {series ? (
+        <div className="dr-trend">
+          <StackedColumns series={series} periods={finance.months.map(monthShort)} label="Spend by month and project, NPR" unit="NPR" format={(v) => nprShort(v).replace('NPR ', '')} />
+          <p className="dr-footnote">The spend report counts a request by the day it was raised, so its monthly totals can differ from these.</p>
+        </div>
+      ) : (
+        <ol className="dr-bars" aria-label="Spend by month">
+          {totals.map((t) => (
+            <li key={t.month}><i style={{ height: `${Math.round((t.amount / peak) * 100)}%` }} /><b>{nprShort(t.amount)}</b><span>{monthName(t.month)}</span></li>
+          ))}
+        </ol>
+      )}
       <h3 className="dr-sub">This month by category</h3>
       {finance.categories.length === 0 ? <p className="ov-sub">Nothing spent this month yet.</p> : (
         <ul className="dr-list">{finance.categories.map((c) => <li key={c.categoryId}><span>{c.name}</span><b>{nprShort(c.amount)}</b></li>)}</ul>

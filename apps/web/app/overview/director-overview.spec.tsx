@@ -59,9 +59,21 @@ describe('DirectorOverview', () => {
     expect(out).toContain('1 request worth NPR 2.4 lakh waits on you');
     expect(out).toContain('With you');
     expect(out).toContain('ADV-2026-0012');
-    expect(out).toContain('Waiting 5 days');
+    // A long wait shows once, tinted beside the amount, not again as a flag.
+    expect(out).toMatch(/<span class="ov-sub amber">Waiting \d+ days<\/span>/);
+    expect(out.match(/Waiting \d+ days/g)).toHaveLength(1);
     expect(out).toContain('Sita Rai');
     expect(out).toContain('Koshi Rollout');
+  });
+
+  it('charts delivery pace and quality, and links the full report', async () => {
+    const out = await render();
+    expect(out).toContain('Delivery pace');
+    expect(out).toContain('aria-label="Completed per week"');
+    expect(out).toContain('Pace, 8 weeks');
+    expect(out).toContain('<svg class="ch-spark"');
+    expect(out).toContain('id="quality"');
+    expect(out).toContain('href="/reports"');
   });
 
   it('still shows the queue when projects are down', async () => {

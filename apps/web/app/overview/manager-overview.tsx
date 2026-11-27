@@ -1,8 +1,13 @@
 import './overview.css';
+import './director.css';
+import '../finance/finance.css';
+import { formatMoney } from '../finance/model';
+import { getFinanceOverview } from '../lib/finance-api';
 import { getCurrentUser, hasPermission } from '../lib/iam-api';
 import { listAuditEvents } from '../lib/audit-api';
 import { getProjectDashboard } from '../lib/project-api';
-import { getMyProfile, listUsers } from '../lib/user-api';
+import { getMyProfile, listUserDirectory, listUsers } from '../lib/user-api';
+import { WaitingPanel } from './director-panels';
 import { listWorkOrders } from '../lib/work-order-api';
 import { WORK_ORDERS_PATH, WORK_ORDER_TYPE_LABEL, dueText } from '../quality/work-orders/labels';
 import { auditRow, dayLabel, firstName, greeting, percent, statusBreakdown, whenLabel, workOrderRef } from './model';
@@ -23,9 +28,9 @@ function Kpi({ label, value, unit, note, tone = 'muted' }: {
 const CheckIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3" /><path d="m8 12 3 3 5-6" /></svg>
 );
-/** The project manager's home: what is waiting on their decision, then how their projects are doing. */
+/** The project manager's home: work orders and finance requests waiting on their decision, then how their projects are doing. */
 export async function ManagerOverview() {
-  const [dashboard, review, rework, viewer, profile, audit, users] = await Promise.all([
+  const [dashboard, review, rework, viewer, profile, audit, users, finance, directory] = await Promise.all([
     getProjectDashboard(),
     listWorkOrders({ status: 'REVIEWING', limit: 20 }),
     listWorkOrders({ limit: 1 }),
@@ -33,6 +38,8 @@ export async function ManagerOverview() {
     getMyProfile(),
     listAuditEvents(10),
     listUsers(),
+    getFinanceOverview(),
+    listUserDirectory(),
   ]);
 
   if (dashboard.state === 'unauthenticated') return <StatePage eyebrow="SECURE WORKSPACE" title="Sign in to see your projects"><p>Your decision queue reads live data through the iPMS gateway.</p><a className="primary-button" href="/login">Sign in</a></StatePage>;
@@ -51,6 +58,12 @@ export async function ManagerOverview() {
   const reviewTotal = review.state === 'ready' ? review.data.counts.REVIEWING : 0;
   const lateCount = waiting.filter((order) => dueText(order, now).tone === 'red').length;
   const reworkCount = rework.state === 'ready' ? rework.data.counts.RECTIFYING : 0;
+
+  // A manager without finance approval simply has no finance panel; only a service that failed is reported.
+  const showFinance = finance.state !== 'forbidden' && finance.state !== 'unauthenticated';
+  const money = finance.state === 'ready' ? finance.data : null;
+  const financeWaiting = money?.waiting.total ?? 0;
+  const names = new Map(directory.state === 'ready' ? directory.data.map((p) => [p.id, p.fullName]) : []);
 
   const people = new Map(users.state === 'ready' ? users.data.items.map((u) => [u.id, u]) : []);
   const activity = audit.state === 'ready'
@@ -81,7 +94,7 @@ export async function ManagerOverview() {
               </p>
             </div>
             <div className="ov-head-actions">
-              <a className="secondary-button" href="/finance">Finance requests</a>
+              <a className="secondary-button" href="/finance">{financeWaiting > 0 ? `Finance requests (${financeWaiting})` : 'Finance requests'}</a>
               {mayCreate ? <a className="primary-button" href={`${WORK_ORDERS_PATH}/new`}>+ New work order</a> : null}
             </div>
           </section>
@@ -89,6 +102,9 @@ export async function ManagerOverview() {
           <section className="ov-kpis" aria-label="What is waiting on you">
             <Kpi label="Awaiting QC review" value={review.state === 'ready' ? String(reviewTotal) : '—'} unit="work orders" note={lateCount > 0 ? `${lateCount} overdue` : 'None overdue'} tone={lateCount > 0 ? 'red' : 'green'} />
             <Kpi label="Returned for rework" value={rework.state === 'ready' ? String(reworkCount) : '—'} unit="with field team" note={reworkCount > 0 ? 'Waiting on resubmission' : 'Nothing returned'} tone={reworkCount > 0 ? 'amber' : 'green'} />
+            {showFinance ? (
+              <Kpi label="Finance approvals" value={money ? String(financeWaiting) : '—'} unit="requests" note={money ? (financeWaiting > 0 ? formatMoney(money.waiting.amount) : 'Nothing waiting') : 'Finance unavailable'} tone={money && financeWaiting > 0 ? 'amber' : money ? 'green' : 'muted'} />
+            ) : null}
           </section>
 
           <section className="ov-card ov-panel" id="decisions">
@@ -122,6 +138,8 @@ export async function ManagerOverview() {
               ) : null}
             </ul>
           </section>
+
+          {showFinance ? <WaitingPanel finance={money} names={names} now={now} title="Finance waiting on you" emptyText="Advances and reimbursements your engineers raise reach you first." /> : null}
 
           <section className="ov-card ov-panel" id="projects">
             <header className="ov-panel-head">
