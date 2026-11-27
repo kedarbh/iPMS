@@ -13,10 +13,11 @@ import type { Series } from '../reports/report-model';
 const share = (value: number, peak: number): number => (peak > 0 ? Math.max(0, Math.min(100, (value / peak) * 100)) : 0);
 
 /** The key to a multi-series chart. Swatches carry identity; the words stay in ink. */
-export function Legend({ series }: { series: readonly Pick<Series, 'key' | 'label' | 'color'>[] }) {
+export function Legend({ series, unit }: { series: readonly Pick<Series, 'key' | 'label' | 'color'>[]; unit?: string | undefined }) {
   return (
     <ul className="ch-legend" aria-label="Key">
       {series.map((s) => <li key={s.key}><i style={{ background: s.color }} aria-hidden="true" />{s.label}</li>)}
+      {unit ? <li className="ch-unit">{unit}</li> : null}
     </ul>
   );
 }
@@ -25,14 +26,16 @@ export function Legend({ series }: { series: readonly Pick<Series, 'key' | 'labe
  * Columns of stacked series, one column per period, oldest first. The last
  * period is the one in progress; its label is set in ink.
  */
-export function StackedColumns({ series, periods, label, format }: {
+export function StackedColumns({ series, periods, label, format, unit }: {
   series: readonly Series[]; periods: readonly string[]; label: string; format: (value: number) => string;
+  /** The unit the column figures are in, shown at the end of the key. */
+  unit?: string | undefined;
 }) {
   const totals = periods.map((_, i) => series.reduce((t, s) => t + (s.values[i] ?? 0), 0));
   const peak = Math.max(0, ...totals);
   return (
     <figure className="ch-figure">
-      {series.length > 1 ? <Legend series={series} /> : null}
+      {series.length > 1 ? <Legend series={series} unit={unit} /> : unit ? <p className="ch-legend ch-unit">{unit}</p> : null}
       <ol className="ch-cols" aria-label={label} style={{ ['--n' as string]: periods.length }}>
         {periods.map((period, i) => (
           <li key={period} className={i === periods.length - 1 ? 'now' : undefined}>

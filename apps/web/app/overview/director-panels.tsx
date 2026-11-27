@@ -153,12 +153,13 @@ export function MoneyPanel({ finance, names, series }: {
   return (
     <section className="ov-card ov-panel" id="money">
       <header className="ov-panel-head">
-        <div><h2>Money</h2><p>Spent is reimbursed plus settled, by the month Finance closed it (the spend report filters by the day a request was raised). Cash still out on advances is shown apart.</p></div>
+        <div><h2>Money</h2><p>Reimbursed plus settled, by the month Finance closed it. Cash still out on advances is shown apart.</p></div>
         <a className="ov-link" href="/finance/reports">Spend report <span aria-hidden="true">→</span></a>
       </header>
       {series ? (
         <div className="dr-trend">
-          <StackedColumns series={series} periods={finance.months.map(monthShort)} label="Spend by month and project, NPR" format={(v) => nprShort(v).replace('NPR ', '')} />
+          <StackedColumns series={series} periods={finance.months.map(monthShort)} label="Spend by month and project, NPR" unit="NPR" format={(v) => nprShort(v).replace('NPR ', '')} />
+          <p className="dr-footnote">The spend report counts a request by the day it was raised, so its monthly totals can differ from these.</p>
         </div>
       ) : (
         <ol className="dr-bars" aria-label="Spend by month">

@@ -80,7 +80,7 @@ export async function DirectorOverview({ decided }: { decided?: string | undefin
           ) : null}
           {mayReadFinance ? (
             <div className="ov-pair">
-              <MoneyPanel finance={money} names={names} series={report && money ? spendSeries(report.rows, money.months) : undefined} />
+              <MoneyPanel finance={money} names={names} series={money ? spendSeries(money.projects, money.months) : undefined} />
               <DecisionsPanel finance={money} />
             </div>
           ) : null}

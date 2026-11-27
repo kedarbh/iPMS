@@ -82,7 +82,7 @@ export default async function PortfolioReportPage() {
               </div>
               {mayReadFinance ? (
                 <>
-                  <MoneyPanel finance={money} names={names} series={money ? spendSeries(report.rows, money.months) : undefined} />
+                  <MoneyPanel finance={money} names={names} series={money ? spendSeries(money.projects, money.months) : undefined} />
                   {money ? <SpendToDatePanel report={report} /> : null}
                 </>
               ) : null}

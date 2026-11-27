@@ -58,28 +58,30 @@ describe('portfolioReport', () => {
 });
 
 describe('spendSeries', () => {
-  const rowsFor = (n: number) => portfolioReport(
-    Array.from({ length: n }, (_, i) => project(`p${i}`, `P${i}`)),
-    null,
-    finance(Array.from({ length: n }, (_, i) => money(`p${i}`, `P${i}`, [0, 0, 0, 0, 0, (i + 1) * 100]))),
-    NOW,
-  ).rows;
+  const spenders = (n: number) => Array.from({ length: n }, (_, i) => money(`p${i}`, `P${i}`, [0, 0, 0, 0, 0, (i + 1) * 100]));
 
   it('gives each of up to four spenders its own colour in code order', () => {
-    const series = spendSeries(rowsFor(3), MONTHS);
+    const series = spendSeries(spenders(3), MONTHS);
     expect(series.map((s) => s.label)).toEqual(['P0', 'P1', 'P2']);
     expect(series.map((s) => s.color)).toEqual(SERIES_COLORS.slice(0, 3));
   });
 
   it('folds all but the three largest into Other', () => {
-    const series = spendSeries(rowsFor(6), MONTHS);
+    const series = spendSeries(spenders(6), MONTHS);
     expect(series.map((s) => s.label)).toEqual(['P3', 'P4', 'P5', 'Other (3)']);
     expect(series.at(-1)).toMatchObject({ color: OTHER_COLOR, total: 600 });
   });
 
+  it('counts projects outside the active portfolio, so each month adds up', () => {
+    // Only AAA is active; ZZZ finished but still spent this window.
+    const all = [money('a', 'AAA', [100, 0, 0, 0, 0, 50]), money('z', 'ZZZ', [400, 0, 0, 0, 0, 0])];
+    const series = spendSeries(all, MONTHS);
+    expect(series.map((s) => s.label)).toEqual(['AAA', 'ZZZ']);
+    expect(series.reduce((t, s) => t + s.values[0]!, 0)).toBe(500);
+  });
+
   it('leaves out projects that spent nothing', () => {
-    const rows = portfolioReport([project('a', 'AAA')], null, finance([money('a', 'AAA', [0, 0, 0, 0, 0, 0])]), NOW).rows;
-    expect(spendSeries(rows, MONTHS)).toEqual([]);
+    expect(spendSeries([money('a', 'AAA', [0, 0, 0, 0, 0, 0])], MONTHS)).toEqual([]);
   });
 });
 

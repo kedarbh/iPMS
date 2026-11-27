@@ -1,4 +1,4 @@
-import type { FinanceOverview, PortfolioProject, WorkOrderProjectSummary } from '@ipms/contracts';
+import type { FinanceOverview, PortfolioProject, ProjectMoney, WorkOrderProjectSummary } from '@ipms/contracts';
 import { buildPortfolio, kathmanduToday, type ProjectHealth } from '../overview/director-model';
 import { percent } from '../overview/model';
 
@@ -135,14 +135,19 @@ export function portfolioReport(
 export interface Series { key: string; label: string; color: string; values: number[]; total: number }
 
 /**
- * Spend per month split by project. The largest spenders over the window keep
- * their own series (at most four) and the rest fold into "Other". Colours are
- * dealt in project-code order, so a project keeps its colour however the
- * ranking moves between months.
+ * Spend per month split by project. It reads every project finance reports,
+ * not only the active ones in the portfolio, so a completed or cancelled
+ * project's spend still counts and each column adds up to the month's total.
+ * The largest spenders over the window keep their own series (at most four)
+ * and the rest fold into "Other". Colours are dealt in project-code order, so
+ * a project keeps its colour however the ranking moves between months.
  */
-export function spendSeries(rows: readonly ReportRow[], months: readonly string[]): Series[] {
-  const spenders = rows
-    .flatMap((r) => (r.money ? [{ key: r.id, label: r.code, name: r.name, values: r.money.byMonth, total: sum(r.money.byMonth) }] : []))
+export function spendSeries(projects: readonly ProjectMoney[], months: readonly string[]): Series[] {
+  const spenders = projects
+    .map((p) => {
+      const values = months.map((_, i) => Number(p.spentByMonth[i] ?? 0));
+      return { key: p.projectId, label: p.code, values, total: sum(values) };
+    })
     .filter((s) => s.total > 0);
   const ranked = [...spenders].sort((a, b) => b.total - a.total);
   const own = spenders.length <= MAX_SERIES ? spenders : ranked.slice(0, MAX_SERIES - 1);
