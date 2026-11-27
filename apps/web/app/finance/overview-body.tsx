@@ -1,11 +1,13 @@
 import type { FinanceOverview, RequestKind } from '../lib/finance-api';
 import {
-  KIND_LABEL, KIND_PLURAL, addMoney, dayCount, formatMoney, initials, overdueSummary, personName, waitLabel, waitTone, waitingDays, waitingTitle,
+  KIND_LABEL, KIND_PLURAL, addMoney, dayCount, formatAmount, formatMoney, initials, overdueSummary, personName, waitLabel, waitTone, waitingDays, waitingTitle,
   type ApproverRole,
 } from './model';
 
 const KINDS: readonly RequestKind[] = ['ADVANCE', 'SETTLEMENT', 'REIMBURSEMENT'];
 const TOP_HOLDERS = 5; // matches the finance service
+/** A tally figure: the unit set small before the number so long amounts still fit a phone cell. */
+const Npr = ({ amount }: { amount: string }) => <><span className="fin-unit">NPR</span>{formatAmount(amount)}</>;
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /** The approver's home: what waits, what is overdue, who holds cash. Pure markup over `FinanceOverview`. */
@@ -20,13 +22,13 @@ export function OverviewBody({ overview, names, role, now }: { overview: Finance
       <div className="fin-cards">
         <div className="fin-card dark">
           <span className="fin-card-head">{waitingTitle(role)}</span>
-          <strong>{formatMoney(waiting.amount)}</strong>
+          <strong><Npr amount={waiting.amount} /></strong>
           <small>{plural(waiting.total, 'request')}{oldest}</small>
         </div>
         {KINDS.map((kind) => (
           <div className="fin-card" key={kind}>
             <span className="fin-card-head"><i className={`fin-kind ${kind}`} aria-hidden="true">{KIND_LABEL[kind][0]}</i>{KIND_PLURAL[kind]}</span>
-            <strong>{formatMoney(waiting.byKind[kind].amount)}</strong>
+            <strong><Npr amount={waiting.byKind[kind].amount} /></strong>
             <small>{waiting.byKind[kind].count} waiting</small>
           </div>
         ))}

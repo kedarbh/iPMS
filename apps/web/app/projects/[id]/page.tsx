@@ -7,8 +7,9 @@ import { ProjectFrame, projectProblem } from './frame';
 import { STATUS_LABEL, formatDay, landingFor, myTasks, summarizeProject, workOf, type Work } from './summary';
 import { projectWorkOrdersPath, taskKind, workOrderPath } from '../../quality/work-orders/labels';
 
-function Metric({ icon, label, value, detail, tone }: { icon: string; label: string; value: number; detail: string; tone: string }) {
-  return <article className="metric-card"><div className="metric-heading"><span className={`metric-icon ${tone}`}>{icon}</span><span>{label}</span></div><strong>{value}</strong><p>{detail}</p></article>;
+/** One cell of the tally strip. The note takes a status colour only when it is a judgement. */
+function Metric({ label, value, detail, tone }: { label: string; value: number; detail: string; tone?: 'amber' | 'red' | undefined }) {
+  return <article className="tally-cell"><p className="tally-label">{label}</p><p className="tally-value">{value}</p><p className={tone ? `tally-note ${tone}` : 'tally-note'}>{detail}</p></article>;
 }
 
 /**
@@ -67,11 +68,11 @@ function ProjectOverview({ project, tasks, user }: { project: ProjectDetail; tas
     >
       <TasksUnavailable tasks={tasks} />
 
-      <section className="metrics" aria-label="Project summary">
-        <Metric icon="⌖" label="Sites" value={summary.siteCount} detail={`${summary.sitesInDelivery} in delivery`} tone="purple" />
-        <Metric icon="◫" label="Open tasks" value={summary.openTaskCount} detail={`${summary.completedTaskCount} of ${summary.taskCount} completed`} tone="blue" />
-        <Metric icon="✓" label="Pending reviews" value={summary.reviewingCount} detail="Awaiting QC" tone="amber" />
-        <Metric icon="↺" label="Needs rework" value={summary.rectifyingCount} detail="Require field follow-up" tone="green" />
+      <section className="tally" aria-label="Project summary">
+        <Metric label="Sites" value={summary.siteCount} detail={`${summary.sitesInDelivery} in delivery`} />
+        <Metric label="Open tasks" value={summary.openTaskCount} detail={`${summary.completedTaskCount} of ${summary.taskCount} completed`} />
+        <Metric label="Pending reviews" value={summary.reviewingCount} detail={summary.reviewingCount > 0 ? 'Awaiting QC' : 'Nothing to review'} tone={summary.reviewingCount > 0 ? 'amber' : undefined} />
+        <Metric label="Needs rework" value={summary.rectifyingCount} detail={summary.rectifyingCount > 0 ? 'Returned to the field' : 'Nothing returned'} tone={summary.rectifyingCount > 0 ? 'red' : undefined} />
       </section>
 
       <section className="main-grid">
@@ -154,11 +155,11 @@ function EngineerTasks({ project, tasks, user }: { project: ProjectDetail; tasks
     <ProjectFrame project={project} active="overview" tabs={false}>
       <TasksUnavailable tasks={tasks} />
 
-      <section className="metrics" aria-label="My task summary">
-        <Metric icon="◫" label="Assigned to me" value={mine.length} detail="In this project" tone="blue" />
-        <Metric icon="▶" label="To do" value={count('NOT_STARTED', 'ONGOING')} detail={`${count('ONGOING')} in progress`} tone="purple" />
-        <Metric icon="✓" label="In review" value={count('REVIEWING')} detail="Waiting on QC" tone="amber" />
-        <Metric icon="↺" label="Needs rework" value={count('RECTIFYING')} detail="Returned from QC" tone="green" />
+      <section className="tally" aria-label="My task summary">
+        <Metric label="Assigned to me" value={mine.length} detail="In this project" />
+        <Metric label="To do" value={count('NOT_STARTED', 'ONGOING')} detail={`${count('ONGOING')} in progress`} />
+        <Metric label="In review" value={count('REVIEWING')} detail="Waiting on QC" />
+        <Metric label="Needs rework" value={count('RECTIFYING')} detail={count('RECTIFYING') > 0 ? 'Returned from QC' : 'Nothing returned'} tone={count('RECTIFYING') > 0 ? 'red' : undefined} />
       </section>
 
       <section className="panel" id="my-tasks">
