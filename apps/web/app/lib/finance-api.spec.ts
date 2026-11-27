@@ -43,3 +43,34 @@ describe('finance-api: every call maps to a finance route', () => {
     });
   }
 });
+
+describe('completeOverview', () => {
+  const ITEM = { id: 'r-1', number: 'ADV-1', kind: 'ADVANCE', status: 'PENDING_DIRECTOR', projectId: 'p', projectCode: 'P', projectName: 'P', requesterId: 'u', purpose: 'x', category: 'c', amount: '1500.50', waitingSince: '2026-10-07T08:00:00Z' } as const;
+
+  it('rebuilds what waits from the queue when an older service sends no totals', () => {
+    const out = api.completeOverview({ queue: [ITEM, { ...ITEM, id: 'r-2', kind: 'REIMBURSEMENT', amount: '99.50', waitingSince: '2026-10-01T00:00:00Z' }] } as never);
+    expect(out.waiting).toEqual({
+      total: 2, amount: '1600.00', oldestSince: '2026-10-01T00:00:00Z',
+      byKind: { ADVANCE: { count: 1, amount: '1500.50' }, SETTLEMENT: { count: 0, amount: '0.00' }, REIMBURSEMENT: { count: 1, amount: '99.50' } },
+    });
+    expect(out.queue[0]?.flags).toEqual([]);
+  });
+
+  it('fills every section of an empty response', () => {
+    const out = api.completeOverview({});
+    expect(out).toMatchObject({ months: [], queue: [], projects: [], categories: [], cashHolders: [], pipeline: { steps: [] } });
+    expect(out.waiting).toMatchObject({ total: 0, amount: '0.00', oldestSince: null });
+    expect(out.decisions).toEqual({ approved: { count: 0, amount: '0.00' }, trimmed: { count: 0, saved: '0.00' }, returned: 0, rejected: 0, medianHoursToDecide: null });
+  });
+
+  it('keeps a complete response as it is', () => {
+    const full = api.completeOverview({ queue: [{ ...ITEM, flags: [] }] } as never);
+    expect(api.completeOverview(full)).toEqual(full);
+  });
+
+  it('returns the completed overview from getFinanceOverview', async () => {
+    authFetch.mockResolvedValueOnce({ state: 'ready', data: { months: ['2026-11'] } });
+    const result = await api.getFinanceOverview();
+    expect(result.state === 'ready' && result.data.waiting.total).toBe(0);
+  });
+});
