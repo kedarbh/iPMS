@@ -1,17 +1,38 @@
 import './overview.css';
+import { KIND_LABEL, STATUS_LABEL, formatMoney } from '../finance/model';
+import { getRequest, listRequests } from '../lib/finance-api';
 import { getMyProfile } from '../lib/user-api';
 import { listWorkOrders } from '../lib/work-order-api';
 import { STATUS_TEXT, WORK_ORDERS_PATH, WORK_ORDER_TYPE_LABEL, dueText } from '../quality/work-orders/labels';
+import { engineerMoney, kathmanduToday, type AdvanceDetail, type EngineerMoney } from './engineer-money';
 import { dayLabel, firstName, greeting, statusBreakdown, workOrderRef } from './model';
 import { CheckIcon, Kpi, SignInPage } from './parts';
 import { Sidebar, TopActions } from '../shell';
 
-/** A field engineer's home: their own work orders, rework first. The API already narrows every read to what is assigned to them. */
+/** Paid advances whose balance and settle-by day the dashboard reads, most recent first. */
+const ADVANCE_DETAILS = 6;
+
+/** The engineer's own requests and the balance of each open advance; null when finance did not answer. */
+async function loadMoney(now: Date): Promise<EngineerMoney | null> {
+  const mine = await listRequests({ view: 'mine', limit: 100 });
+  if (mine.state !== 'ready') return null;
+  const paid = mine.data.items.filter((r) => r.kind === 'ADVANCE' && r.status === 'PAID').slice(0, ADVANCE_DETAILS);
+  const details = new Map<string, AdvanceDetail>();
+  await Promise.all(paid.map(async (r) => {
+    const detail = await getRequest(r.id);
+    if (detail.state === 'ready') details.set(r.id, { balance: detail.data.balance, settlementDueOn: detail.data.settlementDueOn });
+  }));
+  return engineerMoney(mine.data.items, details, kathmanduToday(now));
+}
+
+/** A field engineer's home: their own work orders, rework first, then the money they hold. The API already narrows every read to what is assigned to them. */
 export async function EngineerOverview({ canViewFinance }: { canViewFinance: boolean }) {
-  const [open, profile] = await Promise.all([listWorkOrders({ view: 'open', limit: 12 }), getMyProfile()]);
+  const now = new Date();
+  const [open, profile, money] = await Promise.all([
+    listWorkOrders({ view: 'open', limit: 12 }), getMyProfile(), canViewFinance ? loadMoney(now) : Promise.resolve(null),
+  ]);
   if (open.state === 'unauthenticated') return <SignInPage what="your work" />;
 
-  const now = new Date();
   const name = firstName(profile?.state === 'ready' ? profile.data.fullName : undefined);
   const counts = open.state === 'ready' ? open.data.counts : null;
   const breakdown = counts ? statusBreakdown(counts) : null;
@@ -47,6 +68,7 @@ export async function EngineerOverview({ canViewFinance }: { canViewFinance: boo
             {canViewFinance ? (
               <div className="ov-head-actions">
                 <a className="secondary-button" href="/finance">Finance requests</a>
+                <a className="primary-button" href="/finance/new">+ New request</a>
               </div>
             ) : null}
           </section>
@@ -87,6 +109,8 @@ export async function EngineerOverview({ canViewFinance }: { canViewFinance: boo
             </ul>
           </section>
 
+          {canViewFinance ? <MoneyPanel money={money} /> : null}
+
           <section className="ov-card ov-panel" id="work-order-status">
             <header className="ov-panel-head"><div><h2>Your progress</h2><p>{breakdown ? `${breakdown.total} work orders assigned to you` : 'Unavailable'}</p></div></header>
             {breakdown && breakdown.total > 0 ? (
@@ -103,5 +127,64 @@ export async function EngineerOverview({ canViewFinance }: { canViewFinance: boo
         </div>
       </section>
     </main>
+  );
+}
+
+/** Cash the engineer holds, when each advance must be settled, and requests still moving. */
+function MoneyPanel({ money }: { money: EngineerMoney | null }) {
+  if (!money) {
+    return (
+      <section className="ov-card ov-panel" id="money">
+        <header className="ov-panel-head"><div><h2>Your money</h2></div></header>
+        <p className="ov-note">Finance did not answer, so your advances cannot be shown. <a className="ov-link" href="/finance">Open finance</a></p>
+      </section>
+    );
+  }
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  return (
+    <section className="ov-card ov-panel" id="money">
+      <header className="ov-panel-head">
+        <div><h2>Your money</h2><p>Advances you hold, overdue first, and requests still in approval</p></div>
+        <a className="ov-link" href="/finance">All my requests <span aria-hidden="true">→</span></a>
+      </header>
+      <section className="ov-kpis ov-kpis-4" aria-label="Your money">
+        <Kpi label="Cash with you" value={formatMoney(money.cashWithYou)} unit="" note={plural(money.advances.length, 'open advance')} />
+        <Kpi label="Overdue to settle" value={String(money.overdue)} unit={money.overdue === 1 ? 'advance' : 'advances'} note={money.overdue > 0 ? 'Settle or return the cash' : 'Nothing overdue'} tone={money.overdue > 0 ? 'red' : 'green'} />
+        <Kpi label="In approval" value={String(money.inApproval.count)} unit="requests" note={money.inApproval.count > 0 ? formatMoney(money.inApproval.amount) : 'Nothing waiting'} />
+        <Kpi label="Sent back to you" value={String(money.returned.length)} unit="requests" note={money.returned.length > 0 ? 'Fix and resubmit' : money.drafts > 0 ? `${plural(money.drafts, 'draft')} not sent` : 'Nothing returned'} tone={money.returned.length > 0 ? 'amber' : 'green'} />
+      </section>
+      <ul className="mg-queue">
+        {money.returned.map((r) => (
+          <li key={r.id}>
+            <span className="mg-icon" aria-hidden="true">₨</span>
+            <div className="mg-main">
+              <p><a href={`/finance/requests/${r.id}`}>{r.purpose}</a><code>{r.number}</code><span className="ov-tag amber">{STATUS_LABEL[r.status]}</span></p>
+              <span>{KIND_LABEL[r.kind]} · {r.projectCode}</span>
+            </div>
+            <div className="mg-end">
+              <b>{formatMoney(r.approvedAmount ?? r.requestedAmount)}</b>
+              <a className="mg-review" href={`/finance/requests/${r.id}`}>Fix</a>
+            </div>
+          </li>
+        ))}
+        {money.advances.map((a) => (
+          <li key={a.id}>
+            <span className="mg-icon" aria-hidden="true">₨</span>
+            <div className="mg-main">
+              <p><a href={`/finance/requests/${a.id}`}>{a.purpose}</a><code>{a.number}</code></p>
+              <span>Advance · {a.projectCode}</span>
+            </div>
+            <div className="mg-end">
+              <b>{formatMoney(a.outstanding)}</b>
+              {a.due ? <span className={`ov-sub${a.due.overdue ? ' red' : ''}`}>{a.due.label}</span> : null}
+              <a className="mg-review" href={`/finance/new?kind=SETTLEMENT&advanceId=${a.id}`}>Settle</a>
+            </div>
+          </li>
+        ))}
+        {money.advances.length === 0 && money.returned.length === 0 ? (
+          <li className="mg-empty"><div><strong>No cash out and nothing to fix</strong><p>Advances you are paid appear here until you settle them.</p></div></li>
+        ) : null}
+      </ul>
+    </section>
   );
 }

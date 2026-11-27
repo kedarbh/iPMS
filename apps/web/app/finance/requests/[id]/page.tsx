@@ -6,7 +6,7 @@ import { DecidedNotice } from '../../decided';
 import { ActionPanels } from './panels';
 import { ContextPanel } from './context-panel';
 import {
-  KIND_LABEL, STATUS_LABEL, STATUS_TONE, availableActions, describeEntry, formatMoney, personName, settlementStatus, waitingOn,
+  KIND_LABEL, STATUS_LABEL, STATUS_TONE, availableActions, describeEntry, formatMoney, personName, settlementDifference, settlementStatus, waitingOn,
 } from '../../model';
 
 const WHEN = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -32,10 +32,19 @@ export default async function FinanceRequestPage({ params, searchParams }: { par
   const names = new Map(directory.state === 'ready' ? directory.data.map((p) => [p.id, p.fullName]) : []);
   const who = (userId: string) => personName(userId, names);
   const approvedEarlier = request.actions.filter((a) => a.revision === request.revision && a.action === 'APPROVED').map((a) => a.actorId);
-  const actions = availableActions(request, viewer.data, approvedEarlier, request.balance);
   const advance = request.kind === 'SETTLEMENT' && request.advanceId ? await getAdvance(request.advanceId) : null;
+  // A paid advance's own settlements say whether one is already under review, which rules out a reminder.
+  const own = request.kind === 'ADVANCE' && request.status === 'PAID' ? await getAdvance(request.id) : null;
   const waiting = waitingOn(request.status);
   const settle = settlementStatus(request.settlementDueOn, request.balance, new Date().toISOString().slice(0, 10));
+  const actions = availableActions(request, viewer.data, approvedEarlier, request.balance, {
+    overdue: settle?.overdue ?? false,
+    settlementUnderReview: own?.state === 'ready' && own.data.settlements.some((s) => s.status.startsWith('PENDING_')),
+  });
+  // At Finance's step of a settlement: what the engineer still holds back (positive) or is owed (negative).
+  const difference = request.status === 'PENDING_FINANCE' && advance?.state === 'ready'
+    ? settlementDifference(advance.data.balance?.outstanding, request.approvedAmount)
+    : null;
 
   return (
     <main className="app-shell">
@@ -56,7 +65,7 @@ export default async function FinanceRequestPage({ params, searchParams }: { par
           </div>
 
           {request.context ? <ContextPanel context={request.context} category={request.category?.name ?? 'this category'} project={request.projectName} /> : null}
-          <ActionPanels request={request} actions={actions} />
+          <ActionPanels request={request} actions={actions} difference={difference} />
 
           {(request.duplicates ?? []).length > 0 ? (
             <section className="panel" role="alert" style={{ borderLeft: '4px solid var(--danger, #b3261e)' }}>

@@ -21,11 +21,12 @@
 .ov .red { color: #b91c1c; }
 .ov .ov-sub { display: block; margin-top: 3px; color: var(--ov-text); font-size: 12px; }
 .ov .ov-sub.red { color: #b91c1c; }
+.ov .ov-sub.amber { color: #b45309; }
 
 /* Header */
 .ov-head { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 16px; }
-.ov-head h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.025em; color: var(--ov-ink); }
-.ov-head p { margin: 6px 0 0; max-width: 56ch; color: var(--ov-text); font-size: 13.5px; line-height: 1.5; }
+.ov-head h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.025em; color: var(--ov-ink); text-wrap: balance; }
+.ov-head p { margin: 6px 0 0; max-width: 56ch; color: var(--ov-text); font-size: 13.5px; line-height: 1.5; text-wrap: pretty; }
 .ov-head-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 
 /* Cards */
@@ -38,14 +39,26 @@
 .ov-link:hover { text-decoration: underline; }
 
 
-/* KPIs */
-.ov-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(176px, 1fr)); gap: 14px; }
-.ov-kpi { position: relative; padding: 18px 20px; }
-.ov-kpi-label { margin: 0; color: var(--ov-text); font-size: 12.5px; font-weight: 500; }
-.ov-kpi-value { margin: 10px 0 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+/*
+ * KPIs: one ruled strip, like a tally sheet, rather than a row of separate
+ * cards. The summary supports the queue below it and should not compete with
+ * it. Each cell draws its rule as a shadow just outside its top-left corner.
+ * The strip clips whatever falls past its edge, so a cell that starts a row
+ * shows no rule on that side, however the grid wraps.
+ */
+.ov-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(176px, 1fr)); gap: 0; overflow: hidden; background: #fff; border: 1px solid var(--ov-line); border-radius: 14px; }
+.ov-kpis > .ov-kpi { border: 0; border-radius: 0; box-shadow: -1px 0 0 var(--ov-line), 0 -1px 0 var(--ov-line); }
+.ov-kpi { position: relative; padding: 16px 20px 18px; }
+.ov-kpi-label { margin: 0; color: var(--ov-text); font-size: 11px; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; }
+.ov-kpi-value { margin: 10px 0 0; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
 .ov-kpi-value strong { font-size: 28px; font-weight: 700; letter-spacing: -0.035em; color: var(--ov-ink); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.ov-kpi-value span:empty { display: none; }
 .ov-kpi-value span { color: var(--ov-text); font-size: 13px; }
-.ov-kpi-note { margin: 8px 0 0; font-size: 12px; font-weight: 550; color: var(--ov-text); }
+.ov-kpi-note { margin: 6px 0 0; font-size: 12px; font-weight: 550; color: var(--ov-text); font-variant-numeric: tabular-nums; }
+/* Inside a panel the strip is inset: a tint instead of a second border. */
+.ov-panel .ov-kpis { margin-bottom: 8px; background: #f8fafc; border-color: transparent; border-radius: 10px; }
+.ov-panel .ov-kpis > .ov-kpi { background: transparent; box-shadow: -1px 0 0 #e6ebf2, 0 -1px 0 #e6ebf2; }
+.ov-panel .ov-kpi-value strong { font-size: 22px; }
 .ov-kpi-note.green { color: #047857; }
 .ov-kpi-note.amber { color: #b45309; }
 .ov-kpi-note.red { color: #b91c1c; }
@@ -140,7 +153,12 @@
   .ov-queue li { grid-template-columns: 34px minmax(0, 1fr); }
   .ov-queue-end { grid-column: 2; text-align: left; }
   .ov-queue-end .ov-meter { margin-left: 0; max-width: none; }
-  .ov-kpi-value strong { font-size: 26px; }
+  .ov-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ov-kpis > .ov-kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .ov-kpi { padding: 12px 14px 14px; }
+  .ov-kpi-value { margin-top: 6px; }
+  .ov-kpi-value strong { font-size: 22px; }
+  .ov-kpi-value span { font-size: 12px; }
 }
 
 /* ==========================================================================
@@ -152,20 +170,24 @@
 
 
 .mg-queue { list-style: none; margin: 0 -24px; padding: 0; }
-.mg-queue > li { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 14px; align-items: start; padding: 18px 24px; border-bottom: 1px solid #f1f4f9; }
+.mg-queue > li { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 16px 24px; border-bottom: 1px solid #f1f4f9; transition: background-color 120ms ease-out; }
+.mg-queue > li:not(.mg-empty):hover { background: #fafbfd; }
 .mg-queue > li:last-child { border-bottom: 0; padding-bottom: 4px; }
 .mg-icon { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 9px; background: #eaf1ff; color: #1d4ed8; }
 .mg-main p { margin: 0 0 4px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 13.5px; font-weight: 650; color: var(--ov-ink); }
 .mg-main p a:hover { color: #1d4ed8; text-decoration: underline; }
 .mg-main p code { font: 600 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: #94a3b8; }
 .mg-main > span { display: block; margin-top: 2px; font-size: 12px; color: var(--ov-text); }
-.mg-end { display: grid; justify-items: end; gap: 6px; text-align: right; }
-.mg-end b { font-size: 13px; font-weight: 650; }
+/* Due date or amount, then the action, on one line: the row stays one row tall. */
+.mg-end { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 4px 14px; text-align: right; }
+.mg-end .ov-sub { margin-top: 0; }
+.mg-end b { font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .mg-end b.red { color: #b91c1c; }
 .mg-end b.amber { color: #b45309; }
 .mg-end b.slate, .mg-end b.green { color: var(--ov-text); }
-.mg-review { padding: 6px 16px; border-radius: 8px; border: 1px solid #bcd2ff; background: #eaf1ff; color: #1d4ed8; font-size: 13px; font-weight: 650; }
+.mg-review { min-width: 72px; padding: 7px 16px; border-radius: 8px; border: 1px solid #bcd2ff; background: #eaf1ff; color: #1d4ed8; font-size: 13px; font-weight: 650; text-align: center; transition: background-color 120ms ease-out, transform 120ms cubic-bezier(0.23, 1, 0.32, 1); }
 .mg-review:hover { background: #dbe8ff; }
+.mg-review:active { transform: scale(0.97); }
 .mg-review:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .mg-queue > li.mg-empty { display: block; padding-top: 22px; color: var(--ov-text); }
 .mg-empty strong { color: var(--ov-ink); }
@@ -197,8 +219,17 @@
 @media (max-width: 700px) {
   .mg-queue { margin: 0 -16px; }
   .mg-queue > li { padding: 16px; grid-template-columns: 34px minmax(0, 1fr); }
-  .mg-end { grid-column: 2; justify-items: start; text-align: left; }
+  /* Status or amount on the left, the action pinned right, whatever else wraps beneath. */
+  .mg-end { grid-column: 2; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; text-align: left; }
+  .mg-end > :not(.mg-review) { grid-column: 1; }
+  .mg-end > .mg-review { grid-column: 2; grid-row: 1 / span 3; }
+  .ov-panel .ov-kpi-value strong { font-size: 18px; }
   .ov-kpis-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mg-queue > li, .mg-review { transition: none; }
+  .mg-review:active { transform: none; }
 }
 
 /* QC and field engineer homes */

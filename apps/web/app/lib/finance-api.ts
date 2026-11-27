@@ -121,10 +121,15 @@ export const returnRequest = (id: string, comment: string): Promise<ApiResult<Fi
 export const rejectRequest = (id: string, comment: string): Promise<ApiResult<FinanceRequestDetail>> =>
   authFetch(`${BASE}/requests/${id}/reject`, { method: 'POST', json: { comment } });
 
-export const payRequest = (id: string, body: Partial<PaymentInput>): Promise<ApiResult<FinanceRequestDetail>> =>
+/** `balanceReceived` on a settlement also records the unspent balance the engineer handed over, closing the advance. */
+export const payRequest = (id: string, body: Partial<PaymentInput> & { balanceReceived?: boolean }): Promise<ApiResult<FinanceRequestDetail>> =>
   authFetch(`${BASE}/requests/${id}/pay`, { method: 'POST', json: body });
 export const returnCash = (advanceId: string, body: PaymentInput & { amount: string }): Promise<ApiResult<FinanceRequestDetail>> =>
   authFetch(`${BASE}/advances/${advanceId}/cash-return`, { method: 'POST', json: body });
+
+/** Nudges the engineer to settle an overdue advance. `reminded: false` means someone already did in the last day. */
+export const remindAdvance = (advanceId: string): Promise<ApiResult<{ reminded: boolean; lastRemindedAt: string | null }>> =>
+  authFetch(`${BASE}/advances/${advanceId}/remind`, { method: 'POST' });
 
 export const listCategories = (): Promise<ApiResult<ExpenseCategory[]>> => authFetch(`${BASE}/categories`);
 export const createCategory = (input: { code: string; name: string }): Promise<ApiResult<ExpenseCategory>> =>

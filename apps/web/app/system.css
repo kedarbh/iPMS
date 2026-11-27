@@ -1,0 +1,145 @@
+/*
+ * Axiom system layer. It loads after styles.css and gives every page, for
+ * every role, the same controls: tokens, page headings, buttons, fields,
+ * tables, panels, badges and focus. The decisions are recorded in
+ * .interface-design/system.md; change them there first.
+ */
+
+:root {
+  /* Ink: four steps of text, from headings down to metadata. */
+  --ink: #0f172a;
+  --text-2: #475569;
+  --text-3: #64748b;
+  --text-4: #94a3b8;
+  /* Surfaces: the canvas, a card, and an inset well. */
+  --pale: #f6f8fc;
+  --surface: #ffffff;
+  --sunken: #f8fafc;
+  /* Rules: a hairline, a softer row divider, and a stronger edge for controls. */
+  --line: #e6ebf2;
+  --line-soft: #eef2f7;
+  --line-strong: #d5dce6;
+  /* One accent. Green, amber and red only ever mean status. */
+  --blue: #2f64e8;
+  --blue-hover: #2553c7;
+  --blue-wash: #eaf1ff;
+  --focus-ring: 0 0 0 3px rgba(47, 100, 232, 0.22);
+  --radius-btn: 8px;
+  --radius-input: 8px;
+  --radius-card: 14px;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+body { color: var(--ink); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+h1, h2, h3 { text-wrap: balance; }
+p { text-wrap: pretty; }
+code, .finance-num, td { font-variant-numeric: tabular-nums; }
+
+/* --- Page heading ---------------------------------------------------------
+ * The heading strip on every list and detail page: eyebrow, title, and one
+ * line of context. It matches the dashboard headings.
+ */
+.dashboard .toolbar { align-items: flex-end; margin-bottom: 20px; }
+.dashboard .toolbar h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.2; color: var(--ink); }
+.dashboard .toolbar .subtle { margin-top: 6px; max-width: 64ch; font-size: 13.5px; line-height: 1.5; color: var(--text-2); }
+.eyebrow { margin: 0 0 6px; color: var(--text-3); font-size: 11px; font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; }
+.subtle, .panel-header p { color: var(--text-2); }
+
+/* --- Buttons ---------------------------------------------------------------
+ * Every button is 36px tall with an 8px radius. That radius sits inside the
+ * cards' 14px, so nested corners stay concentric. Transitions name their
+ * properties and use an ease-out curve. A pressed button shrinks slightly
+ * rather than shifting down.
+ */
+.primary-button, .secondary-button, .ghost-button, .danger-button {
+  min-height: 36px; padding: 8px 14px; border-radius: var(--radius-btn);
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font-size: 13px; font-weight: 600; line-height: 1.2; white-space: nowrap; text-decoration: none;
+  transition: background-color 120ms var(--ease-out), border-color 120ms var(--ease-out), box-shadow 120ms var(--ease-out), transform 120ms var(--ease-out);
+}
+.primary-button { border: 1px solid var(--blue); background: var(--blue); color: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08); }
+.primary-button:hover { background: var(--blue-hover); border-color: var(--blue-hover); box-shadow: 0 1px 2px rgba(15, 23, 42, 0.1); }
+.secondary-button, .ghost-button { border: 1px solid var(--line-strong); background: var(--surface); color: #1e293b; box-shadow: 0 1px 1px rgba(15, 23, 42, 0.03); }
+.secondary-button:hover, .ghost-button:hover { background: var(--sunken); border-color: #c3ccd8; color: var(--ink); }
+.danger-button { border: 1px solid #f1c4c6; background: var(--surface); color: #b42318; }
+.danger-button:hover { background: #fef3f2; border-color: #e9a5a8; }
+button:active, .primary-button:active, .secondary-button:active, .ghost-button:active, .danger-button:active,
+.notif-bell-btn:active, .footer-icon-btn:active { transform: scale(0.97); }
+.primary-button:disabled, .secondary-button:disabled, .ghost-button:disabled, .danger-button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+/* One focus treatment everywhere: the accent ring, visible only for keyboard focus. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+button:focus-visible, .primary-button:focus-visible, .secondary-button:focus-visible, .ghost-button:focus-visible,
+.danger-button:focus-visible, .notif-bell-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+/* --- Fields ----------------------------------------------------------------
+ * Inputs are inset wells: a shade darker than the card and 40px tall. Focus
+ * turns the edge to the accent and adds a soft ring.
+ */
+.field { gap: 6px; color: #1e293b; font-size: 13px; font-weight: 600; }
+.field .hint { color: var(--text-3); opacity: 1; font-weight: 400; }
+.field input, .field select, .field textarea, .login-card input {
+  min-height: 40px; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-input);
+  background: #fbfcfe; color: var(--ink); font: inherit; font-size: 14px; font-weight: 400;
+  transition: border-color 120ms var(--ease-out), box-shadow 120ms var(--ease-out), background-color 120ms var(--ease-out);
+}
+.field textarea { min-height: 88px; line-height: 1.5; }
+.field input::placeholder, .field textarea::placeholder { color: var(--text-4); }
+.field input:hover, .field select:hover, .field textarea:hover { border-color: #c3ccd8; }
+.field input:focus-visible, .field select:focus-visible, .field textarea:focus-visible, .login-card input:focus-visible {
+  outline: none; border-color: var(--blue); background: var(--surface); box-shadow: var(--focus-ring);
+}
+.field input:disabled, .field select:disabled, .field textarea:disabled { background: var(--sunken); color: var(--text-3); cursor: not-allowed; }
+.field-error, .form-error { color: #b42318 !important; }
+
+/* --- Panels and cards ------------------------------------------------------ */
+.panel, .metric-card { border-color: var(--line); border-radius: var(--radius-card); }
+.panel-header h2, .panel-title { color: var(--ink); font-weight: 650; letter-spacing: -0.01em; }
+.panel-header a { color: #1d4ed8; }
+/* Summary cards are not links, so they no longer lift on hover. */
+.metric-card { transition: none; }
+.metric-card:hover { transform: none; box-shadow: none; }
+.panel > .inline-form, .panel > .form-note { background: var(--sunken); border-top-color: var(--line); border-radius: 0 0 var(--radius-card) var(--radius-card); }
+
+/* --- Tables ----------------------------------------------------------------
+ * Header labels are small tracked caps in the metadata ink (a colour, not
+ * opacity). Rows are separated by the soft rule and figures line up.
+ */
+.data-table { font-size: 13.5px; color: var(--ink); }
+.data-table th { padding: 0 12px 10px; font-size: 11px; font-weight: 650; letter-spacing: 0.06em; color: var(--text-3); opacity: 1; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.data-table td { padding: 13px 12px; border-top: 0; border-bottom: 1px solid var(--line-soft); }
+.data-table tbody tr:last-child td { border-bottom: 0; }
+.data-table tr:hover td { background: #fafbfd; }
+.data-table td a:not([class]) { font-weight: 600; color: var(--ink); }
+.data-table td a:not([class]):hover { color: #1d4ed8; text-decoration: underline; }
+.data-table code { font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text-2); }
+
+/* The finance tables follow the same rules. */
+.finance-table { font-size: 13.5px; color: var(--ink); }
+.finance-table th { padding: 0 12px 10px; font-size: 11px; font-weight: 650; letter-spacing: 0.06em; color: var(--text-3); border-bottom: 1px solid var(--line); }
+.finance-table td { border-top: 0; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+.finance-table tbody tr:last-child td { border-bottom: 0; }
+.finance-table tr:hover td { background: #fafbfd; }
+.finance-table td a { color: #1d4ed8; font-weight: 600; }
+.finance-tabs { border-bottom-color: var(--line); }
+.finance-tabs a { color: var(--text-3); font-weight: 550; }
+.finance-tabs a:hover { color: var(--ink); }
+
+/* --- Badges and tabs ------------------------------------------------------- */
+.badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 650; line-height: 1.5; }
+.tab-row { border-bottom-color: var(--line); }
+.tab-row a { color: var(--text-3); font-weight: 550; transition: color 120ms var(--ease-out), border-color 120ms var(--ease-out); }
+.tab-row a:hover { color: var(--ink); }
+.tab-row a[aria-current] { color: var(--ink); border-bottom-color: var(--blue); font-weight: 650; }
+
+/* --- Shell ----------------------------------------------------------------- */
+.crumbs { color: var(--text-4); }
+.crumbs strong { color: var(--ink); font-weight: 600; }
+.nav-item.active { background: var(--blue-wash); }
+.empty-list { color: var(--text-2); }
+.empty-list strong { color: var(--ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  .primary-button, .secondary-button, .ghost-button, .danger-button, .field input, .field select, .field textarea, .tab-row a { transition: none; }
+  button:active, .primary-button:active, .secondary-button:active, .ghost-button:active, .danger-button:active { transform: none; }
+}

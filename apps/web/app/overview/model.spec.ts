@@ -131,6 +131,9 @@ describe('homeFor', () => {
     [['FIELD_ENGINEER'], 'engineer'],
     [['PROJECT_MANAGER', 'SUPER_ADMIN'], 'admin'],
     [['QC_MANAGER', 'FIELD_ENGINEER'], 'qc'],
+    [['VIEWER'], 'viewer'],
+    [['FIELD_ENGINEER', 'VIEWER'], 'engineer'],
+    [['VIEWER', 'SOME_CUSTOM_ROLE'], 'viewer'],
     [['SOME_CUSTOM_ROLE'], 'admin'],
     [[], 'admin'],
   ])('%j lands on the %s home', (roles, expected) => {

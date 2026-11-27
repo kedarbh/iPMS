@@ -6,12 +6,14 @@ import { EngineerOverview } from './overview/engineer-overview';
 import { ManagerOverview } from './overview/manager-overview';
 import { homeFor } from './overview/model';
 import { QcOverview } from './overview/qc-overview';
+import { ViewerOverview } from './overview/viewer-overview';
 
 /**
- * One address, six homes, chosen by role: managers land on their decision
- * queue, QC on the review desk, Project Directors on their portfolio, Finance on the finance
- * workspace, engineers on their own work, and everyone else (administrators
- * included) on the organisation overview. Which home is a view
+ * One address, seven homes, chosen by role: managers land on their decision
+ * queue (work orders and finance), QC on the review desk, Project Directors on
+ * their portfolio, Finance on the finance workspace, engineers on their own
+ * work and money, Viewers on a read-only portfolio, and everyone else
+ * (administrators included) on the organisation overview. Which home is a view
  * choice, never a boundary — every one reads through the gateway as the
  * signed-in person.
  */
@@ -22,6 +24,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
     case 'director': return <DirectorOverview decided={(await searchParams).decided} />;
     case 'qc': return <QcOverview />;
     case 'finance': redirect('/finance');
+    case 'viewer': return <ViewerOverview />;
     case 'engineer': return <EngineerOverview canViewFinance={viewer.state === 'ready' && hasPermission(viewer.data, 'finance_request.view')} />;
     default: return <AdminOverview searchParams={searchParams} />;
   }
