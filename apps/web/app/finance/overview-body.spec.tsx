@@ -30,10 +30,10 @@ describe('OverviewBody', () => {
   it('shows what waits, in total and by kind', () => {
     const out = html();
     expect(out).toContain('Waiting for your approval');
-    expect(out).toContain('NPR 32,700.00');
+    expect(out).toContain('<span class="fin-unit">NPR</span>32,700.00');
     expect(out).toContain('4 requests · oldest 3 days');
     expect(out).toContain('Advances');
-    expect(out).toContain('NPR 18,500.00');
+    expect(out).toContain('<span class="fin-unit">NPR</span>18,500.00');
     expect(out).toContain('2 waiting');
     expect(out).toContain('Reimbursements');
   });

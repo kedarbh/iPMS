@@ -2,7 +2,7 @@ import { spendReport } from '../../lib/finance-api';
 import { getCurrentUser, hasPermission } from '../../lib/iam-api';
 import { listUserDirectory } from '../../lib/user-api';
 import { Sidebar, StatePage, TopActions } from '../../shell';
-import { formatMoney, personName } from '../model';
+import { formatAmount, personName } from '../model';
 import { resolveReportQuery, sumMoney } from '../report-model';
 
 type Raw = { groupBy?: string | string[]; from?: string | string[]; to?: string | string[] };
@@ -28,7 +28,7 @@ export default async function SpendReportPage({ searchParams }: { searchParams: 
   }
   const names = new Map(directory?.state === 'ready' ? directory.data.map((person) => [person.id, person.fullName]) : []);
   const rows = result.data.map((row) => ({ ...row, label: query.groupBy === 'requester' ? personName(row.key, names) : row.label }));
-  const total = (pick: (row: (typeof rows)[number]) => string): string => formatMoney(sumMoney(rows.map(pick)));
+  const total = (pick: (row: (typeof rows)[number]) => string): string => formatAmount(sumMoney(rows.map(pick)));
   const exportParams = new URLSearchParams({ groupBy: query.groupBy });
   if (query.from) exportParams.set('from', query.from);
   if (query.to) exportParams.set('to', query.to);
@@ -50,7 +50,7 @@ export default async function SpendReportPage({ searchParams }: { searchParams: 
             <a className="primary-button" href={`/api/finance/report?${exportParams.toString()}`}>Export to Excel</a>
           </div>
           <section className="panel">
-            <form method="get" className="inline-form">
+            <form method="get" className="inline-form report-filters">
               <label className="field">Group by
                 <select name="groupBy" defaultValue={query.groupBy}>
                   <option value="project">Project</option>
@@ -64,11 +64,13 @@ export default async function SpendReportPage({ searchParams }: { searchParams: 
             </form>
             {rows.length === 0 ? <p className="finance-empty">No completed spend in this period.</p> : (
               <>
+                <p className="report-unit">All amounts in NPR</p>
                 <div className="finance-table-wrap">
-                  <table className="finance-table">
+                  <table className="finance-table spend-table">
+                    <caption className="sr-only">Spend by {GROUP_LABEL[query.groupBy].toLowerCase()}, in NPR</caption>
                     <thead>
                       <tr>
-                        <th>{GROUP_LABEL[query.groupBy]}</th>
+                        <th scope="col">{GROUP_LABEL[query.groupBy]}</th>
                         <th className="finance-num">Advances paid</th><th className="finance-num">Settled (applied)</th>
                         <th className="finance-num">Cash returned</th><th className="finance-num">Outstanding</th>
                         <th className="finance-num">Reimbursed</th><th className="finance-num">Expense</th>
@@ -77,13 +79,13 @@ export default async function SpendReportPage({ searchParams }: { searchParams: 
                     <tbody>
                       {rows.map((row) => (
                         <tr key={row.key}>
-                          <td>{row.label}</td>
-                          <td className="finance-num">{formatMoney(row.advancesPaid)}</td>
-                          <td className="finance-num">{formatMoney(row.applied)}</td>
-                          <td className="finance-num">{formatMoney(row.cashReturned)}</td>
-                          <td className="finance-num">{formatMoney(row.outstanding)}</td>
-                          <td className="finance-num">{formatMoney(row.reimbursed)}</td>
-                          <td className="finance-num">{formatMoney(row.expense)}</td>
+                          <th scope="row">{row.label}</th>
+                          <Amount value={row.advancesPaid} />
+                          <Amount value={row.applied} />
+                          <Amount value={row.cashReturned} />
+                          <Amount value={row.outstanding} />
+                          <Amount value={row.reimbursed} />
+                          <Amount value={row.expense} />
                         </tr>
                       ))}
                     </tbody>
@@ -105,4 +107,9 @@ export default async function SpendReportPage({ searchParams }: { searchParams: 
       </section>
     </main>
   );
+}
+
+/** One figure in the table. A zero is greyed so the columns that carry money stand out. */
+function Amount({ value }: { value: string }) {
+  return <td className={Number(value) === 0 ? 'finance-num zero' : 'finance-num'}>{formatAmount(value)}</td>;
 }

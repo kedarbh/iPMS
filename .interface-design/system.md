@@ -50,3 +50,16 @@ These are the working decisions behind the role dashboards in `apps/web/app/over
 
 ## System layer (`app/system.css`)
 - Loaded after styles.css on every page. It holds the tokens (ink steps, surfaces, rules, one accent), 36px buttons with 8px radius and `scale(.97)` press, 40px inset fields with a focus ring, tables with small tracked caps, and one keyboard focus ring.
+
+## Pages outside the dashboards
+- The tally strip is also a system class: `.tally` with `.tally-cell`, `.tally-label`, `.tally-value` and `.tally-note`. The project overview uses it, and the finance home's `.fin-cards` follow the same rules. No dark summary card, no coloured icon tiles.
+- A note in a tally cell is coloured only when it is a judgement: amber for work waiting, red for work returned or overdue.
+- The finance kind marks (A, S, R) are identity, so they stay neutral.
+- An overdue banner is a white card with a red left rule and a secondary button. It never fills with red.
+- Plain progress bars (milestones in progress, regional delivery) use the accent. Green is for done.
+- Below 700px, two-column page grids stack into one column.
+
+## Money in tables
+- A table of amounts names the unit once ("All amounts in NPR") and the cells show the figure only, with Indian grouping and two decimals (`formatAmount`). Single amounts in prose or lists keep `formatMoney` ("NPR 45,000.00").
+- Zeros are greyed so the columns that carry money stand out. The row label wraps; figures never do.
+- In a tally cell the unit is set small before the figure, so long amounts still fit a phone cell.

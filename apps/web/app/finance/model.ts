@@ -20,10 +20,15 @@ const STEP_NAME: Record<FinanceStep, string> = {
 };
 export const STEP_LABEL = STEP_NAME;
 
+/** "1,50,000.00": two decimals, Indian grouping, no unit. For a table whose header names the unit once. */
+export function formatAmount(amount: string | null): string {
+  if (amount === null) return '—';
+  return Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 /** "NPR 1,50,000.00": two decimals, Indian grouping. A missing amount is a dash. */
 export function formatMoney(amount: string | null): string {
-  if (amount === null) return '—';
-  return `NPR ${Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return amount === null ? '—' : `NPR ${formatAmount(amount)}`;
 }
 
 /** A known person's name, otherwise the front of their id. */

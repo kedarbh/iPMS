@@ -139,6 +139,62 @@ button:focus-visible, .primary-button:focus-visible, .secondary-button:focus-vis
 .empty-list { color: var(--text-2); }
 .empty-list strong { color: var(--ink); }
 
+/* --- Tally strip ------------------------------------------------------------
+ * The dashboards' ruled KPI strip (.ov-kpis), for pages outside the overview.
+ * One card; each cell draws its rule just outside its top-left corner and the
+ * strip clips the outer edges, so the rules stay right however the grid wraps.
+ */
+.tally { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: hidden; margin-bottom: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); }
+.tally-cell { min-width: 0; padding: 16px 20px 18px; box-shadow: -1px 0 0 var(--line), 0 -1px 0 var(--line); }
+.tally-label { margin: 0; color: var(--text-3); font-size: 11px; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; }
+.tally-value { margin: 10px 0 0; color: var(--ink); font-size: 28px; font-weight: 700; letter-spacing: -0.035em; line-height: 1.1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.tally-note { margin: 6px 0 0; color: var(--text-2); font-size: 12px; font-weight: 550; font-variant-numeric: tabular-nums; }
+.tally-note.green { color: #047857; }
+.tally-note.amber { color: #b45309; }
+.tally-note.red { color: #b91c1c; }
+@media (max-width: 1100px) { .tally { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) {
+  .tally { margin-bottom: 14px; }
+  .tally > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .tally-cell { padding: 12px 14px 14px; }
+  .tally-value { margin-top: 6px; font-size: 22px; }
+}
+
+/* --- Project pages ----------------------------------------------------------
+ * The project overview predates the system. Its heading matches the other
+ * pages, metadata is no smaller than 11px, plain progress uses the accent,
+ * and decorative tints are gone; red and amber stay for status.
+ */
+.welcome h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.2; color: var(--ink); }
+.welcome .subtle { font-size: 13.5px; color: var(--text-2); }
+.main-grid, .bottom-grid { gap: 20px; }
+.main-grid .panel, .bottom-grid .panel { border-radius: var(--radius-card); }
+.ring span { font-size: 11px; color: var(--text-3); }
+.ring strong { font-variant-numeric: tabular-nums; }
+.summary-copy span { color: var(--text-2); }
+.milestone-name strong { font-size: 13px; }
+.milestone > b, .region-list b { font-size: 12px; color: var(--text-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+.bar span.green, .region-list .bar i { background: var(--blue); }
+.attention-item strong { font-size: 13px; color: var(--ink); }
+.attention-item p { font-size: 12.5px; color: var(--text-2); }
+.attention-item small { font-size: 12px; color: var(--text-3); }
+.attention-item { padding: 14px 0; border-bottom-color: var(--line-soft); }
+.status { font-size: 11px; font-weight: 650; padding: 2px 8px; border-radius: 999px; }
+.activity p { font-size: 13px; color: var(--text-2); }
+.activity p strong { color: var(--ink); }
+.activity p a { color: #1d4ed8; }
+.activity small { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.activity .avatar { background: var(--sunken); color: var(--text-2); border: 1px solid var(--line); font-size: 11px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.region-list > div { font-size: 12.5px; color: var(--text-2); grid-template-columns: minmax(72px, 120px) 1fr 40px; }
+.region-list > div > span { white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 700px) {
+  .welcome h1 { font-size: 22px; }
+  /* styles.css stacks these only between 701px and 1080px, so a phone got two squeezed columns. */
+  .main-grid, .bottom-grid, .wo-grid, .composer { grid-template-columns: minmax(0, 1fr); }
+  .main-grid, .bottom-grid { gap: 14px; }
+  .bottom-grid { margin-top: 14px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .primary-button, .secondary-button, .ghost-button, .danger-button, .field input, .field select, .field textarea, .tab-row a { transition: none; }
   button:active, .primary-button:active, .secondary-button:active, .ghost-button:active, .danger-button:active { transform: none; }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addMoney, approverRole, availableActions, currentHandler, decisionLine, describeEntry, flagText, formatMoney, holdsApproval, initials, overdueSummary, personName, queueActions, settlementDifference, settlementStatus, waitLabel, waitTone, waitingDays, waitingOn, waitingTitle, type Viewer } from './model';
+import { addMoney, approverRole, availableActions, currentHandler, decisionLine, describeEntry, flagText, formatAmount, formatMoney, holdsApproval, initials, overdueSummary, personName, queueActions, settlementDifference, settlementStatus, waitLabel, waitTone, waitingDays, waitingOn, waitingTitle, type Viewer } from './model';
 
 const ENG: Viewer = { id: 'u-eng', permissions: ['finance_request.view', 'finance_request.create', 'finance_request.cancel', 'finance_settlement.submit'] };
 const PM: Viewer = { id: 'u-pm', permissions: ['finance_request.view', 'finance_request.view_all', 'finance_request.create', 'finance_request.cancel', 'finance_settlement.submit', 'finance_approval.pm'] };
@@ -8,6 +8,14 @@ const FIN: Viewer = { id: 'u-fin', permissions: ['finance_request.view', 'financ
 
 const req = (over: Partial<{ status: string; kind: string; requesterId: string }> = {}) =>
   ({ status: 'DRAFT', kind: 'ADVANCE', requesterId: 'u-eng', ...over }) as never;
+
+describe('formatAmount', () => {
+  it('groups the Indian way with two decimals and no unit', () => {
+    expect(formatAmount('1250000')).toBe('12,50,000.00');
+    expect(formatAmount('0')).toBe('0.00');
+    expect(formatAmount(null)).toBe('—');
+  });
+});
 
 describe('formatMoney', () => {
   it('uses NPR with two decimals and Indian grouping', () => {
