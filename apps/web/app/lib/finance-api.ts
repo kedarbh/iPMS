@@ -103,7 +103,63 @@ export const getRequest = (id: string): Promise<ApiResult<FinanceRequestDetail>>
 export const getAdvance = (id: string): Promise<ApiResult<AdvanceView>> => authFetch(`${BASE}/advances/${id}`);
 
 /** The approver's money at a glance: pipeline, queue, spend, cash out and their decisions. */
-export const getFinanceOverview = (): Promise<ApiResult<FinanceOverview>> => authFetch(`${BASE}/overview`);
+/** The overview, with every section present even if the finance service sent less. */
+export async function getFinanceOverview(): Promise<ApiResult<FinanceOverview>> {
+  const result = await authFetch<Partial<FinanceOverview>>(`${BASE}/overview`);
+  return result.state === 'ready' ? { state: 'ready', data: completeOverview(result.data) } : result;
+}
+
+const KINDS: readonly RequestKind[] = ['ADVANCE', 'SETTLEMENT', 'REIMBURSEMENT'];
+const toCents = (amount: string | undefined): number => Math.round(Number(amount ?? 0) * 100) || 0;
+const fromCents = (cents: number): string => (cents / 100).toFixed(2);
+
+/**
+ * Fills in what an older or partial response leaves out, so a page never
+ * reads a property of undefined. A finance service from before October 2026
+ * sends no `waiting`; it is then rebuilt from the queue, which is all that
+ * response has (the queue is capped, so the totals can run low).
+ */
+export function completeOverview(raw: Partial<FinanceOverview> | null | undefined): FinanceOverview {
+  const data = raw ?? {};
+  const queue = Array.isArray(data.queue) ? data.queue : [];
+  const months = Array.isArray(data.months) ? data.months : [];
+  const fromQueue = (kind?: RequestKind) => {
+    const rows = kind ? queue.filter((item) => item.kind === kind) : queue;
+    return { count: rows.length, amount: fromCents(rows.reduce((sum, item) => sum + toCents(item.amount), 0)) };
+  };
+  const waiting = data.waiting;
+  const oldestQueued = queue.map((item) => item.waitingSince).filter(Boolean).sort()[0] ?? null;
+  return {
+    months,
+    pipeline: {
+      steps: Array.isArray(data.pipeline?.steps) ? data.pipeline.steps : [],
+      paidThisMonth: data.pipeline?.paidThisMonth ?? { count: 0, amount: '0.00' },
+    },
+    waiting: {
+      total: waiting?.total ?? queue.length,
+      amount: waiting?.amount ?? fromQueue().amount,
+      oldestSince: waiting ? waiting.oldestSince ?? null : oldestQueued,
+      byKind: Object.fromEntries(KINDS.map((kind) => [kind, waiting?.byKind?.[kind] ?? fromQueue(kind)])) as FinanceOverview['waiting']['byKind'],
+    },
+    queue: queue.map((item) => ({ ...item, flags: Array.isArray(item.flags) ? item.flags : [] })),
+    projects: (Array.isArray(data.projects) ? data.projects : []).map((project) => ({
+      ...project,
+      spentToDate: project.spentToDate ?? '0.00',
+      spentByMonth: Array.isArray(project.spentByMonth) ? project.spentByMonth : months.map(() => '0.00'),
+      cashHeld: project.cashHeld ?? '0.00',
+      overdueSettlements: project.overdueSettlements ?? { count: 0, amount: '0.00' },
+    })),
+    categories: Array.isArray(data.categories) ? data.categories : [],
+    cashHolders: Array.isArray(data.cashHolders) ? data.cashHolders : [],
+    decisions: {
+      approved: data.decisions?.approved ?? { count: 0, amount: '0.00' },
+      trimmed: data.decisions?.trimmed ?? { count: 0, saved: '0.00' },
+      returned: data.decisions?.returned ?? 0,
+      rejected: data.decisions?.rejected ?? 0,
+      medianHoursToDecide: data.decisions?.medianHoursToDecide ?? null,
+    },
+  };
+}
 
 export const createRequest = (input: CreateRequestInput): Promise<ApiResult<FinanceRequestDetail>> =>
   authFetch(`${BASE}/requests`, { method: 'POST', json: input });
