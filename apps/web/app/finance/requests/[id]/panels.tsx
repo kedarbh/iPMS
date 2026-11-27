@@ -1,9 +1,10 @@
 'use client';
+import { useState } from 'react';
 import { FormError, RowAction, SubmitButton } from '../../../components/forms';
 import { useActionStateWithToast } from '../../../components/toast';
 import { EMPTY, type FormState } from '../../../lib/form-state';
 import type { FinanceRequest } from '../../../lib/finance-api';
-import { approveAction, cancelAction, cashReturnAction, payAction, rejectAction, returnAction, submitAction } from '../../actions';
+import { approveAction, cancelAction, cashReturnAction, payAction, rejectAction, remindAction, returnAction, submitAction } from '../../actions';
 import { formatMoney, type RequestAction } from '../../model';
 
 type Act = (state: FormState, form: FormData) => Promise<FormState>;
@@ -28,6 +29,47 @@ export function PaymentFields({ required }: { required: boolean }) {
   );
 }
 
+/**
+ * Finance's settle form. The advance's outstanding balance against the
+ * approved invoices decides what happens: invoices above it are paid out as
+ * the excess, below it leave the engineer holding unspent cash, which Finance
+ * can take back here and close the advance in the same step.
+ */
+function SettlementFields({ approved, difference }: { approved: string | null; difference: number | null }) {
+  const [received, setReceived] = useState(false);
+  if (difference === null) {
+    return (
+      <>
+        <p className="form-note">Approved amount: <strong>{formatMoney(approved)}</strong>. Payment details are needed only if money is paid out.</p>
+        <PaymentFields required={false} />
+      </>
+    );
+  }
+  if (difference < 0) {
+    return (
+      <>
+        <p className="form-note">The invoices come to <strong>{formatMoney(approved)}</strong>, more than the advance has left. The excess of <strong>{formatMoney((-difference).toFixed(2))}</strong> is paid to the engineer.</p>
+        <PaymentFields required />
+      </>
+    );
+  }
+  if (difference === 0) {
+    return <p className="form-note">The invoices come to <strong>{formatMoney(approved)}</strong>, exactly what is outstanding. Confirming closes the advance; no money moves.</p>;
+  }
+  const unspent = formatMoney(difference.toFixed(2));
+  return (
+    <>
+      <p className="form-note">The invoices come to <strong>{formatMoney(approved)}</strong>. The engineer still holds <strong>{unspent}</strong> of the advance.</p>
+      <label className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <input type="checkbox" name="balanceReceived" value="yes" checked={received} onChange={(e) => setReceived(e.target.checked)} />
+        {' '}The engineer has handed over the unspent {unspent}
+      </label>
+      <span className="hint">{received ? 'Recorded as cash returned against the advance, which then closes.' : 'Leave unticked to keep the balance open; it can be settled with more bills or returned later.'}</span>
+      {received ? <PaymentFields required /> : null}
+    </>
+  );
+}
+
 /** One small form: hidden id, its fields, an error line and a button. */
 function ActionForm({ action, id, success, title, children, button, tone = 'primary-button' }: {
   action: Act; id: string; success: string; title: string; children?: React.ReactNode; button: string; tone?: string;
@@ -49,7 +91,11 @@ const reason = (label: string) => (
 );
 
 /** Only the forms the viewer may use for this request right now; the service re-checks every one. */
-export function ActionPanels({ request, actions }: { request: Subject; actions: readonly RequestAction[] }) {
+export function ActionPanels({ request, actions, difference = null }: {
+  request: Subject; actions: readonly RequestAction[];
+  /** A settlement at Finance's step: outstanding on its advance less the approved invoices. Null when unknown. */
+  difference?: number | null;
+}) {
   if (actions.length === 0) return null;
   const has = (action: RequestAction): boolean => actions.includes(action);
   const director = request.status === 'PENDING_DIRECTOR';
@@ -77,8 +123,12 @@ export function ActionPanels({ request, actions }: { request: Subject; actions: 
 
       {has('pay') ? (
         <ActionForm action={payAction} id={request.id} success={settlement ? 'Settled' : 'Payment recorded'} title={settlement ? 'Settle' : 'Record payment'} button={settlement ? 'Confirm settlement' : 'Record payment'}>
-          <p className="form-note">Approved amount: <strong>{formatMoney(request.approvedAmount)}</strong>.{settlement ? ' Payment details are needed only if money is paid out.' : ''}</p>
-          <PaymentFields required={!settlement} />
+          {settlement ? <SettlementFields approved={request.approvedAmount} difference={difference} /> : (
+            <>
+              <p className="form-note">Approved amount: <strong>{formatMoney(request.approvedAmount)}</strong>.</p>
+              <PaymentFields required />
+            </>
+          )}
         </ActionForm>
       ) : null}
 
@@ -87,6 +137,10 @@ export function ActionPanels({ request, actions }: { request: Subject; actions: 
           <label className="field">Amount returned (NPR)<input name="amount" inputMode="decimal" required /></label>
           <PaymentFields required />
         </ActionForm>
+      ) : null}
+
+      {has('remind') ? (
+        <RowAction action={remindAction} hidden={{ id: request.id }} label="Send settlement reminder" success="Reminder sent" className="ghost-button" />
       ) : null}
 
       {has('return') ? (

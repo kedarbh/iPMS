@@ -6,7 +6,7 @@ vi.mock('../../../components/toast', () => ({
 }));
 vi.mock('../../actions', () => ({
   submitAction: vi.fn(), cancelAction: vi.fn(), approveAction: vi.fn(), returnAction: vi.fn(),
-  rejectAction: vi.fn(), payAction: vi.fn(), cashReturnAction: vi.fn(),
+  rejectAction: vi.fn(), payAction: vi.fn(), cashReturnAction: vi.fn(), remindAction: vi.fn(),
 }));
 vi.mock('react-dom', async (original) => ({ ...(await original<typeof import('react-dom')>()), useFormStatus: () => ({ pending: false }) }));
 
@@ -15,8 +15,8 @@ const { ActionPanels } = await import('./panels');
 const request = (over: Record<string, unknown> = {}) => ({
   id: 'r-1', number: 'ADV-2026-0007', kind: 'ADVANCE', status: 'PENDING_DIRECTOR', requestedAmount: '50000.00', approvedAmount: null, ...over,
 }) as never;
-const html = (actions: string[], over: Record<string, unknown> = {}) =>
-  renderToStaticMarkup(<ActionPanels request={request(over)} actions={actions as never} />);
+const html = (actions: string[], over: Record<string, unknown> = {}, difference: number | null = null) =>
+  renderToStaticMarkup(<ActionPanels request={request(over)} actions={actions as never} difference={difference} />);
 
 describe('ActionPanels', () => {
   it('renders nothing when there is nothing to do', () => {
@@ -61,5 +61,34 @@ describe('ActionPanels', () => {
   it('links a paid advance to settlement and lets Finance record returned cash', () => {
     expect(html(['settle'], { status: 'PAID' })).toContain('href="/finance/new?kind=SETTLEMENT&amp;advanceId=r-1"');
     expect(html(['cashReturn'], { status: 'PAID' })).toContain('name="amount"');
+  });
+
+  it('offers a settlement reminder on an overdue advance', () => {
+    expect(html(['remind'], { status: 'PAID' })).toContain('Send settlement reminder');
+  });
+
+  describe('settling against the advance', () => {
+    const settlement = { status: 'PENDING_FINANCE', kind: 'SETTLEMENT', approvedAmount: '7500.00' };
+
+    it('lets Finance take back the unspent balance and close the advance', () => {
+      const out = html(['pay'], settlement, 2500);
+      expect(out).toContain('still holds <strong>NPR 2,500.00</strong>');
+      expect(out).toContain('name="balanceReceived"');
+      // The details appear once the box is ticked.
+      expect(out).not.toContain('name="mode"');
+    });
+
+    it('asks for payment details when the invoices exceed the advance', () => {
+      const out = html(['pay'], settlement, -1200);
+      expect(out).toContain('excess of <strong>NPR 1,200.00</strong>');
+      expect(out).toMatch(/name="mode"[^>]*required|required[^>]*name="mode"/);
+      expect(out).not.toContain('name="balanceReceived"');
+    });
+
+    it('needs nothing when the invoices match what is outstanding', () => {
+      const out = html(['pay'], settlement, 0);
+      expect(out).toContain('no money moves');
+      expect(out).not.toContain('name="mode"');
+    });
   });
 });
