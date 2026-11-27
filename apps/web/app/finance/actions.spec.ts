@@ -8,7 +8,7 @@ vi.mock('next/navigation', () => ({ redirect }));
 const ready = (data: unknown = {}) => ({ state: 'ready' as const, data });
 const api = {
   createRequest: vi.fn(), updateRequest: vi.fn(), submitRequest: vi.fn(), cancelRequest: vi.fn(),
-  approveRequest: vi.fn(), returnRequest: vi.fn(), rejectRequest: vi.fn(), payRequest: vi.fn(), returnCash: vi.fn(),
+  approveRequest: vi.fn(), returnRequest: vi.fn(), rejectRequest: vi.fn(), payRequest: vi.fn(), returnCash: vi.fn(), remindAdvance: vi.fn(),
   createCategory: vi.fn(), updateCategory: vi.fn(), listRequests: vi.fn(),
 };
 vi.mock('../lib/finance-api', () => api);
@@ -278,6 +278,17 @@ describe('payment actions', () => {
     expect(api.payRequest).toHaveBeenCalledWith('s-1', {});
   });
 
+  it('takes back the unspent balance as a settlement closes, with its details', async () => {
+    await actions.payAction(EMPTY, form({ id: 's-1', balanceReceived: 'yes', mode: 'CASH', reference: 'V-9', paidOn: '2026-10-12' }));
+    expect(api.payRequest).toHaveBeenCalledWith('s-1', { mode: 'CASH', reference: 'V-9', paidOn: '2026-10-12', balanceReceived: true });
+  });
+
+  it('needs the details of a handed-over balance', async () => {
+    expect(await actions.payAction(EMPTY, form({ id: 's-1', balanceReceived: 'yes', mode: 'CASH', reference: '', paidOn: '2026-10-12' })))
+      .toEqual({ error: 'Enter how the balance was handed over, the reference and the date.' });
+    expect(api.payRequest).not.toHaveBeenCalled();
+  });
+
   it('refuses a payment mode it does not know', async () => {
     expect(await actions.payAction(EMPTY, form({ id: 'r-1', mode: 'BITCOIN', reference: 'x', paidOn: '2026-10-05' }))).toEqual({ error: 'Choose how it was paid.' });
   });
@@ -294,6 +305,29 @@ describe('payment actions', () => {
     await actions.cashReturnAction(EMPTY, form({ id: 'a-1', amount: '3,000', mode: 'CASH', reference: 'V-1', paidOn: '2026-10-05' }));
     expect(api.returnCash).toHaveBeenCalledWith('a-1', { amount: '3000.00', mode: 'CASH', reference: 'V-1', paidOn: '2026-10-05' });
     expect(await actions.cashReturnAction(EMPTY, form({ id: 'a-1', amount: '', mode: 'CASH', reference: 'V-1', paidOn: '2026-10-05' }))).toEqual({ error: 'Enter an amount in NPR with at most two decimals.' });
+  });
+});
+
+describe('remindAction', () => {
+  it('sends a reminder for the advance and refreshes its pages', async () => {
+    api.remindAdvance.mockResolvedValue(ready({ reminded: true, lastRemindedAt: '2026-10-20T08:00:00.000Z' }));
+    expect(await actions.remindAction(EMPTY, form({ id: 'a-1' }))).toEqual({});
+    expect(api.remindAdvance).toHaveBeenCalledWith('a-1');
+    expect(revalidatePath).toHaveBeenCalledWith('/finance/requests/a-1');
+  });
+
+  it('says so when someone already reminded them today', async () => {
+    api.remindAdvance.mockResolvedValue(ready({ reminded: false, lastRemindedAt: '2026-10-20T08:00:00.000Z' }));
+    expect(await actions.remindAction(EMPTY, form({ id: 'a-1' }))).toEqual({ error: 'A reminder was already sent in the last day.' });
+  });
+
+  it('shows the service refusal, such as an advance that is not overdue', async () => {
+    api.remindAdvance.mockResolvedValue({ state: 'unavailable', status: 409, message: 'This advance is not overdue yet' });
+    expect(await actions.remindAction(EMPTY, form({ id: 'a-1' }))).toEqual({ error: 'This advance is not overdue yet' });
+  });
+
+  it('needs the advance', async () => {
+    expect(await actions.remindAction(EMPTY, form({}))).toEqual({ error: 'Missing advance.' });
   });
 });
 

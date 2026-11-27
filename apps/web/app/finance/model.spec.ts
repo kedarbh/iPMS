@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addMoney, approverRole, availableActions, currentHandler, decisionLine, describeEntry, flagText, formatMoney, holdsApproval, initials, overdueSummary, personName, queueActions, settlementStatus, waitLabel, waitTone, waitingDays, waitingOn, waitingTitle, type Viewer } from './model';
+import { addMoney, approverRole, availableActions, currentHandler, decisionLine, describeEntry, flagText, formatMoney, holdsApproval, initials, overdueSummary, personName, queueActions, settlementDifference, settlementStatus, waitLabel, waitTone, waitingDays, waitingOn, waitingTitle, type Viewer } from './model';
 
 const ENG: Viewer = { id: 'u-eng', permissions: ['finance_request.view', 'finance_request.create', 'finance_request.cancel', 'finance_settlement.submit'] };
 const PM: Viewer = { id: 'u-pm', permissions: ['finance_request.view', 'finance_request.view_all', 'finance_request.create', 'finance_request.cancel', 'finance_settlement.submit', 'finance_approval.pm'] };
@@ -258,5 +258,43 @@ describe('initials', () => {
     expect(initials('Bikash Tamang')).toBe('BT');
     expect(initials('sita')).toBe('S');
     expect(initials('')).toBe('');
+  });
+});
+
+describe('availableActions: settlement reminders', () => {
+  const paid = req({ status: 'PAID' });
+  it('lets approvers and Finance chase an overdue advance', () => {
+    expect(availableActions(paid, PM, [], { status: 'PAID' }, { overdue: true })).toEqual(['remind']);
+    expect(availableActions(paid, DIR, [], { status: 'PAID' }, { overdue: true })).toEqual(['remind']);
+    expect(availableActions(paid, FIN, [], { status: 'PARTIALLY_SETTLED' }, { overdue: true })).toEqual(['cashReturn', 'remind']);
+  });
+
+  it('still offers it to whoever approved the advance', () => {
+    expect(availableActions(paid, PM, ['u-pm'], { status: 'PAID' }, { overdue: true })).toEqual(['remind']);
+  });
+
+  it('does not offer it before the settle-by day, once closed, or while a settlement is under review', () => {
+    expect(availableActions(paid, PM, [], { status: 'PAID' }, { overdue: false })).toEqual([]);
+    expect(availableActions(paid, PM, [], { status: 'PAID' })).toEqual([]);
+    expect(availableActions(paid, PM, [], { status: 'CLOSED' }, { overdue: true })).toEqual([]);
+    expect(availableActions(paid, FIN, [], { status: 'PAID' }, { overdue: true, settlementUnderReview: true })).toEqual(['cashReturn']);
+  });
+
+  it('never offers it to the engineer, or to someone who cannot see the project requests', () => {
+    expect(availableActions(paid, ENG, [], { status: 'PAID' }, { overdue: true })).toEqual(['settle']);
+    expect(availableActions(paid, { id: 'u-x', permissions: ['finance_approval.pm'] }, [], { status: 'PAID' }, { overdue: true })).toEqual([]);
+  });
+});
+
+describe('settlementDifference', () => {
+  it('is what the engineer still holds, or the excess when negative', () => {
+    expect(settlementDifference('10000.00', '7500.50')).toBe(2499.5);
+    expect(settlementDifference('10000.00', '12000.00')).toBe(-2000);
+    expect(settlementDifference('0.10', '0.10')).toBe(0);
+  });
+
+  it('is unknown without both amounts', () => {
+    expect(settlementDifference(undefined, '10.00')).toBeNull();
+    expect(settlementDifference('10.00', null)).toBeNull();
   });
 });

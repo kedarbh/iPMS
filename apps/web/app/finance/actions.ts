@@ -2,7 +2,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
-  approveRequest, cancelRequest, createCategory, createRequest, listRequests, payRequest, rejectRequest, returnCash, returnRequest,
+  approveRequest, cancelRequest, createCategory, createRequest, listRequests, payRequest, rejectRequest, remindAdvance, returnCash, returnRequest,
   submitRequest, updateCategory, updateRequest,
   type CreateRequestInput, type PaymentInput, type PaymentMode, type UpdateRequestInput,
 } from '../lib/finance-api';
@@ -155,8 +155,11 @@ export async function payAction(_previous: FormState, form: FormData): Promise<F
   const reference = optional(form, 'reference');
   const paidOn = optional(form, 'paidOn');
   const note = optional(form, 'note');
-  const body: Partial<PaymentInput> = {
+  const balanceReceived = optional(form, 'balanceReceived') === 'yes';
+  if (balanceReceived && (!mode || !reference || !paidOn)) return { error: 'Enter how the balance was handed over, the reference and the date.' };
+  const body: Partial<PaymentInput> & { balanceReceived?: boolean } = {
     ...(mode ? { mode } : {}), ...(reference ? { reference } : {}), ...(paidOn ? { paidOn } : {}), ...(note ? { note } : {}),
+    ...(balanceReceived ? { balanceReceived: true } : {}),
   };
   const state = await settle(await payRequest(id, body), pages(id));
   return !state.error && fromQueue(form) ? { done: true } : state;
@@ -174,6 +177,15 @@ export async function cashReturnAction(_previous: FormState, form: FormData): Pr
   if (!reference || !paidOn) return { error: 'Enter the reference and the date.' };
   const note = optional(form, 'note');
   return settle(await returnCash(id, { amount, mode, reference, paidOn, ...(note ? { note } : {}) }), pages(id));
+}
+
+/** A nudge to settle an overdue advance. The service sends at most one a day, whoever asks. */
+export async function remindAction(_previous: FormState, form: FormData): Promise<FormState> {
+  const id = requiredId(form);
+  if (!id) return { error: 'Missing advance.' };
+  const result = await remindAdvance(id);
+  if (result.state === 'ready' && !result.data.reminded) return { error: 'A reminder was already sent in the last day.' };
+  return settle(result, pages(id));
 }
 
 export async function createCategoryAction(_previous: FormState, form: FormData): Promise<FormState> {

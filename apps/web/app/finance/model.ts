@@ -52,7 +52,7 @@ export function waitingOn(status: FinanceRequest['status']): string | null {
 }
 
 export interface Viewer { id: string; permissions: readonly string[] }
-export type RequestAction = 'edit' | 'submit' | 'cancel' | 'approve' | 'return' | 'reject' | 'pay' | 'settle' | 'cashReturn';
+export type RequestAction = 'edit' | 'submit' | 'cancel' | 'approve' | 'return' | 'reject' | 'pay' | 'settle' | 'cashReturn' | 'remind';
 
 const PENDING = new Set(['PENDING_PM', 'PENDING_DIRECTOR', 'PENDING_FINANCE']);
 
@@ -85,6 +85,7 @@ export function availableActions(
   viewer: Viewer,
   approvedEarlier: readonly string[],
   balance?: { status: string } | null,
+  advance: { overdue?: boolean; settlementUnderReview?: boolean } = {},
 ): RequestAction[] {
   const can = (permission: string): boolean => viewer.permissions.includes(permission);
   /** A fully settled advance stays PAID; only its balance says CLOSED, and the service then refuses settlements and cash returns. */
@@ -97,12 +98,33 @@ export function availableActions(
     return [];
   }
 
+  if (open && isSettleable(request)) {
+    // Anyone who approves or pays in the project may chase an overdue advance, including whoever approved it;
+    // not while a settlement for it is already under review, when the engineer has done their part.
+    const chaser = can('finance_request.view_all') && REMINDER_PERMISSIONS.some(can);
+    const remind = chaser && advance.overdue === true && advance.settlementUnderReview !== true;
+    return [...(can('finance_payment.record') ? ['cashReturn' as const] : []), ...(remind ? ['remind' as const] : [])];
+  }
+
   if (approvedEarlier.includes(viewer.id)) return [];
   if (request.status === 'PENDING_PM' && can('finance_approval.pm')) return ['approve', 'return', 'reject'];
   if (request.status === 'PENDING_DIRECTOR' && can('finance_approval.director')) return ['approve', 'return', 'reject'];
   if (request.status === 'PENDING_FINANCE' && can('finance_payment.record')) return ['pay', 'return', 'reject'];
-  if (open && isSettleable(request) && can('finance_payment.record')) return ['cashReturn'];
   return [];
+}
+
+/** The permissions that may send a settlement reminder, as the service decides it (with `finance_request.view_all`). */
+const REMINDER_PERMISSIONS = ['finance_payment.record', 'finance_approval.director', 'finance_approval.pm'] as const;
+
+/**
+ * What is left once a settlement is applied to its advance: positive is the
+ * unspent cash the engineer still holds, negative the excess Finance pays out.
+ * Null when the advance balance is unknown. Worked in paisa, never floats.
+ */
+export function settlementDifference(outstanding: string | null | undefined, approved: string | null): number | null {
+  if (!outstanding || !approved) return null;
+  const paisa = (amount: string): number => Math.round(Number(amount) * 100);
+  return (paisa(outstanding) - paisa(approved)) / 100;
 }
 
 const VERB: Record<string, string> = { APPROVED: 'Approved', RETURNED: 'Returned', REJECTED: 'Rejected', PAID: 'Paid' };
