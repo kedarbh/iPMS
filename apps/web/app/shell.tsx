@@ -19,6 +19,15 @@ import { getMyProfile } from './lib/user-api';
 import { listWorkOrders } from './lib/work-order-api';
 import { homeFor } from './overview/model';
 
+function ReportsIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 3v18h18" />
+      <path d="M7 15v2M11 11v6M15 7v10M19 12v5" />
+    </svg>
+  );
+}
+
 function OverviewIcon({ size = 18 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -107,7 +116,7 @@ function ProfileIcon({ size = 18 }: { size?: number }) {
   );
 }
 
-type Section = 'overview' | 'projects' | 'checklists' | 'work-orders' | 'users' | 'docs' | 'profile' | 'audit' | 'finance' | 'finance-queue' | 'finance-history' | 'finance-categories' | 'finance-reports';
+type Section = 'overview' | 'projects' | 'checklists' | 'work-orders' | 'users' | 'docs' | 'profile' | 'audit' | 'finance' | 'finance-queue' | 'finance-history' | 'finance-categories' | 'finance-reports' | 'reports';
 
 function NavItem({
   section,
@@ -252,6 +261,11 @@ export async function Sidebar({ active }: { active: Section }) {
             <NavItem section="projects" active={active} href="/projects" icon={<ProjectsIcon />}>
               Projects
             </NavItem>
+            {director || home === 'admin' ? (
+              <NavItem section="reports" active={active} href="/reports" icon={<ReportsIcon />}>
+                Portfolio report
+              </NavItem>
+            ) : null}
             {director || manager || staff ? (
               <>
                 {qualityGroup}

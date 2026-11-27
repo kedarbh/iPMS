@@ -66,6 +66,16 @@ describe('DirectorOverview', () => {
     expect(out).toContain('Koshi Rollout');
   });
 
+  it('charts delivery pace and quality, and links the full report', async () => {
+    const out = await render();
+    expect(out).toContain('Delivery pace');
+    expect(out).toContain('aria-label="Completed per week"');
+    expect(out).toContain('Pace, 8 weeks');
+    expect(out).toContain('<svg class="ch-spark"');
+    expect(out).toContain('id="quality"');
+    expect(out).toContain('href="/reports"');
+  });
+
   it('still shows the queue when projects are down', async () => {
     getPortfolio.mockResolvedValue(down);
     const out = await render();

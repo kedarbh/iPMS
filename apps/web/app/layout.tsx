@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './styles.css';
+import './system.css';
 import { ToastProvider } from './components/toast';
 
 export const metadata: Metadata = {

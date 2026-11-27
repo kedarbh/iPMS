@@ -38,3 +38,15 @@ These are the working decisions behind the role dashboards in `apps/web/app/over
 ## Spacing
 - The base unit is 4px. Panels are padded 22px by 24px, or 18px by 16px below 700px.
 - The gap between sections of a page is 20px, or 14px on mobile.
+
+## Charts (`overview/charts.tsx`, `charts.css`)
+- Charts are server-rendered HTML and SVG. A native `title` gives the exact figure on hover, key values are printed as text, and the portfolio report's detail table is the table view.
+- Columns are at most 44px wide with 4px rounded tops. Stacked segments sit 2px apart. The period in progress has its label in ink.
+- A single series uses pale blue for past periods and the accent for the current one.
+- Projects get categorical hues in this fixed order: `#257de0`, `#f47230`, `#00b894`, `#f2a600`. They are dealt in project-code order, so a project keeps its colour. Beyond four spenders, all but the top three fold into "Other" (`#cbd5e1`). The palette passed the dataviz validator. Three of the hues are under 3:1 contrast, which is why values are always shown as text.
+- Horizontal bar lists use status tones only when the bar is itself a judgement (schedule, first-time approval). Plain amounts use the accent.
+- Legends and labels use text inks, never the series colour. A chart with one series has no legend.
+- On mobile, column labels switch to short forms (`−3w`, `Now`).
+
+## System layer (`app/system.css`)
+- Loaded after styles.css on every page. It holds the tokens (ink steps, surfaces, rules, one accent), 36px buttons with 8px radius and `scale(.97)` press, 40px inset fields with a focus ring, tables with small tracked caps, and one keyboard focus ring.

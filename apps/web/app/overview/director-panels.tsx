@@ -1,6 +1,8 @@
 import type { FinanceOverview, PipelineStep } from '@ipms/contracts';
 import { KIND_LABEL, flagText, formatMoney, personName } from '../finance/model';
 import { decideTimeText, nprShort, waitingFor, type ProjectHealth, type Signal } from './director-model';
+import { Sparkline, StackedColumns } from './charts';
+import { monthShort, type Series } from '../reports/report-model';
 
 const STEP_NAME: Record<PipelineStep['status'], string> = { PENDING_PM: 'With PM', PENDING_DIRECTOR: 'With Director', PENDING_FINANCE: 'With Finance' };
 const monthName = (key: string): string => new Date(`${key}-01T00:00:00Z`).toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' });
@@ -91,8 +93,10 @@ export function WaitingPanel({ finance, names, now, title = 'Waiting on you', em
 }
 
 /** Every project in scope, worst first, with the reason behind each signal. */
-export function PortfolioPanel({ health, failure, workOrdersMissing, showMoney = true }: {
+export function PortfolioPanel({ health, failure, workOrdersMissing, showMoney = true, pace }: {
   health: readonly ProjectHealth[]; failure: string | null; workOrdersMissing: boolean; showMoney?: boolean;
+  /** Completions per rolling week by project id; adds a pace column when given. */
+  pace?: ReadonlyMap<string, readonly number[]> | undefined;
 }) {
   return (
     <section className="ov-card ov-panel" id="portfolio">
@@ -107,12 +111,13 @@ export function PortfolioPanel({ health, failure, workOrdersMissing, showMoney =
               {workOrdersMissing ? <p className="ov-note">Work orders unavailable: quality is not shown, and projects without milestone requirements count planned tasks only.</p> : null}
               <div className="ov-scroll">
                 <table className="ov-table dr-portfolio">
-                  <thead><tr><th>Project</th><th>Progress</th><th>Schedule</th><th>Quality</th>{showMoney ? <th>Money</th> : null}</tr></thead>
+                  <thead><tr><th>Project</th><th>Progress</th>{pace ? <th>Pace, 8 weeks</th> : null}<th>Schedule</th><th>Quality</th>{showMoney ? <th>Money</th> : null}</tr></thead>
                   <tbody>
                     {health.map((h) => (
                       <tr key={h.id}>
                         <td><a className="ov-project" href={`/projects/${h.id}`}>{h.name}</a><span className="ov-sub">{h.code}</span></td>
                         <td><b>{h.completion}%</b>{h.partial ? <span className="ov-sub">partial</span> : null}<Progress health={h} /></td>
+                        {pace ? <td><Sparkline values={pace.get(h.id) ?? []} label={`${h.code} completed per week: ${(pace.get(h.id) ?? []).join(', ')}`} /></td> : null}
                         <td><Badge signal={h.schedule} /><span className="ov-sub">{h.schedule.reason}</span></td>
                         <td><Badge signal={h.quality} />{h.quality ? <span className="ov-sub">{h.quality.reason}</span> : null}</td>
                         {showMoney ? <td><Badge signal={h.money} />{h.money ? <span className="ov-sub">{h.money.reason}</span> : null}</td> : null}
@@ -128,7 +133,11 @@ export function PortfolioPanel({ health, failure, workOrdersMissing, showMoney =
 }
 
 /** Spend over six months, this month by category, and cash still with engineers. */
-export function MoneyPanel({ finance, names }: { finance: FinanceOverview | null; names: ReadonlyMap<string, string> }) {
+export function MoneyPanel({ finance, names, series }: {
+  finance: FinanceOverview | null; names: ReadonlyMap<string, string>;
+  /** Spend split by project; replaces the single-series bars when given. */
+  series?: readonly Series[] | undefined;
+}) {
   if (!finance) {
     return (
       <section className="ov-card ov-panel" id="money">
@@ -147,11 +156,17 @@ export function MoneyPanel({ finance, names }: { finance: FinanceOverview | null
         <div><h2>Money</h2><p>Spent is reimbursed plus settled, by the month Finance closed it (the spend report filters by the day a request was raised). Cash still out on advances is shown apart.</p></div>
         <a className="ov-link" href="/finance/reports">Spend report <span aria-hidden="true">→</span></a>
       </header>
-      <ol className="dr-bars" aria-label="Spend by month">
-        {totals.map((t) => (
-          <li key={t.month}><i style={{ height: `${Math.round((t.amount / peak) * 100)}%` }} /><b>{nprShort(t.amount)}</b><span>{monthName(t.month)}</span></li>
-        ))}
-      </ol>
+      {series ? (
+        <div className="dr-trend">
+          <StackedColumns series={series} periods={finance.months.map(monthShort)} label="Spend by month and project, NPR" format={(v) => nprShort(v).replace('NPR ', '')} />
+        </div>
+      ) : (
+        <ol className="dr-bars" aria-label="Spend by month">
+          {totals.map((t) => (
+            <li key={t.month}><i style={{ height: `${Math.round((t.amount / peak) * 100)}%` }} /><b>{nprShort(t.amount)}</b><span>{monthName(t.month)}</span></li>
+          ))}
+        </ol>
+      )}
       <h3 className="dr-sub">This month by category</h3>
       {finance.categories.length === 0 ? <p className="ov-sub">Nothing spent this month yet.</p> : (
         <ul className="dr-list">{finance.categories.map((c) => <li key={c.categoryId}><span>{c.name}</span><b>{nprShort(c.amount)}</b></li>)}</ul>

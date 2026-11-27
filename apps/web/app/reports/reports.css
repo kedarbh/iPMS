@@ -1,0 +1,31 @@
+/* The portfolio report. Builds on overview.css, director.css and charts.css; everything here is prefixed rp-. */
+.rp .ov-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.rp-toc { display: flex; flex-wrap: wrap; gap: 6px; }
+.rp-toc a { padding: 6px 12px; border: 1px solid var(--ov-line); border-radius: 999px; background: #fff; color: var(--ov-text); font-size: 12.5px; font-weight: 600; transition: background-color 120ms cubic-bezier(0.23, 1, 0.32, 1), color 120ms cubic-bezier(0.23, 1, 0.32, 1); }
+.rp-toc a:hover { background: #f8fafc; color: var(--ov-ink); }
+.rp section[id] { scroll-margin-top: 84px; }
+
+.ov-table.rp-table th.num, .ov-table.rp-table td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rp-table td { min-width: 0; }
+.rp-table .dr-badge { white-space: nowrap; }
+.rp-table td:nth-child(6) { min-width: 150px; }
+.rp-table td:first-child { min-width: 200px; }
+.rp-table tfoot th, .rp-table tfoot td { padding-top: 12px; border-top: 1px solid var(--ov-line); font-weight: 650; color: var(--ov-ink); text-align: left; }
+.rp-table tfoot td.num { text-align: right; }
+
+@media (max-width: 1100px) { .rp .ov-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* On paper: no navigation, no actions, panels kept whole, full width. */
+@media print {
+  @page { size: A4 landscape; margin: 12mm; }
+  .sidebar, .topbar, .rp-actions, .rp-toc, .rp .ov-link { display: none !important; }
+  .app-shell, .content { display: block !important; }
+  body, .rp { background: #fff !important; }
+  .rp { max-width: none; padding: 0; }
+  .rp .ov-pair { grid-template-columns: 1fr 1fr; }
+  .rp .ov-panel, .rp .ov-kpis { break-inside: avoid; }
+  .rp #detail { break-before: page; }
+  .rp .ov-scroll { overflow: visible; }
+  .rp-table { font-size: 10px; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
