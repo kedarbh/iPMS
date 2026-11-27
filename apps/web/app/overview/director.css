@@ -21,8 +21,12 @@
 
 .dr-bars { list-style: none; margin: 0 0 20px; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; height: 150px; }
 .dr-bars li { display: grid; grid-template-rows: 1fr auto auto; gap: 4px; height: 100%; text-align: center; }
-.dr-bars i { align-self: end; display: block; min-height: 2px; border-radius: 4px 4px 0 0; background: var(--ov-blue); }
-.dr-bars b { font-size: 11px; font-weight: 650; color: var(--ov-ink); }
+.dr-bars { gap: 14px; }
+/* Past months recede; only the month in progress carries the accent. */
+.dr-bars i { align-self: end; justify-self: center; display: block; width: min(100%, 44px); min-height: 2px; border-radius: 4px 4px 0 0; background: #c9d8f8; }
+.dr-bars li:last-child i { background: var(--ov-blue); }
+.dr-bars li:last-child span { color: var(--ov-ink); font-weight: 650; }
+.dr-bars b { font-size: 11px; font-weight: 650; color: var(--ov-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dr-bars span { font-size: 11px; color: var(--ov-text); }
 
 .dr-sub { margin: 18px 0 8px; font-size: 13px; font-weight: 650; color: var(--ov-ink); }
@@ -39,3 +43,12 @@
 .dr-stats span { font-size: 12px; color: var(--ov-text); }
 
 @media (max-width: 900px) { .dr-pipeline { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* The money panel on its own row (the organisation overview): the chart on the left, its breakdowns beside it. */
+@media (min-width: 1101px) {
+  .ov > #money { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); column-gap: 40px; grid-auto-flow: row dense; align-content: start; }
+  .ov > #money > .ov-panel-head { grid-column: 1 / -1; }
+  .ov > #money > .dr-bars { grid-column: 1; grid-row: 2 / span 4; align-self: start; }
+  .ov > #money > :not(.ov-panel-head):not(.dr-bars) { grid-column: 2; }
+  .ov > #money > .dr-sub:first-of-type { margin-top: 0; }
+}

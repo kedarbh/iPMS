@@ -60,6 +60,9 @@ export function WaitingPanel({ finance, names, now, title = 'Waiting on you', em
         <ul className="mg-queue">
           {finance.queue.map((item) => {
             const age = waitingFor(item.waitingSince, now);
+            // The age already shows beside the amount; a long wait tints it instead of repeating as a flag.
+            const longWait = item.flags.some((flag) => flag.code === 'WAITING_LONG');
+            const flags = item.flags.filter((flag) => flag.code !== 'WAITING_LONG');
             return (
               <li key={item.id}>
                 <span className="mg-icon" aria-hidden="true">₨</span>
@@ -67,15 +70,15 @@ export function WaitingPanel({ finance, names, now, title = 'Waiting on you', em
                   <p><a href={`/finance/requests/${item.id}`}>{item.purpose}</a><code>{item.number}</code></p>
                   <span>{KIND_LABEL[item.kind]} · {item.category} · {item.projectCode} {item.projectName}</span>
                   <span>{personName(item.requesterId, names)}</span>
-                  {item.flags.length > 0 ? (
+                  {flags.length > 0 ? (
                     <ul className="finance-flags" aria-label="Warnings">
-                      {item.flags.map((flag) => <li key={flag.code} className={flag.tone}>{flagText(flag)}</li>)}
+                      {flags.map((flag) => <li key={flag.code} className={flag.tone}>{flagText(flag)}</li>)}
                     </ul>
                   ) : null}
                 </div>
                 <div className="mg-end">
                   <b>{formatMoney(item.amount)}</b>
-                  <span className="ov-sub">{age === 'today' ? 'Arrived today' : `Waiting ${age}`}</span>
+                  <span className={`ov-sub${longWait ? ' amber' : ''}`}>{age === 'today' ? 'Arrived today' : `Waiting ${age}`}</span>
                   <a className="mg-review" href={`/finance/requests/${item.id}`}>Review</a>
                 </div>
               </li>
