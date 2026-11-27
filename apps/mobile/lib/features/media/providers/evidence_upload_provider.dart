@@ -32,6 +32,36 @@ class EvidenceUploader {
 
   static const Duration _pollInterval = Duration(seconds: 2);
 
+  /// Most uploads in flight at once. A task can hold up to 1500 photos;
+  /// starting them all together reads every file into memory at once and
+  /// trips the server's per-user cap on unfinished uploads (429).
+  static const int maxConcurrentUploads = 4;
+
+  /// Most ids `POST /media/uploads/status` takes in one call.
+  static const int statusBatchSize = 200;
+
+  int _activeUploads = 0;
+  final List<Completer<void>> _waitingForSlot = [];
+
+  Future<void> _acquireSlot() async {
+    if (_activeUploads < maxConcurrentUploads) {
+      _activeUploads++;
+      return;
+    }
+    final turn = Completer<void>();
+    _waitingForSlot.add(turn);
+    // The slot is handed over by _releaseSlot, so the count stays as it is.
+    await turn.future;
+  }
+
+  void _releaseSlot() {
+    if (_waitingForSlot.isNotEmpty) {
+      _waitingForSlot.removeAt(0).complete();
+    } else {
+      _activeUploads--;
+    }
+  }
+
   MediaRepository get _media => _ref.read(mediaRepositoryProvider);
   TaskEvidenceNotifier get _evidence => _ref.read(taskEvidenceProvider.notifier);
 
@@ -46,9 +76,11 @@ class EvidenceUploader {
   }
 
   /// Uploads one photo. Failures are recorded on the evidence, not thrown.
+  /// At most [maxConcurrentUploads] run at once; the rest wait their turn.
   Future<void> upload(String taskId, String evidenceId) async {
     if (AppConfig.demoMode) return;
     if (!_inFlight.add(evidenceId)) return;
+    await _acquireSlot();
     try {
       var ev = _evidence.find(taskId, evidenceId);
       if (ev == null || !_needsUpload(ev)) return;
@@ -113,6 +145,7 @@ class EvidenceUploader {
     } catch (e) {
       _setStatus(taskId, evidenceId, EvidenceUploadStatus.failed, error: 'Upload failed: $e');
     } finally {
+      _releaseSlot();
       _inFlight.remove(evidenceId);
     }
   }
@@ -125,11 +158,16 @@ class EvidenceUploader {
         .toList();
     if (verifying.isEmpty) return;
     final byMediaId = {for (final e in verifying) e.mediaId: e.id};
-    final statuses = await _media.status(byMediaId.keys.toList());
-    for (final item in statuses) {
-      final evidenceId = byMediaId[item.id];
-      if (evidenceId == null) continue;
-      _applyServerStatus(taskId, evidenceId, item.status, rejectReason: item.rejectReason);
+    final ids = byMediaId.keys.toList();
+    // The server refuses more than [statusBatchSize] ids per call, so ask in batches.
+    for (var start = 0; start < ids.length; start += statusBatchSize) {
+      final end = start + statusBatchSize < ids.length ? start + statusBatchSize : ids.length;
+      final statuses = await _media.status(ids.sublist(start, end));
+      for (final item in statuses) {
+        final evidenceId = byMediaId[item.id];
+        if (evidenceId == null) continue;
+        _applyServerStatus(taskId, evidenceId, item.status, rejectReason: item.rejectReason);
+      }
     }
   }
 
