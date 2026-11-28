@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/core/network/api_exceptions.dart';
 import 'package:mobile/core/security/token_storage.dart';
@@ -18,6 +19,7 @@ class _Media implements HttpClientAdapter {
   String completeStatus = 'VERIFYING';
   int completeFailures = 0; // answers 412 this many times
   int puts = 0;
+  List<int> lastPut = const [];
 
   @override
   Future<ResponseBody> fetch(RequestOptions options, Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
@@ -36,6 +38,7 @@ class _Media implements HttpClientAdapter {
     }
     if (path == 'https://bucket/put') {
       puts++;
+      lastPut = requestStream == null ? const [] : (await requestStream.toList()).expand((b) => b).toList();
       return ResponseBody.fromString('', 200);
     }
     if (path.endsWith('/complete')) {
@@ -61,7 +64,8 @@ class _Media implements HttpClientAdapter {
 void main() {
   late _Media server;
   late InvoicePhotoUploader uploader;
-  final bytes = Uint8List.fromList(List.generate(2000, (i) => i % 251));
+  final picture = img.Image(width: 64, height: 48)..clear(img.ColorRgb8(200, 120, 40));
+  final bytes = img.encodeJpg(picture);
 
   setUp(() {
     FlutterSecureStorage.setMockInitialValues({});
@@ -88,7 +92,7 @@ void main() {
     expect(register['projectId'], 'p-1');
     expect(register['kind'], 'PHOTO');
     expect(register['contentType'], 'image/jpeg');
-    expect(register['sizeBytes'], 2000);
+    expect(register['sizeBytes'], bytes.length);
     expect(register['contentHash'], sha256.convert(bytes).toString());
     expect(register['deviceId'], 'dev-1');
     expect(server.puts, 1);
@@ -107,10 +111,40 @@ void main() {
     expect(server.puts, 2);
   });
 
-  test('refuses a file over 5 MB before sending anything', () async {
+  test('sends a JPEG as it is', () async {
+    await uploader.upload(projectId: 'p-1', mediaId: 'm-1', bytes: bytes);
+    final register = server.calls.first.data as Map;
+    expect(register['contentHash'], sha256.convert(bytes).toString());
+  });
+
+  test('turns a PNG from the gallery (a screenshot) into a JPEG before sending it', () async {
+    final png = img.encodePng(img.Image(width: 40, height: 30, numChannels: 4)..clear(img.ColorRgba8(0, 0, 0, 0)));
+    await uploader.upload(projectId: 'p-1', mediaId: 'm-1', bytes: png);
+
+    final sent = server.lastPut;
+    expect(sent.sublist(0, 3), [0xff, 0xd8, 0xff]);
+    final register = server.calls.first.data as Map;
+    expect(register['contentType'], 'image/jpeg');
+    expect(register['sizeBytes'], sent.length);
+    expect(register['contentHash'], sha256.convert(sent).toString());
+    // Transparent pixels land on white, not black.
+    final decoded = img.decodeJpg(Uint8List.fromList(sent))!;
+    expect(decoded.getPixel(10, 10).r, greaterThan(240));
+  });
+
+  test('scales a large picture down to 2048 px on its longest side', () async {
+    final png = img.encodePng(img.Image(width: 3000, height: 1500)..clear(img.ColorRgb8(10, 10, 10)));
+    await uploader.upload(projectId: 'p-1', mediaId: 'm-1', bytes: png);
+    final sent = server.lastPut;
+    final decoded = img.decodeJpg(Uint8List.fromList(sent))!;
+    expect(decoded.width, 2048);
+    expect(decoded.height, 1024);
+  });
+
+  test('refuses a file it cannot read as a picture before sending anything', () async {
     await expectLater(
-      uploader.upload(projectId: 'p-1', mediaId: 'm-1', bytes: Uint8List(5 * 1024 * 1024 + 1)),
-      throwsA(isA<ApiException>().having((e) => e.message, 'message', contains('5 MB'))),
+      uploader.upload(projectId: 'p-1', mediaId: 'm-1', bytes: Uint8List.fromList(List.generate(2000, (i) => i % 251))),
+      throwsA(isA<ApiException>().having((e) => e.message, 'message', contains('not supported'))),
     );
     expect(server.calls, isEmpty);
   });
@@ -131,3 +165,4 @@ void main() {
     );
   });
 }
+
