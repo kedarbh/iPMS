@@ -240,6 +240,48 @@ void main() {
       expect(find.textContaining('Rajesh Shrestha'), findsWidgets);
     });
 
+    testWidgets('opening a request again shows what changed since, not the copy already held', (tester) async {
+      phoneScreen(tester);
+      server.byId = {'r1': record('r1', 'PENDING_PM')};
+      await tester.pumpWidget(financeApp(server, Builder(
+        builder: (context) => TextButton(
+          onPressed: () => Navigator.push<void>(context, MaterialPageRoute(builder: (_) => const RequestDetailScreen(requestId: 'r1'))),
+          child: const Text('open'),
+        ),
+      )));
+      await tester.tap(find.text('open'));
+      await settleNetwork(tester);
+      expect(find.text('Cancel request'), findsOneWidget);
+
+      // The manager returns it while the engineer is elsewhere, then the push is tapped.
+      Navigator.pop(tester.element(find.byType(RequestDetailScreen)));
+      await tester.pumpAndSettle();
+      server.byId = {'r1': record('r1', 'RETURNED')};
+      await tester.tap(find.text('open'));
+      await settleNetwork(tester);
+      await settleNetwork(tester);
+
+      expect(find.text('Edit and resubmit'), findsOneWidget);
+      expect(find.text('Cancel request'), findsNothing);
+    });
+
+    testWidgets('coming back to the app reloads the request on screen', (tester) async {
+      phoneScreen(tester);
+      server.byId = {'r1': record('r1', 'PENDING_PM')};
+      await tester.pumpWidget(financeApp(server, const RequestDetailScreen(requestId: 'r1')));
+      await settleNetwork(tester);
+      await settleNetwork(tester);
+      expect(find.text('Cancel request'), findsOneWidget);
+
+      server.byId = {'r1': record('r1', 'RETURNED')};
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await settleNetwork(tester);
+      await settleNetwork(tester);
+
+      expect(find.text('Edit and resubmit'), findsOneWidget);
+    });
+
     testWidgets('a draft can be edited or submitted', (tester) async {
       phoneScreen(tester);
       server.byId = {'d1': record('d1', 'DRAFT')};

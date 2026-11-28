@@ -68,10 +68,20 @@ final pushLifecycleProvider = Provider<void>((ref) {
   }, fireImmediately: true);
 });
 
-/// A push that arrives with the app open: refresh what it concerns and offer to open it.
-void showPushBanner(Ref ref, PushPayload p) {
+/// A push means something changed on the server: drop what the app holds about
+/// it, so the next screen to read it (or the one already showing it) fetches
+/// the new state instead of showing the cached one.
+void refreshForPush(Ref ref, PushPayload p) {
   ref.invalidate(financeNotificationsProvider);
   ref.invalidate(awaitingFinanceRequestsProvider);
+  ref.invalidate(myFinanceRequestsProvider);
+  final requestId = p.financeRequestId;
+  if (requestId != null) ref.invalidate(financeRequestProvider(requestId));
+}
+
+/// A push that arrives with the app open: refresh what it concerns and offer to open it.
+void showPushBanner(Ref ref, PushPayload p) {
+  refreshForPush(ref, p);
   rootMessengerKey.currentState
     ?..hideCurrentSnackBar()
     ..showSnackBar(
@@ -88,6 +98,9 @@ void showPushBanner(Ref ref, PushPayload p) {
 void openPush(Ref ref, PushPayload p) {
   final requestId = p.financeRequestId;
   if (requestId == null) return;
+  // A tap can come long after the push arrived, or with the app in the
+  // background where no banner ran: fetch the request fresh either way.
+  refreshForPush(ref, p);
   void go() => rootNavigatorKey.currentState?.push<void>(MaterialPageRoute(builder: (_) => RequestDetailScreen(requestId: requestId)));
   if (rootNavigatorKey.currentState != null) {
     go();
