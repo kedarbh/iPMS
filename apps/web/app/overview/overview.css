@@ -112,7 +112,7 @@
 
 /* Audit log */
 .ov-chips { display: flex; gap: 6px; flex-wrap: wrap; }
-.ov-chips a { padding: 6px 13px; border-radius: 999px; border: 1px solid var(--ov-line); background: #fff; color: #334155; font-size: 12.5px; font-weight: 600; }
+.ov-chips a { display: inline-flex; align-items: center; min-height: 32px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--ov-line); background: #fff; color: #334155; font-size: 12.5px; font-weight: 600; }
 .ov-chips a:hover { background: #f8fafc; }
 .ov-chips a.on { background: #eaf1ff; border-color: #bcd2ff; color: #1d4ed8; }
 .ov-chips a:focus-visible, .ov-link:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }

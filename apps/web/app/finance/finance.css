@@ -13,12 +13,13 @@
 .finance-tabs a { padding: 10px 14px; font-size: 14px; white-space: nowrap; color: var(--muted); border-bottom: 2px solid transparent; }
 .finance-tabs a[aria-current='page'] { color: var(--ink); font-weight: 600; border-bottom-color: var(--blue); }
 
-.finance-pill { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; background: color-mix(in srgb, var(--muted) 14%, transparent); color: var(--muted); }
-.finance-pill.green { background: color-mix(in srgb, var(--green) 15%, transparent); color: var(--green); }
-.finance-pill.amber { background: color-mix(in srgb, var(--amber) 18%, transparent); color: var(--amber); }
-.finance-pill.red { background: color-mix(in srgb, var(--red) 15%, transparent); color: var(--red); }
-.finance-pill.blue { background: color-mix(in srgb, var(--blue) 14%, transparent); color: var(--blue); }
-.finance-pill.slate { background: color-mix(in srgb, var(--muted) 14%, transparent); color: var(--muted); }
+/* Status pills: 22px tall, and the darker status inks so the words stay readable on their tint. */
+.finance-pill { display: inline-flex; align-items: center; min-height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1.2; white-space: nowrap; vertical-align: middle; background: #f1f5f9; color: #475569; }
+.finance-pill.green { background: #ecfdf5; color: #047857; }
+.finance-pill.amber { background: #fffbeb; color: #b45309; }
+.finance-pill.red { background: #fef2f2; color: #b91c1c; }
+.finance-pill.blue { background: #eff6ff; color: #1d4ed8; }
+.finance-pill.slate { background: #f1f5f9; color: #475569; }
 
 .finance-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 20px; align-items: start; }
 .finance-facts { margin: 0; }
@@ -102,13 +103,19 @@
 .fin-who { display: flex; align-items: flex-start; gap: 10px; }
 
 .fin-pills { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 14px; }
-.fin-pill-link { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; color: var(--muted); background: #fff; }
+.fin-pill-link { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 14px; border: 1px solid var(--line-strong, #d5dce6); border-radius: 999px; font-size: 13px; font-weight: 550; line-height: 1.2; color: var(--text-2, #475569); background: #fff; }
+.fin-pill-link:is(a):hover:not([aria-current]) { border-color: #c3ccd8; background: var(--sunken, #f8fafc); color: var(--ink); }
+.fin-pill-link > a { color: #1d4ed8; font-weight: 600; }
+.fin-pill-link > a:hover { text-decoration: underline; }
 .fin-pill-link[aria-current='page'] { background: var(--ink); border-color: var(--ink); color: #fff; font-weight: 600; }
-.fin-count { padding: 0 6px; border-radius: 999px; background: color-mix(in srgb, var(--muted) 16%, transparent); font-size: 11px; }
+.fin-count { min-width: 20px; padding: 1px 6px; line-height: 16px; text-align: center; font-variant-numeric: tabular-nums; border-radius: 999px; background: color-mix(in srgb, var(--muted) 16%, transparent); font-size: 11px; }
 .fin-pill-link[aria-current='page'] .fin-count { background: rgba(255, 255, 255, .22); }
 .fin-pills-total { margin-left: auto; font-size: 13px; color: var(--muted); }
-.fin-search { display: flex; gap: 8px; margin-bottom: 12px; }
-.fin-search input[type='search'] { flex: 1; max-width: 420px; height: 38px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-input, 4px); }
+.fin-search { display: flex; gap: 8px; margin-bottom: 14px; }
+.fin-search input[type='search'] { flex: 1; min-width: 0; max-width: 420px; height: var(--field-h, 40px); padding: 0 12px; border: 1px solid var(--field-edge, #d5dce6); border-radius: var(--radius-input, 8px); background: var(--field-bg, #fbfcfe); color: var(--ink); font: inherit; font-size: 14px; outline: none; transition: border-color 120ms ease-out, box-shadow 120ms ease-out; }
+.fin-search input[type='search']:hover { border-color: var(--field-edge-hover, #c3ccd8); }
+.fin-search input[type='search']:focus-visible { border-color: var(--blue); background: #fff; box-shadow: var(--focus-ring); }
+@media (max-width: 700px) { .fin-search input[type='search'] { max-width: none; font-size: 16px; } }
 .fin-row-actions { display: flex; gap: 8px; justify-content: flex-end; white-space: nowrap; }
 .fin-row-actions .primary-button, .fin-row-actions .ghost-button { padding: 7px 12px; font-size: 13px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
