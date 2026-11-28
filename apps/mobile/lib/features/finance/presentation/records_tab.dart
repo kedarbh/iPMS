@@ -78,7 +78,7 @@ class _RecordsTabState extends State<RecordsTab> {
     final views = widget.views, query = widget.query, filter = widget.filter;
     final onQuery = widget.onQuery, onFilter = widget.onFilter, onOpen = widget.onOpen;
     final matches = recordFilters[filter].$2;
-    final shown = views.where((v) => matches(v.stage) && matchesSearch(v, query)).toList();
+    final shown = actionFirst(views.where((v) => matches(v.stage) && matchesSearch(v, query)));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

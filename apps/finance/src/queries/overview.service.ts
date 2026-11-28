@@ -14,6 +14,7 @@ const DAY_MS = 86_400_000;
 export const OVERVIEW_MONTHS = 6;
 export const QUEUE_SIZE = 5;
 export const TOP_HOLDERS = 5;
+export const OVERDUE_LIST = 50;
 export const DECISION_WINDOW_DAYS = 30;
 
 type Money = { toFixed(digits: number): string };
@@ -133,6 +134,14 @@ export class OverviewService {
         .map(([requesterId, h]) => ({ requesterId, outstanding: sumMoney(h.outstanding), open: h.open, overdue: h.overdue }))
         .sort((a, b) => compareMoney(b.outstanding, a.outstanding))
         .slice(0, TOP_HOLDERS),
+      overdueAdvances: open
+        .filter((a) => a.overdue && a.dueOn !== null)
+        .sort((a, b) => b.daysOverdue - a.daysOverdue || compareMoney(b.outstanding, a.outstanding))
+        .slice(0, OVERDUE_LIST)
+        .map((a) => ({
+          id: a.id, number: a.number, requesterId: a.requesterId, projectCode: a.projectCode, projectName: a.projectName,
+          outstanding: a.outstanding, dueOn: a.dueOn!, daysOverdue: a.daysOverdue,
+        })),
       decisions: await this.decisions(decided),
     };
   }

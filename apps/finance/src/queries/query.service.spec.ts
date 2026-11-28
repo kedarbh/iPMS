@@ -29,3 +29,34 @@ describe('QueryService.get', () => {
     expect(warn).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('QueryService.list order', () => {
+  const row = (id: string, status: string) => ({ ...pendingAdvance, id, status, requesterId: ACTORS.engineer.id });
+  /** Five requests waiting on the caller and seven not; `findMany` answers from whichever set the where names. */
+  function build() {
+    const first = Array.from({ length: 5 }, (_, i) => row(`a${i}`, 'RETURNED'));
+    const rest = Array.from({ length: 7 }, (_, i) => row(`b${i}`, 'PENDING_PM'));
+    const isAction = (where: { AND: unknown[] }) => !('NOT' in (where.AND[1] as object));
+    const findMany = vi.fn(async ({ where, skip, take }: { where: { AND: unknown[] }; skip: number; take: number }) =>
+      (isAction(where) ? first : rest).slice(skip, skip + take));
+    const count = vi.fn(async ({ where }: { where: { AND: unknown[] } }) => (isAction(where) ? first : rest).length);
+    const prisma = { financeRequest: { findMany, count } } as unknown as PrismaClient;
+    return { svc: new QueryService(prisma), findMany };
+  }
+
+  it('lists what waits on the caller before the rest, latest change first', async () => {
+    const { svc, findMany } = build();
+    const page = await svc.list(ACTORS.engineer, scopes.project, { view: 'mine', page: 1, limit: 3 });
+    expect(page.items.map((r) => r.id)).toEqual(['a0', 'a1', 'a2']);
+    expect(page.total).toBe(12);
+    expect(findMany.mock.calls[0]![0]).toMatchObject({ orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }] });
+  });
+
+  it('carries on into the rest across a page boundary', async () => {
+    const { svc } = build();
+    const second = await svc.list(ACTORS.engineer, scopes.project, { view: 'mine', page: 2, limit: 3 });
+    expect(second.items.map((r) => r.id)).toEqual(['a3', 'a4', 'b0']);
+    const third = await svc.list(ACTORS.engineer, scopes.project, { view: 'mine', page: 3, limit: 3 });
+    expect(third.items.map((r) => r.id)).toEqual(['b1', 'b2', 'b3']);
+  });
+});

@@ -692,10 +692,13 @@ class _ApproverFinanceState extends ConsumerState<ApproverFinance> {
     final q = _query.trim().toLowerCase();
     final filter = historyFilters[_history.clamp(0, historyFilters.length - 1)];
     final advances = {for (final r in all) if (r.isAdvance) r.id: r};
-    final shown = [
-      for (final r in all)
-        if (_matches(r, q, names)) viewOf(r, context, now),
-    ].where((v) => matchesHistoryFilter(filter, v, viewerId)).toList();
+    final shown = actionFirst(
+      [
+        for (final r in all)
+          if (_matches(r, q, names)) viewOf(r, context, now),
+      ].where((v) => matchesHistoryFilter(filter, v, viewerId)),
+      viewerId: viewerId,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

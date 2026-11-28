@@ -102,13 +102,17 @@ describe('OverviewService', () => {
     const view = await overviews.overview(ACTORS.director, scopes.project, NOW);
     expect(view.projects).toEqual([expect.objectContaining({ spentToDate: '0.00', cashHeld: '1500.00', overdueSettlements: { count: 1, amount: '500.00' } })]);
     expect(view.cashHolders).toEqual([{ requesterId: ACTORS.engineer.id, outstanding: '1500.00', open: 2, overdue: 1 }]);
+    expect(view.overdueAdvances).toEqual([expect.objectContaining({ id: late.id, number: late.number, requesterId: ACTORS.engineer.id, outstanding: '500.00' })]);
+    expect(view.overdueAdvances[0]!.daysOverdue).toBeGreaterThan(0);
 
     const settling = await requests.create({
       kind: 'SETTLEMENT', advanceId: late.id, categoryId, purpose: 'Bills',
       invoices: [{ vendor: 'Hotel', invoiceNumber: 'H-1', invoiceDate: new Date('2026-09-22'), amount: '450' }],
     }, ACTORS.engineer, scopes.project);
     await requests.submit(settling.id, ACTORS.engineer);
-    expect((await overviews.overview(ACTORS.director, scopes.project, NOW)).projects[0]!.overdueSettlements.count).toBe(0);
+    const after = await overviews.overview(ACTORS.director, scopes.project, NOW);
+    expect(after.projects[0]!.overdueSettlements.count).toBe(0);
+    expect(after.overdueAdvances).toEqual([]);
   });
 
   it('sums what the caller decided in 30 days, what they trimmed, and how long they took', async () => {

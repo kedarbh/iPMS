@@ -3,6 +3,7 @@ import {
   KIND_LABEL, KIND_PLURAL, addMoney, dayCount, formatAmount, formatMoney, initials, overdueSummary, personName, waitLabel, waitTone, waitingDays, waitingTitle,
   type ApproverRole,
 } from './model';
+import { OverdueBanner } from './overdue-banner';
 
 const KINDS: readonly RequestKind[] = ['ADVANCE', 'SETTLEMENT', 'REIMBURSEMENT'];
 const TOP_HOLDERS = 5; // matches the finance service
@@ -13,7 +14,7 @@ const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' 
 /** The approver's home: what waits, what is overdue, who holds cash. Pure markup over `FinanceOverview`. */
 export function OverviewBody({ overview, names, role, now }: { overview: FinanceOverview; names: ReadonlyMap<string, string>; role: ApproverRole; now: Date }) {
   const { waiting } = overview;
-  const overdue = overdueSummary(overview.projects, overview.cashHolders, names);
+  const overdue = overdueSummary(overview.projects, overview.cashHolders, names, overview.overdueAdvances);
   const oldest = waiting.oldestSince ? ` · oldest ${dayCount(waitingDays(waiting.oldestSince, now))}` : '';
   const heldTotal = addMoney(...overview.projects.map((p) => p.cashHeld));
 
@@ -35,13 +36,15 @@ export function OverviewBody({ overview, names, role, now }: { overview: Finance
       </div>
 
       {overdue ? (
-        <div className="fin-banner" role="status">
-          <div>
-            <strong>{plural(overdue.count, 'settlement')} overdue</strong>
-            <p>{formatMoney(overdue.amount)}{overdue.people.length > 0 || overdue.partial ? ` with ${[...overdue.people, ...(overdue.partial ? ['others'] : [])].join(' and ')}` : ''}, past the settle-by day.</p>
-          </div>
-          <a className="fin-banner-link" href="#cash">See who</a>
-        </div>
+        <OverdueBanner
+          title={`${plural(overdue.count, 'settlement')} overdue`}
+          summary={`${formatMoney(overdue.amount)}${overdue.people.length > 0 || overdue.partial ? ` with ${[...overdue.people, ...(overdue.partial ? ['others'] : [])].join(' and ')}` : ''}, past the settle-by day.`}
+          rows={overview.overdueAdvances.map((a) => ({
+            id: a.id, number: a.number, who: personName(a.requesterId, names), project: a.projectCode,
+            amount: formatMoney(a.outstanding), late: `${dayCount(a.daysOverdue)} late`,
+          }))}
+          more={Math.max(0, overdue.count - overview.overdueAdvances.length)}
+        />
       ) : null}
 
       <div className="fin-two">

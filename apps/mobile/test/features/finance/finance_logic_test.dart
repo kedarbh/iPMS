@@ -346,4 +346,26 @@ void main() {
     });
   });
 
+  group('list order', () {
+    test('puts what waits on the requester first, then the latest change', () {
+      final rows = [
+        req('1', 'SETTLED', kind: 'REIMBURSEMENT', extra: {'updatedAt': isoOn(10, 9)}),
+        req('2', 'PENDING_PM', extra: {'updatedAt': isoOn(10, 8)}),
+        req('3', 'RETURNED', extra: {'updatedAt': isoOn(10, 2)}),
+        req('4', 'DRAFT', extra: {'updatedAt': isoOn(10, 5)}),
+      ];
+      final views = [for (final r in rows) viewOf(r, rows, now)];
+      expect(actionFirst(views).map((v) => v.request.id), ['4', '3', '1', '2']);
+    });
+
+    test("counts only the viewer's own requests as theirs to act on", () {
+      final rows = [
+        req('1', 'RETURNED', extra: {'requesterId': 'someone-else', 'updatedAt': isoOn(10, 9)}),
+        req('2', 'PENDING_PM', extra: {'updatedAt': isoOn(10, 8)}),
+        req('3', 'RETURNED', extra: {'updatedAt': isoOn(10, 1)}),
+      ];
+      final views = [for (final r in rows) viewOf(r, rows, now)];
+      expect(actionFirst(views, viewerId: 'u-1').map((v) => v.request.id), ['3', '1', '2']);
+    });
+  });
 }

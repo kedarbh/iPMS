@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { OverdueList } from './overdue-banner';
 import { OverviewBody } from './overview-body';
 
 const NOW = new Date('2026-10-10T08:00:00Z');
@@ -20,6 +21,7 @@ const overview = (over: Record<string, unknown> = {}) => ({
     { requesterId: 'u-2', outstanding: '45000.00', open: 2, overdue: 1 },
     { requesterId: 'u-1', outstanding: '23500.00', open: 1, overdue: 0 },
   ],
+  overdueAdvances: [],
   decisions: { approved: { count: 0, amount: '0.00' }, trimmed: { count: 0, saved: '0.00' }, returned: 0, rejected: 0, medianHoursToDecide: null },
   ...over,
 }) as never;
@@ -47,7 +49,19 @@ describe('OverviewBody', () => {
     expect(out).toContain('2 settlements overdue');
     expect(out).toContain('NPR 45,000.00');
     expect(out).toContain('Bikash Tamang');
-    expect(out).toContain('href="#cash"');
+    // Without the overdue list (an older finance service) there is nothing to open, so no button.
+    expect(out).not.toContain('See who');
+  });
+
+  it('offers "See who" over the overdue advances themselves', () => {
+    const out = html(overview({
+      overdueAdvances: [
+        { id: 'a-1', number: 'ADV-2026-0007', requesterId: 'u-2', projectCode: 'NP004', projectName: 'Pokhara', outstanding: '30000.00', dueOn: '2026-10-01', daysOverdue: 9 },
+        { id: 'a-2', number: 'ADV-2026-0009', requesterId: 'u-1', projectCode: 'NP004', projectName: 'Pokhara', outstanding: '15000.00', dueOn: '2026-10-05', daysOverdue: 5 },
+      ],
+    }));
+    expect(out).toMatch(/<button[^>]*aria-expanded="false"[^>]*>See who<\/button>/);
+    expect(out).toContain('with Bikash Tamang and Anil Gurung, past');
   });
 
   it('has no banner when nothing is overdue', () => {
@@ -111,5 +125,16 @@ describe('OverviewBody', () => {
     const out = html(empty);
     expect(out).toContain('Nothing waits on you.');
     expect(out).toContain('0 requests');
+  });
+});
+
+describe('OverdueList', () => {
+  it('links each overdue advance to its request with who, how much and how late', () => {
+    const out = renderToStaticMarkup(<OverdueList id="x" more={2} rows={[{ id: 'a-1', number: 'ADV-2026-0007', who: 'Bikash Tamang', project: 'NP004', amount: 'NPR 30,000.00', late: '9 days late' }]} />);
+    expect(out).toContain('href="/finance/requests/a-1"');
+    expect(out).toContain('Bikash Tamang');
+    expect(out).toContain('ADV-2026-0007 · NP004');
+    expect(out).toContain('9 days late');
+    expect(out).toContain('and 2 more');
   });
 });
