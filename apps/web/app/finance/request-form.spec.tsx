@@ -36,7 +36,7 @@ describe('RequestForm', () => {
 
   it('settles a given advance without choosing a project, and says what is outstanding', () => {
     const out = renderToStaticMarkup(
-      <RequestForm kind="SETTLEMENT" projects={projects} categories={categories} advance={{ id: 'a-1', number: 'ADV-2026-0007', projectName: 'Koshi Rollout', outstanding: '38000.00' }} />,
+      <RequestForm kind="SETTLEMENT" projects={projects} categories={categories} advance={{ id: 'a-1', number: 'ADV-2026-0007', projectId: 'p-1', projectName: 'Koshi Rollout', outstanding: '38000.00' }} />,
     );
     expect(out).toContain('name="advanceId"');
     expect(out).toContain('value="a-1"');
@@ -48,7 +48,7 @@ describe('RequestForm', () => {
   it('edits an existing request: carries its id, keeps the kind and cannot change the project', () => {
     const out = renderToStaticMarkup(
       <RequestForm kind="ADVANCE" projects={projects} categories={categories}
-        initial={{ id: 'r-9', categoryId: 'c-1', purpose: 'Site travel', remarks: '', requestedAmount: '50000.00', invoices: [] }} />,
+        initial={{ id: 'r-9', projectId: 'p-1', categoryId: 'c-1', purpose: 'Site travel', remarks: '', requestedAmount: '50000.00', invoices: [] }} />,
     );
     expect(out).toContain('name="id"');
     expect(out).toContain('value="r-9"');
@@ -73,11 +73,33 @@ describe('RequestForm', () => {
   it('labels each invoice Remove button with its row number', () => {
     const out = renderToStaticMarkup(
       <RequestForm kind="REIMBURSEMENT" projects={projects} categories={categories}
-        initial={{ id: 'r-9', categoryId: 'c-1', purpose: 'x', remarks: '', requestedAmount: '1.00', invoices: [
+        initial={{ id: 'r-9', projectId: 'p-1', categoryId: 'c-1', purpose: 'x', remarks: '', requestedAmount: '1.00', invoices: [
           { vendor: 'A', invoiceNumber: '1', invoiceDate: '2026-10-01', amount: '1' },
           { vendor: 'B', invoiceNumber: '2', invoiceDate: '2026-10-02', amount: '2' }] }} />,
     );
     expect(out).toContain('aria-label="Remove invoice 1"');
     expect(out).toContain('aria-label="Remove invoice 2"');
+  });
+
+  it('offers a photo for each invoice, waiting for a project on a new reimbursement', () => {
+    const out = renderToStaticMarkup(<RequestForm kind="REIMBURSEMENT" projects={projects} categories={categories} />);
+    expect(out).toContain('accept="image/*"');
+    expect(out).toContain('name="invoiceMediaId"');
+    expect(out).toMatch(/<button[^>]*disabled[^>]*aria-label="Attach invoice 1 photo"/);
+    expect(out).toContain('Choose a project first.');
+  });
+
+  it('keeps a photo an edit already has, shows it and lets it be replaced or removed', () => {
+    const media = '0190a7a0-0000-7000-8000-0000000000e1';
+    const out = renderToStaticMarkup(
+      <RequestForm kind="REIMBURSEMENT" projects={projects} categories={categories}
+        initial={{ id: 'r-9', projectId: 'p-1', categoryId: 'c-1', purpose: 'x', remarks: '', requestedAmount: '1.00', invoices: [
+          { vendor: 'A', invoiceDate: '2026-10-01', amount: '1', mediaId: media }] }} />,
+    );
+    expect(out).toContain(`name="invoiceMediaId" value="${media}"`);
+    expect(out).toContain(`/api/finance/files/${media}?variant=thumbnail`);
+    expect(out).toContain('aria-label="Replace invoice 1 photo"');
+    expect(out).toContain('aria-label="Remove invoice 1 photo"');
+    expect(out).not.toContain('Choose a project first.');
   });
 });

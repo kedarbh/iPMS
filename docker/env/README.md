@@ -47,6 +47,11 @@ The R2 values look like this:
     S3_FORCE_PATH_STYLE=false
     S3_AUTO_CREATE_BUCKET=false
 
+The web app uploads invoice photos from its own server: it PUTs the bytes to the
+presigned link, so the web container must be able to reach `S3_PUBLIC_ENDPOINT`.
+With the local MinIO template that is `http://localhost:9000`, which a container
+cannot reach; set it to the machine's LAN IP (as phones need anyway).
+
 All eight `S3_*` values are required. Media reads them once at startup and fails
 immediately if any is missing, instead of failing on the first upload.
 

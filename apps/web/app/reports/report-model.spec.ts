@@ -23,7 +23,7 @@ const finance = (projects: ReturnType<typeof money>[]): FinanceOverview => ({
   months: MONTHS, projects,
   pipeline: { steps: [], paidThisMonth: { count: 0, amount: '0.00' } },
   waiting: { total: 0, amount: '0.00', oldestSince: null, byKind: {} as FinanceOverview['waiting']['byKind'] },
-  queue: [], categories: [], cashHolders: [],
+  queue: [], categories: [], cashHolders: [], overdueAdvances: [],
   decisions: { approved: { count: 0, amount: '0.00' }, trimmed: { count: 0, saved: '0.00' }, returned: 0, rejected: 0, medianHoursToDecide: null },
 });
 

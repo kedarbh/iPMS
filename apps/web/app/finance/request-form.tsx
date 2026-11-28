@@ -5,13 +5,14 @@ import { useActionStateWithToast } from '../components/toast';
 import { EMPTY } from '../lib/form-state';
 import type { InvoiceInput, RequestKind } from '../lib/finance-api';
 import { saveRequestAction } from './actions';
+import { InvoicePhotoField } from './invoice-photo-field';
 import { formatMoney } from './model';
 
 export interface ProjectChoice { id: string; code: string; name: string }
 export interface CategoryChoice { id: string; code: string; name: string }
-export interface AdvanceContext { id: string; number: string; projectName: string; outstanding: string }
+export interface AdvanceContext { id: string; number: string; projectId: string; projectName: string; outstanding: string }
 export interface RequestInitial {
-  id: string; categoryId: string; purpose: string; remarks: string; requestedAmount: string;
+  id: string; projectId: string; categoryId: string; purpose: string; remarks: string; requestedAmount: string;
   invoices: Invoice[];
 }
 
@@ -36,6 +37,12 @@ export function RequestForm({
   const [rows, setRows] = useState<Row[]>(() => (initial && initial.invoices.length > 0 ? initial.invoices : [BLANK]).map((row, key) => ({ ...row, key })));
   const [nextKey, setNextKey] = useState(rows.length);
   const editing = initial !== undefined;
+  // Photos are filed under the request's project, so a new reimbursement uploads only once one is chosen.
+  const [chosenProject, setChosenProject] = useState('');
+  const projectId = initial?.projectId ?? advance?.projectId ?? (chosenProject || null);
+  const [uploading, setUploading] = useState(0);
+  const onBusy = (busy: boolean) => setUploading((n) => Math.max(0, n + (busy ? 1 : -1)));
+  const blocked = pending || uploading > 0;
 
   return (
     <form action={action} className="panel-form">
@@ -53,7 +60,7 @@ export function RequestForm({
       <div className="form-grid">
         {kind !== 'SETTLEMENT' && !editing ? (
           <label className="field">Project
-            <select name="projectId" required defaultValue="">
+            <select name="projectId" required value={chosenProject} onChange={(e) => setChosenProject(e.target.value)}>
               <option value="" disabled>Choose a project</option>
               {projects.map((p) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
             </select>
@@ -92,7 +99,7 @@ export function RequestForm({
                 <select name="invoiceVat" defaultValue={row.vat ? 'yes' : 'no'}><option value="no">No</option><option value="yes">Yes — 13% included in the amount</option></select>
               </label>
               <label className="field">Supplier PAN/VAT no.<input name="invoiceTaxNo" defaultValue={row.supplierTaxNo ?? ''} maxLength={50} /></label>
-              <input type="hidden" name="invoiceMediaId" value={row.mediaId ?? ''} />
+              <InvoicePhotoField index={index} projectId={projectId} {...(row.mediaId ? { initialMediaId: row.mediaId } : {})} onBusy={onBusy} />
               {rows.length > 1 ? (
                 <button type="button" className="ghost-button" aria-label={`Remove invoice ${index + 1}`} onClick={() => setRows(rows.filter((r) => r.key !== row.key))}>Remove</button>
               ) : null}
@@ -105,14 +112,14 @@ export function RequestForm({
           >
             + Add invoice
           </button>
-          <p className="hint">Invoice photos are added from the field app; any already attached stay with their invoice.</p>
+          <p className="hint">Attach a photo or screenshot of each bill. PNG and other images are converted to JPEG before upload.</p>
         </fieldset>
       ) : null}
 
       <FormError state={state} />
       <div className="form-actions">
-        <button className="ghost-button" type="submit" name="intent" value="draft" disabled={pending}>{pending ? 'Working…' : 'Save draft'}</button>
-        <button className="primary-button" type="submit" name="intent" value="submit" disabled={pending}>{pending ? 'Working…' : 'Submit for approval'}</button>
+        <button className="ghost-button" type="submit" name="intent" value="draft" disabled={blocked}>{pending ? 'Working…' : uploading > 0 ? 'Uploading photo…' : 'Save draft'}</button>
+        <button className="primary-button" type="submit" name="intent" value="submit" disabled={blocked}>{pending ? 'Working…' : uploading > 0 ? 'Uploading photo…' : 'Submit for approval'}</button>
       </div>
     </form>
   );

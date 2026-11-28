@@ -60,7 +60,7 @@ export default async function NewRequestPage({ searchParams }: { searchParams: P
     const { advance: adv, balance } = advance.data;
     return shell(
       <RequestForm kind="SETTLEMENT" projects={[]} categories={categories.data.filter((c) => !c.disabledAt)}
-        advance={{ id: adv.id, number: adv.number, projectName: adv.projectName, outstanding: balance.outstanding }} />,
+        advance={{ id: adv.id, number: adv.number, projectId: adv.projectId, projectName: adv.projectName, outstanding: balance.outstanding }} />,
       'Settle an advance',
     );
   }

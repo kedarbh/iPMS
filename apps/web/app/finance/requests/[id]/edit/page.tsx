@@ -30,7 +30,7 @@ export default async function EditRequestPage({ params }: { params: Promise<{ id
   if (request.kind === 'SETTLEMENT' && request.advanceId) {
     const view = await getAdvance(request.advanceId);
     if (view.state === 'ready' && view.data.balance) {
-      advance = { id: view.data.advance.id, number: view.data.advance.number, projectName: view.data.advance.projectName, outstanding: view.data.balance.outstanding };
+      advance = { id: view.data.advance.id, number: view.data.advance.number, projectId: view.data.advance.projectId, projectName: view.data.advance.projectName, outstanding: view.data.balance.outstanding };
     }
   }
 
@@ -52,6 +52,7 @@ export default async function EditRequestPage({ params }: { params: Promise<{ id
               {...(advance ? { advance } : {})}
               initial={{
                 id: request.id,
+                projectId: request.projectId,
                 categoryId: request.categoryId,
                 purpose: request.purpose,
                 remarks: request.remarks ?? '',

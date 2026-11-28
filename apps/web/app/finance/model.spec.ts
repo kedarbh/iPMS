@@ -259,6 +259,11 @@ describe('overdueSummary', () => {
     const holders = [{ requesterId: 'u-1', outstanding: '23500.00', open: 2, overdue: 3 }];
     expect(overdueSummary([project(3, '60000.00')], holders, names)?.partial).toBe(false);
   });
+  it('names people from the overdue advances when they are sent, once each', () => {
+    const adv = (requesterId: string) => ({ id: requesterId, number: 'ADV', requesterId, projectCode: 'C', projectName: 'N', outstanding: '100.00', dueOn: '2026-10-01', daysOverdue: 3 });
+    expect(overdueSummary([project(3, '300.00')], [], names, [adv('u-2'), adv('u-1'), adv('u-2')])).toEqual({ count: 3, amount: '300.00', people: ['Bikash Tamang', 'Anil Gurung'], partial: false });
+    expect(overdueSummary([project(4, '400.00')], [], names, [adv('u-2')])?.partial).toBe(true);
+  });
 });
 
 describe('initials', () => {

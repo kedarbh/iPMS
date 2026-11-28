@@ -22,7 +22,7 @@ function groupBy<T>(rows: readonly T[], key: (row: T) => string | null): Map<str
 
 /** A paid advance with money still out. */
 export interface OpenAdvance {
-  id: string; requesterId: string; projectId: string; projectCode: string; projectName: string;
+  id: string; number: string; requesterId: string; projectId: string; projectCode: string; projectName: string;
   outstanding: string;
   /** The last day to settle, `YYYY-MM-DD`; null if no payout is recorded. */
   dueOn: string | null;
@@ -49,7 +49,7 @@ export async function loadOpenAdvances(prisma: PrismaClient, scope: AuthzScope, 
         requesterIds ? { requesterId: { in: [...requesterIds] } } : {},
       ],
     },
-    select: { id: true, requesterId: true, projectId: true, projectCode: true, projectName: true, approvedAmount: true },
+    select: { id: true, number: true, requesterId: true, projectId: true, projectCode: true, projectName: true, approvedAmount: true },
   });
   if (advances.length === 0) return [];
   const ids = advances.map((a) => a.id);
@@ -77,7 +77,7 @@ export async function loadOpenAdvances(prisma: PrismaClient, scope: AuthzScope, 
     const inReview = underReview.has(advance.id);
     const overdue = dueOn !== null && dueOn < today && !inReview;
     open.push({
-      id: advance.id, requesterId: advance.requesterId, projectId: advance.projectId, projectCode: advance.projectCode, projectName: advance.projectName,
+      id: advance.id, number: advance.number, requesterId: advance.requesterId, projectId: advance.projectId, projectCode: advance.projectCode, projectName: advance.projectName,
       outstanding: balance.outstanding, dueOn, inReview, overdue,
       daysOverdue: overdue && dueOn ? Math.round((Date.parse(today) - Date.parse(dueOn)) / DAY_MS) : 0,
     });

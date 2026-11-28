@@ -17,6 +17,20 @@ const log = createLogger('finance');
 const VIEW_ALL = 'finance_request.view_all';
 const PROJECT_ONLY = { project: 'projectId', site: null } as const;
 
+/** The requester's own move: a draft to send, or a request sent back to fix. */
+const REQUESTER_ACTION = ['DRAFT', 'RETURNED'];
+
+/** Requests waiting on [actor]: their own drafts and returns, or others' requests at a step they approve or pay. */
+export function needsActionWhere(actor: Actor): Prisma.FinanceRequestWhereInput {
+  const steps = actor.permissions.includes(VIEW_ALL) ? awaitingStatuses(actor.permissions) : [];
+  return {
+    OR: [
+      { requesterId: actor.id, status: { in: REQUESTER_ACTION } },
+      ...(steps.length > 0 ? [{ requesterId: { not: actor.id }, status: { in: steps } }] : []),
+    ],
+  };
+}
+
 const STAGE_STATUSES = { approval: ['PENDING_PM', 'PENDING_DIRECTOR', 'PENDING_FINANCE'], closed: ['PAID', 'SETTLED'] } as const;
 
 /**
@@ -40,18 +54,41 @@ export class QueryService {
       extra.push({ OR: [{ number: has }, { purpose: has }, { projectCode: has }, { projectName: has }] });
     }
     const full: Prisma.FinanceRequestWhereInput = { AND: [where, filters, ...extra] };
-    // The awaiting queue is read oldest-waiting first; a pending request changes only when it moves, so updatedAt is when it arrived.
-    // The id breaks ties, so rows with the same timestamp keep one order from page to page.
-    const orderBy: Prisma.FinanceRequestOrderByWithRelationInput[] = query.view === 'handled'
-      ? [{ updatedAt: 'desc' }, { id: 'desc' }]
-      : query.view === 'awaiting' ? [{ updatedAt: 'asc' }, { id: 'asc' }] : [{ createdAt: 'desc' }, { id: 'desc' }];
-    const [items, total] = await Promise.all([
-      this.prisma.financeRequest.findMany({
-        where: full, orderBy, skip: (query.page - 1) * query.limit, take: query.limit,
-        include: { category: { select: { code: true, name: true } } },
-      }),
-      this.prisma.financeRequest.count({ where: full }),
-    ]);
+    const include = { category: { select: { code: true, name: true } } } as const;
+    const skip = (query.page - 1) * query.limit;
+    let items: Prisma.FinanceRequestGetPayload<{ include: typeof include }>[];
+    let total: number;
+    if (query.view === 'awaiting' || query.view === 'handled') {
+      // The awaiting queue is read oldest-waiting first; a pending request changes only when it moves, so updatedAt is when it arrived.
+      // The id breaks ties, so rows with the same timestamp keep one order from page to page.
+      const orderBy: Prisma.FinanceRequestOrderByWithRelationInput[] = query.view === 'handled'
+        ? [{ updatedAt: 'desc' }, { id: 'desc' }]
+        : [{ updatedAt: 'asc' }, { id: 'asc' }];
+      [items, total] = await Promise.all([
+        this.prisma.financeRequest.findMany({ where: full, orderBy, skip, take: query.limit, include }),
+        this.prisma.financeRequest.count({ where: full }),
+      ]);
+    } else {
+      // Everything else: what waits on the caller first (their own returned or draft requests, or
+      // others' requests at their step), then the rest; each part latest change first.
+      const action = needsActionWhere(actor);
+      const orderBy: Prisma.FinanceRequestOrderByWithRelationInput[] = [{ updatedAt: 'desc' }, { id: 'desc' }];
+      const first: Prisma.FinanceRequestWhereInput = { AND: [full, action] };
+      const rest: Prisma.FinanceRequestWhereInput = { AND: [full, { NOT: action }] };
+      const [firstCount, restCount] = await Promise.all([
+        this.prisma.financeRequest.count({ where: first }),
+        this.prisma.financeRequest.count({ where: rest }),
+      ]);
+      total = firstCount + restCount;
+      const fromFirst = Math.max(0, Math.min(query.limit, firstCount - skip));
+      const [head, tail] = await Promise.all([
+        fromFirst > 0 ? this.prisma.financeRequest.findMany({ where: first, orderBy, skip, take: fromFirst, include }) : Promise.resolve([]),
+        fromFirst < query.limit
+          ? this.prisma.financeRequest.findMany({ where: rest, orderBy, skip: Math.max(0, skip - firstCount), take: query.limit - fromFirst, include })
+          : Promise.resolve([]),
+      ]);
+      items = [...head, ...tail];
+    }
     const [facts, flags] = await Promise.all([
       listFacts(this.prisma, items),
       query.view === 'awaiting' ? requestFlags(this.prisma, items, scope, new Date()) : Promise.resolve(new Map<string, never[]>()),

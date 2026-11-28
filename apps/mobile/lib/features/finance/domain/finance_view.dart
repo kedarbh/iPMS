@@ -100,6 +100,24 @@ class RecordView {
       ].join(' • ');
 }
 
+/// Whether [v] waits on its requester: a draft to send, a returned request to
+/// fix, or a paid advance still to settle. With [viewerId], only the viewer's
+/// own requests count, so an approver's list is not led by others' drafts.
+bool needsAction(RecordView v, {String? viewerId}) {
+  if (viewerId != null && v.request.requesterId != viewerId) return false;
+  return v.stage == Stage.returned || v.stage == Stage.draft || v.stage == Stage.paid;
+}
+
+/// The list order: what waits on the viewer first, then the latest change
+/// (falling back to when the request was raised).
+List<RecordView> actionFirst(Iterable<RecordView> views, {String? viewerId}) {
+  DateTime changed(RecordView v) => v.request.updatedAt ?? v.request.createdAt;
+  return [...views]..sort((a, b) {
+      final rank = (needsAction(a, viewerId: viewerId) ? 0 : 1).compareTo(needsAction(b, viewerId: viewerId) ? 0 : 1);
+      return rank != 0 ? rank : changed(b).compareTo(changed(a));
+    });
+}
+
 const Color _muted = Color(0xFF8A8F98);
 const Color _red = Color(0xFFB4372A);
 const Color _amber = Color(0xFF9A5B00);

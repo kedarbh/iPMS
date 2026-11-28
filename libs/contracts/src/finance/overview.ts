@@ -42,6 +42,15 @@ export interface WaitingSummary {
   byKind: Record<RequestKind, { count: number; amount: string }>;
 }
 
+/** A paid advance past its settle-by day with no settlement under review. */
+export interface OverdueAdvance {
+  id: string; number: string; requesterId: string; projectCode: string; projectName: string;
+  outstanding: string;
+  /** `YYYY-MM-DD`, the last day it should have been settled. */
+  dueOn: string;
+  daysOverdue: number;
+}
+
 /** `GET /finance/overview`: money in the caller's project scope. */
 export interface FinanceOverview {
   /** The six months spentByMonth covers, `YYYY-MM`, oldest first; the last is the current month in Kathmandu. */
@@ -53,6 +62,8 @@ export interface FinanceOverview {
   projects: ProjectMoney[];
   categories: { categoryId: string; name: string; amount: string }[];
   cashHolders: { requesterId: string; outstanding: string; open: number; overdue: number }[];
+  /** Every overdue advance in scope, longest overdue first, capped at OVERDUE_LIST. Answers "who?" for the overdue banner. */
+  overdueAdvances: OverdueAdvance[];
   decisions: {
     approved: { count: number; amount: string };
     trimmed: { count: number; saved: string };

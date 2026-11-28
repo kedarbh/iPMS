@@ -151,6 +151,7 @@ export function completeOverview(raw: Partial<FinanceOverview> | null | undefine
     })),
     categories: Array.isArray(data.categories) ? data.categories : [],
     cashHolders: Array.isArray(data.cashHolders) ? data.cashHolders : [],
+    overdueAdvances: Array.isArray(data.overdueAdvances) ? data.overdueAdvances : [],
     decisions: {
       approved: data.decisions?.approved ?? { count: 0, amount: '0.00' },
       trimmed: data.decisions?.trimmed ?? { count: 0, saved: '0.00' },
