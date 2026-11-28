@@ -114,13 +114,35 @@
 /* Spend report: filters sit above the table, the unit is named once, and figures carry no prefix. */
 .panel > .report-filters { margin: 0 0 18px; padding: 0 0 18px; background: none; border-top: 0; border-bottom: 1px solid var(--line); border-radius: 0; }
 .report-unit { margin: 0 0 6px; color: var(--text-3, #64748b); font-size: 12px; font-weight: 600; text-align: right; }
-.spend-table { min-width: 860px; }
-.spend-table tbody th[scope='row'] { min-width: 220px; padding: 12px; text-align: left; font-weight: 600; color: var(--ink); white-space: normal; text-transform: none; letter-spacing: 0; font-size: 13.5px; border-bottom: 1px solid var(--line-soft, #eef2f7); }
+/*
+ * The spend table is ruled on every side. It never squeezes: figures stay on one line and each column
+ * keeps a floor wide enough for crore-scale amounts (12,34,56,789.00), so a larger number widens its
+ * column and the table scrolls sideways inside the card. The label column stays pinned while it scrolls.
+ */
+.spend-scroll { overflow-x: auto; margin-top: 0; border: 1px solid var(--line); border-radius: 10px; overscroll-behavior-x: contain;
+  /* A soft shade on the right edge while more columns sit off-screen; it scrolls away at the end. */
+  background: linear-gradient(to left, #fff 24px, rgba(255, 255, 255, 0)) right / 40px 100% no-repeat local,
+              linear-gradient(to left, rgba(15, 23, 42, 0.08), rgba(15, 23, 42, 0)) right / 14px 100% no-repeat scroll, #fff; }
+.spend-scroll:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.spend-table { width: 100%; min-width: 0; border-collapse: separate; border-spacing: 0; font-size: 13.5px; }
+.spend-table th, .spend-table td { padding: 11px 14px; border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.spend-table tr > :last-child { border-right: 0; }
+.spend-table tbody tr:last-child > *, .spend-table tfoot tr > * { border-bottom: 0; }
+.spend-table thead th { background: var(--sunken, #f8fafc); padding-top: 10px; padding-bottom: 10px; font-size: 11px; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3, #64748b); white-space: nowrap; vertical-align: bottom; }
+.spend-table .finance-num { min-width: 132px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .spend-table td.zero { color: var(--text-4, #94a3b8); }
-.spend-table tfoot th { padding: 12px; border-top: 1px solid var(--line-strong, #d5dce6); color: var(--ink); font-size: 13.5px; font-weight: 700; letter-spacing: 0; text-transform: none; }
-.spend-table tfoot th.finance-num { font-variant-numeric: tabular-nums; }
-.spend-table tbody th[scope='row'] + td, .spend-table tfoot th + th { padding-left: 16px; }
-@media (max-width: 700px) { .report-unit { text-align: left; } .spend-table tbody th[scope='row'] { min-width: 160px; } }
+.spend-table tbody tr:hover > * { background: #fafbfd; }
+/* The label column: wraps long names up to a width, then sticks while the figures scroll. */
+.spend-table tr > :first-child { position: sticky; left: 0; z-index: 1; min-width: 200px; max-width: 280px; text-align: left; background: #fff; box-shadow: 1px 0 0 var(--line); border-right-color: transparent; }
+.spend-table thead tr > :first-child { z-index: 2; background: var(--sunken, #f8fafc); }
+.spend-table tbody th[scope='row'] { font-weight: 600; color: var(--ink); white-space: normal; overflow-wrap: anywhere; text-transform: none; letter-spacing: 0; font-size: 13.5px; }
+.spend-table tfoot th { background: var(--sunken, #f8fafc); border-top: 1px solid var(--line-strong, #d5dce6); color: var(--ink); font-size: 13.5px; font-weight: 700; letter-spacing: 0; text-transform: none; }
+.spend-table tfoot tr > :first-child { background: var(--sunken, #f8fafc); }
+@media (max-width: 700px) {
+  .report-unit { text-align: left; }
+  .spend-table tr > :first-child { min-width: 132px; max-width: 160px; }
+  .spend-table th, .spend-table td { padding: 10px 12px; }
+}
 /* On a phone a list row keeps the text full width: the amount and its wait sit on one line underneath. */
 @media (max-width: 700px) {
   .fin-list li { display: grid; grid-template-columns: 32px minmax(0, 1fr); column-gap: 12px; row-gap: 6px; align-items: start; }

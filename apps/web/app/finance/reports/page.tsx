@@ -65,15 +65,15 @@ export default async function SpendReportPage({ searchParams }: { searchParams: 
             {rows.length === 0 ? <p className="finance-empty">No completed spend in this period.</p> : (
               <>
                 <p className="report-unit">All amounts in NPR</p>
-                <div className="finance-table-wrap">
+                <div className="finance-table-wrap spend-scroll" role="region" aria-label="Spend table, scrolls sideways" tabIndex={0}>
                   <table className="finance-table spend-table">
                     <caption className="sr-only">Spend by {GROUP_LABEL[query.groupBy].toLowerCase()}, in NPR</caption>
                     <thead>
                       <tr>
                         <th scope="col">{GROUP_LABEL[query.groupBy]}</th>
-                        <th className="finance-num">Advances paid</th><th className="finance-num">Settled (applied)</th>
-                        <th className="finance-num">Cash returned</th><th className="finance-num">Outstanding</th>
-                        <th className="finance-num">Reimbursed</th><th className="finance-num">Expense</th>
+                        <th scope="col" className="finance-num">Advances paid</th><th scope="col" className="finance-num">Settled (applied)</th>
+                        <th scope="col" className="finance-num">Cash returned</th><th scope="col" className="finance-num">Outstanding</th>
+                        <th scope="col" className="finance-num">Reimbursed</th><th scope="col" className="finance-num">Expense</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -92,9 +92,9 @@ export default async function SpendReportPage({ searchParams }: { searchParams: 
                     <tfoot>
                       <tr>
                         <th scope="row">Total</th>
-                        <th className="finance-num">{total((r) => r.advancesPaid)}</th><th className="finance-num">{total((r) => r.applied)}</th>
-                        <th className="finance-num">{total((r) => r.cashReturned)}</th><th className="finance-num">{total((r) => r.outstanding)}</th>
-                        <th className="finance-num">{total((r) => r.reimbursed)}</th><th className="finance-num">{total((r) => r.expense)}</th>
+                        <th scope="col" className="finance-num">{total((r) => r.advancesPaid)}</th><th scope="col" className="finance-num">{total((r) => r.applied)}</th>
+                        <th scope="col" className="finance-num">{total((r) => r.cashReturned)}</th><th scope="col" className="finance-num">{total((r) => r.outstanding)}</th>
+                        <th scope="col" className="finance-num">{total((r) => r.reimbursed)}</th><th scope="col" className="finance-num">{total((r) => r.expense)}</th>
                       </tr>
                     </tfoot>
                   </table>

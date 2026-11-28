@@ -63,3 +63,5 @@ These are the working decisions behind the role dashboards in `apps/web/app/over
 - A table of amounts names the unit once ("All amounts in NPR") and the cells show the figure only, with Indian grouping and two decimals (`formatAmount`). Single amounts in prose or lists keep `formatMoney` ("NPR 45,000.00").
 - Zeros are greyed so the columns that carry money stand out. The row label wraps; figures never do.
 - In a tally cell the unit is set small before the figure, so long amounts still fit a phone cell.
+- A wide report table (the spend report) is ruled on every side inside its own bordered, scrollable box. Figure columns have a 132px floor, which fits crore-scale amounts like 12,34,56,789.00, and never wrap. A bigger number widens its column, and the table scrolls sideways. The label column wraps up to 280px and stays pinned while the figures scroll. A soft shade on the right edge shows that more columns are off-screen.
+
