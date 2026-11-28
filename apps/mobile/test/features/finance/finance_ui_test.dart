@@ -7,7 +7,6 @@ import 'package:mobile/features/finance/presentation/expenses_form_screen.dart';
 import 'package:mobile/features/finance/presentation/finance_screen.dart';
 import 'package:mobile/features/finance/presentation/finance_widgets.dart';
 import 'package:mobile/features/finance/presentation/form_parts.dart';
-import 'package:mobile/features/finance/presentation/notifications_screen.dart';
 import 'package:mobile/features/finance/presentation/request_detail_screen.dart';
 import 'package:mobile/features/finance/presentation/statement_screen.dart';
 
@@ -186,17 +185,10 @@ void main() {
       expect(find.text('New'), findsNothing);
     });
 
-    testWidgets('shows how many notifications are unread, and no queue for an engineer', (tester) async {
+    testWidgets('shows no queue for an engineer', (tester) async {
       phoneScreen(tester);
-      server.notifications = [
-        {'id': 'n1', 'type': 'FINANCE_REQUEST_PAID', 'title': 'Advance paid', 'body': 'x', 'isRead': false, 'createdAt': '2026-10-09T05:00:00Z'},
-        {'id': 'n2', 'type': 'FINANCE_REQUEST_RETURNED', 'title': 'Changes requested', 'body': 'y', 'isRead': false, 'createdAt': '2026-10-08T05:00:00Z'},
-        {'id': 'n3', 'type': 'FINANCE_REQUEST_REJECTED', 'title': 'Rejected', 'body': 'z', 'isRead': true, 'createdAt': '2026-10-07T05:00:00Z'},
-        {'id': 'n4', 'type': 'QC_SUBMISSION_APPROVED', 'title': 'QC approved', 'body': 'q', 'isRead': false, 'createdAt': '2026-10-07T05:00:00Z'},
-      ];
       await tester.pumpWidget(financeApp(server, const FinanceScreen()));
       await settleNetwork(tester);
-      expect(find.text('2'), findsOneWidget); // two unread finance ones; the QC one is not counted
       expect(find.textContaining('Approvals'), findsNothing);
     });
   });
@@ -781,54 +773,6 @@ void main() {
       await tester.pump();
       expect(find.text('Choose a project'), findsOneWidget);
       expect(find.text('Choose a category'), findsOneWidget);
-    });
-  });
-
-  group('notifications', () {
-    testWidgets('list the feed, open a request and mark it read', (tester) async {
-      phoneScreen(tester);
-      server.notifications = [
-        {'id': 'n1', 'type': 'FINANCE_REQUEST_RETURNED', 'title': 'Changes requested', 'body': 'Rajesh Shrestha on ADV-1: attach the quote.',
-         'actionUrl': '/finance/requests/0192f7a0-0000-7000-8000-000000000003', 'isRead': false, 'createdAt': DateTime.now().toUtc().toIso8601String()},
-        {'id': 'n2', 'type': 'FINANCE_REQUEST_PAID', 'title': 'Advance paid', 'body': 'Finance disbursed NPR 25,000.', 'isRead': true, 'createdAt': '2026-10-01T05:00:00Z'},
-        {'id': 'n3', 'type': 'QC_SUBMISSION_APPROVED', 'title': 'QC approved', 'body': 'not finance', 'isRead': false, 'createdAt': '2026-10-01T05:00:00Z'},
-      ];
-      server.byId = {'0192f7a0-0000-7000-8000-000000000003': record('0192f7a0-0000-7000-8000-000000000003', 'RETURNED')};
-      await tester.pumpWidget(financeApp(server, const NotificationsScreen()));
-      await settleNetwork(tester);
-
-      expect(find.text('Changes requested'), findsOneWidget);
-      expect(find.text('Advance paid'), findsOneWidget);
-      expect(find.text('QC approved'), findsNothing);
-      expect(find.text('Just now'), findsOneWidget);
-
-      await tester.tap(find.text('Changes requested'));
-      await tester.pumpAndSettle();
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 700)));
-      await tester.pump();
-      expect(server.posts('/n1/read'), hasLength(1));
-      expect(find.text('Edit and resubmit'), findsOneWidget); // the request opened
-    });
-
-    testWidgets('mark all read', (tester) async {
-      phoneScreen(tester);
-      server.notifications = [
-        {'id': 'n1', 'type': 'FINANCE_REQUEST_PAID', 'title': 'Advance paid', 'body': 'x', 'isRead': false, 'createdAt': '2026-10-01T05:00:00Z'},
-      ];
-      await tester.pumpWidget(financeApp(server, const NotificationsScreen()));
-      await settleNetwork(tester);
-      await tester.pump(const Duration(milliseconds: 100));
-      await tester.tap(find.text('Mark all read'));
-      await tester.pump();
-      await afterAction(tester);
-      expect(server.posts('/read-all'), hasLength(1));
-    });
-
-    testWidgets('say so when there is nothing', (tester) async {
-      phoneScreen(tester);
-      await tester.pumpWidget(financeApp(server, const NotificationsScreen()));
-      await settleNetwork(tester);
-      expect(find.textContaining('Nothing yet'), findsOneWidget);
     });
   });
 

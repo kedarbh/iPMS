@@ -3,8 +3,13 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/auth/providers/auth_provider.dart';
-import '../../features/finance/presentation/request_detail_screen.dart';
 import '../../features/finance/providers/finance_providers.dart';
+import '../../features/notifications/presentation/notification_targets.dart';
+import '../../features/notifications/providers/notification_providers.dart';
+import '../../features/notifications/domain/app_notification.dart';
+import '../../features/tasks/providers/task_providers.dart';
+import '../../shared/layout/floating_nav_bar.dart';
+import '../../shared/layout/main_scaffold.dart';
 import 'push_controller.dart';
 import 'push_messaging.dart';
 import 'push_payload.dart';
@@ -70,13 +75,19 @@ final pushLifecycleProvider = Provider<void>((ref) {
 
 /// A push means something changed on the server: drop what the app holds about
 /// it, so the next screen to read it (or the one already showing it) fetches
-/// the new state instead of showing the cached one.
+/// the new state instead of showing the cached one. The Inbox badge and feed
+/// refresh on every push, whatever it is about.
 void refreshForPush(Ref ref, PushPayload p) {
-  ref.invalidate(financeNotificationsProvider);
-  ref.invalidate(awaitingFinanceRequestsProvider);
-  ref.invalidate(myFinanceRequestsProvider);
+  ref.invalidate(notificationFeedProvider);
+  ref.invalidate(unreadNotificationCountProvider);
+  if (p.isFinance) {
+    ref.invalidate(awaitingFinanceRequestsProvider);
+    ref.invalidate(myFinanceRequestsProvider);
+  }
   final requestId = p.financeRequestId;
   if (requestId != null) ref.invalidate(financeRequestProvider(requestId));
+  final workOrderId = p.workOrderId;
+  if (workOrderId != null) ref.invalidate(taskDetailProvider(workOrderId));
 }
 
 /// A push that arrives with the app open: refresh what it concerns and offer to open it.
@@ -93,15 +104,29 @@ void showPushBanner(Ref ref, PushPayload p) {
     );
 }
 
-/// Opens what a tapped push is about. A finance request opens its detail; anything else leaves the
-/// app where it is, since the push has already told the user what it said.
+/// Opens what a tapped push is about: a finance request or a work order opens
+/// its detail; anything else opens the Inbox, where the full text is.
 void openPush(Ref ref, PushPayload p) {
-  final requestId = p.financeRequestId;
-  if (requestId == null) return;
   // A tap can come long after the push arrived, or with the app in the
-  // background where no banner ran: fetch the request fresh either way.
+  // background where no banner ran: fetch what it is about fresh either way.
   refreshForPush(ref, p);
-  void go() => rootNavigatorKey.currentState?.push<void>(MaterialPageRoute(builder: (_) => RequestDetailScreen(requestId: requestId)));
+  final id = p.notificationId;
+  if (id != null && id.isNotEmpty) {
+    unawaited(ref.read(notificationRepositoryProvider).markRead(id).then(
+          (_) => ref.invalidate(unreadNotificationCountProvider),
+          onError: (_) {},
+        ));
+  }
+  final target = notificationTarget(ref.invalidate, financeRequestId: p.financeRequestId, workOrderId: p.workOrderId ?? workOrderIdIn(p.actionUrl));
+  void go() {
+    if (target != null) {
+      rootNavigatorKey.currentState?.push<void>(MaterialPageRoute(builder: (_) => target));
+    } else {
+      rootNavigatorKey.currentState?.popUntil((r) => r.isFirst);
+      ref.read(navigationIndexProvider.notifier).setIndex(notificationsTabIndex);
+    }
+  }
+
   if (rootNavigatorKey.currentState != null) {
     go();
   } else {

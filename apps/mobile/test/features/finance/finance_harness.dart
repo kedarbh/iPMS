@@ -56,6 +56,9 @@ class FinanceServer implements HttpClientAdapter {
         {'id': 'u-pm', 'fullName': 'Rajesh Shrestha'},
       ]);
     }
+    if (path == '/api/v1/notifications/unread-count') {
+      return json(200, {'count': notifications.where((n) => n['isRead'] != true).length});
+    }
     if (path == '/api/v1/notifications' && options.method == 'GET') {
       return json(200, {'items': notifications, 'nextCursor': null});
     }
