@@ -134,6 +134,27 @@ class RequestDetailScreen extends ConsumerStatefulWidget {
 class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
   bool _busy = false;
 
+  late final AppLifecycleListener _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    // Someone else may have acted on the request since it was last loaded (a
+    // manager returned it, finance paid it), so every visit fetches it again,
+    // showing the copy already held until the new one arrives. Coming back to
+    // the app from the background does the same.
+    _lifecycle = AppLifecycleListener(onResume: _refresh);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.invalidate(financeRequestProvider(widget.requestId));
+    });
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
   void _message(String text, {bool error = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
