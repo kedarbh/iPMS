@@ -162,7 +162,7 @@ void main() {
       server.list = [_open('a1')];
       await tester.pumpWidget(financeApp(server, const FinanceScreen()));
       await settleNetwork(tester);
-      await tester.tap(find.text('New'));
+      await tester.tap(find.byKey(const ValueKey('new-request')));
       await tester.pumpAndSettle();
 
       expect(find.text('Create new'), findsOneWidget);
@@ -182,7 +182,7 @@ void main() {
       const viewer = AuthUser(id: 'u-1', email: 'v@ipms.local', permissions: ['finance_request.view']);
       await tester.pumpWidget(financeApp(server, const FinanceScreen(), user: viewer));
       await settleNetwork(tester);
-      expect(find.text('New'), findsNothing);
+      expect(find.byKey(const ValueKey('new-request')), findsNothing);
     });
 
     testWidgets('shows no queue for an engineer', (tester) async {

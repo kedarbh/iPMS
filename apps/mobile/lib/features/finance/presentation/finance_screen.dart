@@ -15,6 +15,7 @@ import 'overview_tab.dart';
 import 'records_tab.dart';
 import 'request_detail_screen.dart';
 import 'statement_screen.dart';
+import '../../notifications/presentation/notification_bell.dart';
 
 enum _Segment { overview, records }
 
@@ -161,20 +162,21 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                           ],
                         ),
                       ),
+                      const SizedBox(width: 12),
+                      const NotificationBell(),
                       if (canCreate && !approver) ...[
-                        const SizedBox(width: 12),
-                        SizedBox(
-                          height: 44,
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: FC.navy,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 18),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                        const SizedBox(width: 8),
+                        Tooltip(
+                          message: 'New request',
+                          child: Material(
+                            color: FC.navy,
+                            shape: const CircleBorder(),
+                            child: InkWell(
+                              key: const ValueKey('new-request'),
+                              customBorder: const CircleBorder(),
+                              onTap: () => _newRequest(mine.value ?? const []),
+                              child: const SizedBox(width: 44, height: 44, child: Icon(Icons.add_rounded, size: 24, color: Colors.white)),
                             ),
-                            onPressed: () => _newRequest(mine.value ?? const []),
-                            icon: const Icon(Icons.add_rounded, size: 18),
-                            label: const Text('New', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                           ),
                         ),
                       ],

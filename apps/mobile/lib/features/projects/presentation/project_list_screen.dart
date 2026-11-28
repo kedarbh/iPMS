@@ -6,6 +6,7 @@ import '../../../shared/widgets/brand_mark.dart';
 import '../domain/models/project_item.dart';
 import '../providers/project_providers.dart';
 import 'project_sites_screen.dart';
+import '../../notifications/presentation/notification_bell.dart';
 
 class ProjectListScreen extends ConsumerWidget {
   const ProjectListScreen({super.key});
@@ -28,6 +29,7 @@ class ProjectListScreen extends ConsumerWidget {
             icon: const Icon(Icons.refresh_rounded, size: 20),
             onPressed: () => ref.invalidate(projectListProvider),
           ),
+          const Padding(padding: EdgeInsets.only(right: 12), child: NotificationBell()),
         ],
       ),
       body: SafeArea(

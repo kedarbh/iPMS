@@ -8,8 +8,7 @@ import '../../features/notifications/presentation/notification_targets.dart';
 import '../../features/notifications/providers/notification_providers.dart';
 import '../../features/notifications/domain/app_notification.dart';
 import '../../features/tasks/providers/task_providers.dart';
-import '../../shared/layout/floating_nav_bar.dart';
-import '../../shared/layout/main_scaffold.dart';
+import '../../features/notifications/presentation/notification_center_screen.dart';
 import 'push_controller.dart';
 import 'push_messaging.dart';
 import 'push_payload.dart';
@@ -75,7 +74,7 @@ final pushLifecycleProvider = Provider<void>((ref) {
 
 /// A push means something changed on the server: drop what the app holds about
 /// it, so the next screen to read it (or the one already showing it) fetches
-/// the new state instead of showing the cached one. The Inbox badge and feed
+/// the new state instead of showing the cached one. The bell badge and feed
 /// refresh on every push, whatever it is about.
 void refreshForPush(Ref ref, PushPayload p) {
   ref.invalidate(notificationFeedProvider);
@@ -105,7 +104,7 @@ void showPushBanner(Ref ref, PushPayload p) {
 }
 
 /// Opens what a tapped push is about: a finance request or a work order opens
-/// its detail; anything else opens the Inbox, where the full text is.
+/// its detail; anything else opens the notification list, where the full text is.
 void openPush(Ref ref, PushPayload p) {
   // A tap can come long after the push arrived, or with the app in the
   // background where no banner ran: fetch what it is about fresh either way.
@@ -122,8 +121,7 @@ void openPush(Ref ref, PushPayload p) {
     if (target != null) {
       rootNavigatorKey.currentState?.push<void>(MaterialPageRoute(builder: (_) => target));
     } else {
-      rootNavigatorKey.currentState?.popUntil((r) => r.isFirst);
-      ref.read(navigationIndexProvider.notifier).setIndex(notificationsTabIndex);
+      rootNavigatorKey.currentState?.push<void>(MaterialPageRoute(builder: (_) => const NotificationCenterScreen()));
     }
   }
 

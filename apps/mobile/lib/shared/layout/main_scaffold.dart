@@ -42,7 +42,7 @@ class MainScaffold extends ConsumerStatefulWidget {
 }
 
 class _MainScaffoldState extends ConsumerState<MainScaffold> with WidgetsBindingObserver {
-  /// How often the Inbox badge re-checks while the app is open. A push refreshes it at once.
+  /// How often the notification bell's badge re-checks while the app is open. A push refreshes it at once.
   static const _pollEvery = Duration(seconds: 60);
 
   Timer? _poll;
@@ -103,7 +103,6 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> with WidgetsBinding
     // A shortcut to a tab this user does not have (a guide button) lands on the
     // first tab instead of a blank page.
     final currentIndex = widget.hiddenTabs.contains(requested) ? 0 : requested;
-    final unread = ref.watch(unreadNotificationCountProvider).value ?? 0;
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
@@ -125,13 +124,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> with WidgetsBinding
                 key: TourTargetRegistry.navigationDockKey,
                 currentIndex: currentIndex,
                 hiddenTabs: widget.hiddenTabs,
-                unreadNotifications: unread,
                 onTap: (index) {
-                  if (index == notificationsTabIndex) {
-                    // Opening the inbox always shows what is new, not what was there last time.
-                    ref.invalidate(notificationFeedProvider);
-                    ref.invalidate(unreadNotificationCountProvider);
-                  }
                   ref.read(navigationIndexProvider.notifier).setIndex(index);
                 },
                 onQuickAction: () {

@@ -29,7 +29,7 @@ class _Kind extends _Filter {
   int get hashCode => category.hashCode;
 }
 
-/// The Inbox tab: every notification the user has, of every type, in one place.
+/// Every notification the user has, of every type, in one place.
 /// Unread ones carry a blue dot; a tap marks it read and opens what it is about.
 class NotificationCenterScreen extends ConsumerStatefulWidget {
   const NotificationCenterScreen({super.key});
@@ -95,6 +95,8 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
           _Kind(:final category) => n.category == category,
         }).toList();
 
+    final canPop = Navigator.of(context).canPop();
+
     return Scaffold(
       backgroundColor: FC.bg,
       body: SafeArea(
@@ -110,10 +112,17 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 10, 12, 0),
+                  padding: EdgeInsets.fromLTRB(canPop ? 8 : 20, 10, 12, 0),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (canPop)
+                        IconButton(
+                          tooltip: 'Back',
+                          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                          onPressed: () => Navigator.maybePop(context),
+                          icon: const Icon(Icons.chevron_left_rounded, size: 30, color: FC.ink),
+                        ),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -142,7 +151,7 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
                     child: SizedBox(
-                      height: 36,
+                      height: 38,
                       child: Row(
                       children: [
                         _Chip(label: 'All', selected: filter is _All, onTap: () => setState(() => _filter = const _All())),
@@ -185,7 +194,7 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
                       ]
                     : _grouped(shown),
               ),
-              const SliverToBoxAdapter(child: SizedBox(height: 120)), // clears the floating dock
+              const SliverToBoxAdapter(child: SizedBox(height: 40)),
             ],
           ),
         ),
@@ -346,7 +355,7 @@ class _Chip extends StatelessWidget {
           customBorder: const StadiumBorder(),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

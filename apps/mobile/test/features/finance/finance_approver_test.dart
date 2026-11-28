@@ -67,7 +67,7 @@ void main() {
       expect(find.text('To pay out'), findsOneWidget);
       expect(tester.widget<Text>(find.byKey(const Key('approver-hero-total'))).data, 'NPR 28,800');
       expect(find.text('Queue · 2'), findsOneWidget);
-      expect(find.text('New'), findsNothing);
+      expect(find.byKey(const ValueKey('new-request')), findsNothing);
       expect(find.text('Waiting for you'), findsOneWidget);
       expect(find.text('Cable trays'), findsOneWidget);
     });
@@ -206,7 +206,7 @@ void main() {
 
       expect(find.text('Rajesh Shrestha · Project manager'), findsOneWidget);
       expect(find.text('Waiting for your approval'), findsOneWidget);
-      expect(find.text('New'), findsNothing); // the header has no New button; raising is in the card
+      expect(find.byKey(const ValueKey('new-request')), findsNothing); // the header has no + button; raising is in the card
       final card = find.byKey(const Key('own-requests'));
       await tester.scrollUntilVisible(card, 300, scrollable: find.byType(Scrollable).first);
       await tester.pump();
