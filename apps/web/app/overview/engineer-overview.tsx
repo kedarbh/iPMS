@@ -134,7 +134,7 @@ export async function EngineerOverview({ canViewFinance }: { canViewFinance: boo
 function MoneyPanel({ money }: { money: EngineerMoney | null }) {
   if (!money) {
     return (
-      <section className="ov-card ov-panel" id="money">
+      <section className="ov-card ov-panel" id="my-money">
         <header className="ov-panel-head"><div><h2>Your money</h2></div></header>
         <p className="ov-note">Finance did not answer, so your advances cannot be shown. <a className="ov-link" href="/finance">Open finance</a></p>
       </section>
@@ -142,7 +142,7 @@ function MoneyPanel({ money }: { money: EngineerMoney | null }) {
   }
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
   return (
-    <section className="ov-card ov-panel" id="money">
+    <section className="ov-card ov-panel" id="my-money">
       <header className="ov-panel-head">
         <div><h2>Your money</h2><p>Advances you hold, overdue first, and requests still in approval</p></div>
         <a className="ov-link" href="/finance">All my requests <span aria-hidden="true">→</span></a>

@@ -4,11 +4,21 @@ import '../../../../core/security/token_storage.dart';
 
 /// Central registry of target keys used to anchor interactive tour spotlight cutouts.
 class TourTargetRegistry {
-  static final GlobalKey profileHeaderKey = GlobalKey(debugLabel: 'tour_profile_header');
-  static final GlobalKey searchButtonKey = GlobalKey(debugLabel: 'tour_search_button');
-  static final GlobalKey statusFilterKey = GlobalKey(debugLabel: 'tour_status_filter');
-  static final GlobalKey firstTaskCardKey = GlobalKey(debugLabel: 'tour_first_task_card');
-  static final GlobalKey navigationDockKey = GlobalKey(debugLabel: 'tour_navigation_dock');
+  static final GlobalKey profileHeaderKey = GlobalKey(
+    debugLabel: 'tour_profile_header',
+  );
+  static final GlobalKey searchButtonKey = GlobalKey(
+    debugLabel: 'tour_search_button',
+  );
+  static final GlobalKey statusFilterKey = GlobalKey(
+    debugLabel: 'tour_status_filter',
+  );
+  static final GlobalKey firstTaskCardKey = GlobalKey(
+    debugLabel: 'tour_first_task_card',
+  );
+  static final GlobalKey navigationDockKey = GlobalKey(
+    debugLabel: 'tour_navigation_dock',
+  );
 }
 
 /// A single step in the mobile interactive walkthrough.
@@ -74,7 +84,7 @@ class MobileProductTour {
         ),
         TourStep(
           targetKey: TourTargetRegistry.searchButtonKey,
-          title: 'Site & Tower Omni-Search',
+          title: 'Search',
           description:
               'Search cell sites, tower upgrades, and contractor work packages across all 7 provinces of Nepal.',
         ),
@@ -156,7 +166,7 @@ class MobileProductTour {
       ),
       TourStep(
         targetKey: TourTargetRegistry.firstTaskCardKey,
-        title: 'Cell Tower Work Orders',
+        title: 'Work Orders',
         description:
             'Open active tasks to complete digital checklists, verify GPS coordinates, and capture watermarked camera evidence.',
       ),
@@ -170,7 +180,10 @@ class MobileProductTour {
   }
 
   /// Checks if the user has already seen the tour; if not, marks as seen and launches it.
-  static Future<void> checkAndStart(BuildContext context, {String? role}) async {
+  static Future<void> checkAndStart(
+    BuildContext context, {
+    String? role,
+  }) async {
     final storage = TokenStorage();
     final hasSeen = await storage.hasSeenProductTour();
     if (hasSeen || !context.mounted) return;
@@ -354,8 +367,10 @@ class _TourOverlayState extends State<_TourOverlay>
     // Calculate pointer arrow horizontal offset
     double arrowLeft = 32.0;
     if (targetRect != null) {
-      arrowLeft = (targetRect.center.dx - cardHorizontalMargin - 8.0)
-          .clamp(20.0, cardWidth - 36.0);
+      arrowLeft = (targetRect.center.dx - cardHorizontalMargin - 8.0).clamp(
+        20.0,
+        cardWidth - 36.0,
+      );
     }
 
     return Positioned(
@@ -387,10 +402,7 @@ class _TourOverlayState extends State<_TourOverlay>
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: const Color(0xFFE2E8F0),
-                  width: 1,
-                ),
+                border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.18),
@@ -411,7 +423,9 @@ class _TourOverlayState extends State<_TourOverlay>
                         child: Text(
                           step.title,
                           style: const TextStyle(
-                            color: Color(0xFF2563EB), // Royal blue matching Image 3
+                            color: Color(
+                              0xFF2563EB,
+                            ), // Royal blue matching Image 3
                             fontSize: 15.5,
                             fontWeight: FontWeight.w700,
                             letterSpacing: -0.2,
@@ -465,7 +479,10 @@ class _TourOverlayState extends State<_TourOverlay>
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFF334155),
                           side: const BorderSide(color: Color(0xFFCBD5E1)),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 7,
+                          ),
                           shape: const StadiumBorder(),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -500,7 +517,10 @@ class _TourOverlayState extends State<_TourOverlay>
                           backgroundColor: const Color(0xFF2563EB),
                           foregroundColor: Colors.white,
                           elevation: 0,
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 7),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 7,
+                          ),
                           shape: const StadiumBorder(),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -580,10 +600,7 @@ class _SpotlightPainter extends CustomPainter {
   final Rect? targetRect;
   final double pulseValue;
 
-  _SpotlightPainter({
-    required this.targetRect,
-    required this.pulseValue,
-  });
+  _SpotlightPainter({required this.targetRect, required this.pulseValue});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -613,10 +630,7 @@ class _SpotlightPainter extends CustomPainter {
       cutoutPath,
     );
 
-    canvas.drawPath(
-      barrierPath,
-      Paint()..color = const Color(0x990F172A),
-    );
+    canvas.drawPath(barrierPath, Paint()..color = const Color(0x990F172A));
 
     // 2. Animated Pulsing Halo Ring
     final haloInflation = 3.0 + (pulseValue * 6.0);
