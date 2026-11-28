@@ -73,24 +73,174 @@ button:focus-visible, .primary-button:focus-visible, .secondary-button:focus-vis
 .danger-button:focus-visible, .notif-bell-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 
 /* --- Fields ----------------------------------------------------------------
- * Inputs are inset wells: a shade darker than the card and 40px tall. Focus
- * turns the edge to the accent and adds a soft ring.
+ * One control for every form and filter: a 40px inset well with an 8px
+ * radius, the same edge, fill, type and focus ring wherever it sits (forms,
+ * filter bars, pickers, dialogs). Selects draw one chevron. A field the user
+ * has left invalid gets a red edge. Phones get 16px text so iOS does not zoom
+ * the page when a field takes focus.
  */
-.field { gap: 6px; color: #1e293b; font-size: 13px; font-weight: 600; }
-.field .hint { color: var(--text-3); opacity: 1; font-weight: 400; }
-.field input, .field select, .field textarea, .login-card input {
-  min-height: 40px; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-input);
-  background: #fbfcfe; color: var(--ink); font: inherit; font-size: 14px; font-weight: 400;
+:root {
+  --field-h: 40px;
+  --field-bg: #fbfcfe;
+  --field-edge: var(--line-strong);
+  --field-edge-hover: #c3ccd8;
+  --field-invalid: #d92d20;
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%2364748b' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E");
+}
+.field { gap: 6px; color: #1e293b; font-size: 13px; font-weight: 600; line-height: 1.35; min-width: 0; }
+.field .hint { color: var(--text-3); opacity: 1; font-size: 12px; font-weight: 400; line-height: 1.45; }
+
+.field input:where(:not([type="checkbox"], [type="radio"], [type="file"], [type="hidden"])),
+.field select, .field textarea, .login-card input,
+.field-row input, .field-row select, .date-pick input,
+.manage-row input, .manage-row select, .manage-block textarea,
+.picker-head input[type="search"],
+.queue-filters input[type="search"], .queue-filters select,
+.access-search, .review-feedback-input, .review-label textarea,
+.lib-select-wrap .lib-select {
+  width: 100%; min-width: 0; height: var(--field-h); min-height: var(--field-h); margin: 0; padding: 0 12px;
+  border: 1px solid var(--field-edge); border-radius: var(--radius-input); outline: none;
+  background-color: var(--field-bg); color: var(--ink); font: inherit; font-size: 14px; font-weight: 400; line-height: 1.4;
   transition: border-color 120ms var(--ease-out), box-shadow 120ms var(--ease-out), background-color 120ms var(--ease-out);
 }
-.field textarea { min-height: 88px; line-height: 1.5; }
-.field input::placeholder, .field textarea::placeholder { color: var(--text-4); }
-.field input:hover, .field select:hover, .field textarea:hover { border-color: #c3ccd8; }
-.field input:focus-visible, .field select:focus-visible, .field textarea:focus-visible, .login-card input:focus-visible {
-  outline: none; border-color: var(--blue); background: var(--surface); box-shadow: var(--focus-ring);
+/* Text areas grow with their rows and can be resized taller, never wider. */
+.field textarea, .manage-block textarea, .review-label textarea { height: auto; min-height: 88px; padding: 10px 12px; line-height: 1.5; resize: vertical; }
+.manage-block textarea, .review-label textarea { min-height: 64px; }
+/* Selects: no native arrow, one chevron, room for it on the right. */
+.field select, .field-row select, .manage-row select, .queue-filters select {
+  appearance: none; -webkit-appearance: none; padding-right: 36px; cursor: pointer; text-overflow: ellipsis;
+  background-image: var(--chevron); background-repeat: no-repeat; background-position: right 12px center; background-size: 12px;
 }
-.field input:disabled, .field select:disabled, .field textarea:disabled { background: var(--sunken); color: var(--text-3); cursor: not-allowed; }
+.lib-select-wrap .lib-select { padding-right: 36px; font-weight: 400; }
+.field select[multiple] { height: auto; padding: 6px; background-image: none; cursor: default; }
+.field select[multiple] option { padding: 6px 8px; border-radius: 6px; }
+/* Dates: Safari collapses an empty date field and centres its value; keep it a normal field. */
+.field input[type="date"], .field-row input[type="date"], .date-pick input, .manage-row input[type="date"] { -webkit-appearance: none; appearance: none; }
+input[type="date"]::-webkit-date-and-time-value { text-align: left; }
+input[type="date"]::-webkit-calendar-picker-indicator { opacity: .55; cursor: pointer; }
+input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: .9; }
+/* The search box's own clear cross is replaced by Reset links where it matters. */
+input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; }
+
+.field input::placeholder, .field textarea::placeholder, .field-row input::placeholder, .picker-head input::placeholder,
+.queue-filters input::placeholder, .fin-search input::placeholder, .access-search::placeholder,
+.review-feedback-input::placeholder, .review-label textarea::placeholder, .manage-block textarea::placeholder { color: var(--text-4); }
+
+.field input:hover, .field select:hover, .field textarea:hover, .field-row input:hover, .field-row select:hover, .date-pick input:hover,
+.manage-row input:hover, .manage-row select:hover, .manage-block textarea:hover, .picker-head input[type="search"]:hover,
+.queue-filters input[type="search"]:hover, .queue-filters select:hover, .access-search:hover, .review-label textarea:hover,
+.lib-select-wrap .lib-select:hover { border-color: var(--field-edge-hover); }
+
+.field input:focus-visible, .field select:focus-visible, .field textarea:focus-visible, .login-card input:focus-visible,
+.field-row input:focus-visible, .field-row select:focus-visible, .date-pick input:focus-visible,
+.manage-row input:focus-visible, .manage-row select:focus-visible, .manage-block textarea:focus-visible,
+.picker-head input[type="search"]:focus-visible, .queue-filters input[type="search"]:focus, .queue-filters select:focus,
+.access-search:focus-visible, .review-label textarea:focus-visible, .lib-select-wrap .lib-select:focus-visible {
+  outline: none; border-color: var(--blue); background-color: var(--surface); box-shadow: var(--focus-ring);
+}
+
+/* Invalid: only once the user has touched the field, or when the server said so. */
+.field :is(input, select, textarea):user-invalid, .field :is(input, select, textarea)[aria-invalid="true"],
+.field-row :is(input, select):user-invalid, .review-feedback-input { border-color: #f0a9a4; }
+.field :is(input, select, textarea):user-invalid:focus-visible, .field :is(input, select, textarea)[aria-invalid="true"]:focus-visible,
+.review-feedback-input:focus-visible { outline: none; border-color: var(--field-invalid); background-color: var(--surface); box-shadow: 0 0 0 3px rgba(217, 45, 32, 0.16); }
 .field-error, .form-error { color: #b42318 !important; }
+.field-error { font-size: 12px; font-weight: 500; }
+
+.field input:disabled, .field select:disabled, .field textarea:disabled, .field input:where([readonly]),
+.field-row select:disabled, .manage-row select:disabled {
+  border-color: var(--line); background-color: var(--sunken); color: var(--text-3); cursor: not-allowed;
+}
+
+/* File pickers: the browser button becomes a secondary button inside the well. */
+.field input[type="file"] { width: 100%; min-height: var(--field-h); padding: 5px 12px 5px 5px; border: 1px dashed var(--field-edge); border-radius: var(--radius-input); background: var(--field-bg); color: var(--text-2); font: inherit; font-size: 13px; font-weight: 400; cursor: pointer; }
+.field input[type="file"]:hover { border-color: var(--field-edge-hover); }
+.field input[type="file"]::file-selector-button {
+  height: 28px; margin-right: 12px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 6px;
+  background: var(--surface); color: #1e293b; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+
+/* Checkboxes and radios: the accent, a real target, and a label that lines up with them. */
+:where(input[type="checkbox"], input[type="radio"]) { width: 16px; height: 16px; margin: 0; flex: none; accent-color: var(--blue); cursor: pointer; }
+.checkbox, .toggle { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; color: #1e293b; font-size: 14px; font-weight: 500; cursor: pointer; }
+.toggle { height: var(--field-h); padding: 0 6px; font-size: 13.5px; color: var(--text-2); }
+.checkbox .subtle { font-weight: 400; }
+
+/* Groups of fields. A fieldset is a heading and its controls, never a browser groove. */
+.checkbox-grid, .invoice-rows { min-width: 0; margin: 0; padding: 0; border: 0; }
+.checkbox-grid { display: flex; flex-wrap: wrap; gap: 4px 24px; }
+.checkbox-grid > legend, .invoice-rows > legend { float: left; width: 100%; margin: 0 0 6px; padding: 0; color: #1e293b; font-size: 13px; font-weight: 600; }
+.invoice-rows > legend { margin-bottom: 2px; }
+.invoice-rows > legend + * { clear: both; }
+.invoice-rows { padding: 16px; border-radius: 10px; background: var(--sunken); }
+.invoice-rows .hint { margin: 0; color: var(--text-3); font-size: 12px; }
+.form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
+/* Buttons that share a row with fields are as tall as the fields. */
+.inline-form > :is(button, .primary-button, .ghost-button, .secondary-button, .danger-button),
+.queue-filters .ghost-button, .fin-search .ghost-button, .manage-row :is(button, .ghost-button, .primary-button),
+.editor-section-header :is(.ghost-button, .danger-button) { min-height: var(--field-h); }
+.inline-form { gap: 12px 14px; }
+
+/* Labels beside fields (the work-order composer) and above them (review). */
+.field-row > span { color: #1e293b; font-weight: 600; }
+.review-label { gap: 6px; color: #1e293b; font-size: 13px; font-weight: 600; }
+
+/* --- Filter bars -----------------------------------------------------------
+ * Search boxes, selects and the apply button share the field height. A search
+ * box keeps its icon inside the well.
+ */
+.queue-filters { gap: 10px; padding: 0; background: none; border-radius: 0; }
+.queue-filters input[type="search"] { flex: 1 1 280px; }
+.queue-filters select { width: auto; flex: 0 1 200px; }
+.picker-head input[type="search"] { flex: 1 1 220px; width: auto; }
+.date-pick input { max-width: 220px; }
+.date-pick .chips { margin-top: 8px; }
+.access-search { flex: 1 1 200px; width: auto; }
+.manage-row select, .manage-row input { flex: 1 1 180px; width: auto; }
+.lib-search { height: var(--field-h); border-color: var(--field-edge); border-radius: var(--radius-input); background: var(--field-bg); }
+.lib-search:hover { border-color: var(--field-edge-hover); }
+.lib-search:focus-within { border-color: var(--blue); background: var(--surface); box-shadow: var(--focus-ring); }
+.lib-search input { font-size: 14px; }
+.lib-search input::placeholder { color: var(--text-4); }
+.lib-select-wrap svg { color: var(--text-3); }
+.lib-filter-btn { min-height: var(--field-h); border-radius: var(--radius-btn); box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08); }
+.top-search input[type="search"] { border-color: var(--line); border-radius: var(--radius-input); }
+.top-search input[type="search"]:focus-visible { outline: none; border-color: var(--blue); background: var(--surface); box-shadow: var(--focus-ring); }
+
+/* --- Pills and chips -------------------------------------------------------
+ * Filter pills are 34px tall, quick-pick chips 32px, so they are easy to hit
+ * and no longer look squeezed. The count inside a pill is a small even badge.
+ */
+.pills { gap: 8px; }
+.pills a { min-height: 34px; padding: 0 14px; gap: 8px; border-color: var(--line-strong); color: var(--text-2); line-height: 1.2; transition: background-color 120ms var(--ease-out), border-color 120ms var(--ease-out); }
+.pills a:hover:not([aria-current]) { border-color: #c3ccd8; background: var(--sunken); color: var(--ink); }
+.pills a b { min-width: 22px; padding: 2px 7px; line-height: 16px; text-align: center; font-variant-numeric: tabular-nums; }
+.chip { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border-color: var(--line-strong); font-size: 12.5px; font-weight: 550; line-height: 1.2; cursor: pointer; }
+.chip:hover:not(.on) { border-color: #c3ccd8; background: var(--sunken); color: var(--ink); }
+.role-access-list .chip { min-height: 24px; padding: 0 9px; cursor: default; }
+.seg-item { display: inline-flex; align-items: center; min-height: 30px; padding: 0 14px; }
+
+/* Status pills: one size everywhere, 22px tall, text never touching the edge. */
+.badge, .role-pill, .review-pill, .profile-role-pill, .profile-status-pill {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 22px; line-height: 1.2; vertical-align: middle; white-space: nowrap;
+}
+.badge, .role-pill { padding: 0 9px; font-size: 12px; font-weight: 600; }
+.review-pill { min-height: 24px; }
+
+@media (max-width: 700px) {
+  /* 16px stops iOS Safari zooming the page whenever a field takes focus. */
+  .field input:where(:not([type="checkbox"], [type="radio"], [type="file"])),
+  .field select, .field textarea, .login-card input, .field-row input, .field-row select, .date-pick input,
+  .manage-row input, .manage-row select, .manage-block textarea, .picker-head input[type="search"],
+  .queue-filters input[type="search"], .queue-filters select, .access-search, .review-feedback-input,
+  .review-label textarea, .lib-select-wrap .lib-select, .lib-search input { font-size: 16px; }
+  :root { --field-h: 44px; }
+  .queue-filters select, .queue-filters input[type="search"] { flex: 1 1 100%; }
+  .queue-filters .toggle { flex: 1 1 auto; }
+  .date-pick input { max-width: none; }
+  .inline-form > :is(button, .primary-button, .ghost-button, .secondary-button) { flex: 1 1 100%; }
+}
 
 /* --- Panels and cards ------------------------------------------------------ */
 .panel, .metric-card { border-color: var(--line); border-radius: var(--radius-card); }
@@ -196,6 +346,7 @@ button:focus-visible, .primary-button:focus-visible, .secondary-button:focus-vis
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .primary-button, .secondary-button, .ghost-button, .danger-button, .field input, .field select, .field textarea, .tab-row a { transition: none; }
+  .primary-button, .secondary-button, .ghost-button, .danger-button, .field input, .field select, .field textarea, .tab-row a,
+  .field-row input, .field-row select, .queue-filters input, .queue-filters select, .pills a, .lib-search { transition: none; }
   button:active, .primary-button:active, .secondary-button:active, .ghost-button:active, .danger-button:active { transform: none; }
 }

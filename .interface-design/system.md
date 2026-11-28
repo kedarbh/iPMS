@@ -51,6 +51,15 @@ These are the working decisions behind the role dashboards in `apps/web/app/over
 ## System layer (`app/system.css`)
 - Loaded after styles.css on every page. It holds the tokens (ink steps, surfaces, rules, one accent), 36px buttons with 8px radius and `scale(.97)` press, 40px inset fields with a focus ring, tables with small tracked caps, and one keyboard focus ring.
 
+## Fields and filters
+- Every text input, select, date and textarea, in a form or a filter bar, is one control: 40px tall (44px below 700px), 8px radius, `--field-edge` border on the `--field-bg` well, 14px text (16px on phones so iOS does not zoom on focus).
+- Hover darkens the edge. Focus turns it the accent with the soft ring. A field the user has left invalid (`:user-invalid` or `aria-invalid`) gets a red edge and a red ring; the message under it is 12px red.
+- Selects have no native arrow and draw one 12px chevron. Date fields keep the calendar icon on the right. File pickers are a dashed well with a secondary-style button.
+- Checkboxes and radios are 16px in the accent, with the label 8px away. A fieldset is a label-style heading over its controls; a group nested in a panel (invoice rows) is a tint with no border.
+- A button in the same row as fields is as tall as the fields. Below 700px, filter controls and an inline form's button take the full width.
+- Filter pills are 34px tall, quick-pick chips and overview chips 32px. The count inside a pill is a small even badge.
+- Status pills (finance, badge, role) are 22px tall and use the dark status inks on a pale tint: green `#047857`, amber `#b45309`, red `#b91c1c`, blue `#1d4ed8`, slate `#475569`.
+
 ## Pages outside the dashboards
 - The tally strip is also a system class: `.tally` with `.tally-cell`, `.tally-label`, `.tally-value` and `.tally-note`. The project overview uses it, and the finance home's `.fin-cards` follow the same rules. No dark summary card, no coloured icon tiles.
 - A note in a tally cell is coloured only when it is a judgement: amber for work waiting, red for work returned or overdue.
