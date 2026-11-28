@@ -1,8 +1,10 @@
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart' show compute;
 import '../../../core/network/api_exceptions.dart';
 import '../../../core/services/watermark_service.dart' show maxEvidencePhotoBytes;
 import '../../media/data/media_repository.dart';
+import 'invoice_jpeg.dart';
 
 /// Sends one invoice photo to the media bucket and waits until the server has
 /// verified it. Every step is repeat-safe on [mediaId] and the file's hash, so
@@ -23,6 +25,16 @@ class InvoicePhotoUploader {
   /// Returns [mediaId] once the photo is READY. Throws [ApiException] saying
   /// what went wrong (too large, refused, still being checked, offline).
   Future<String> upload({required String projectId, required String mediaId, required Uint8List bytes}) async {
+    // The media service only takes JPEG; a gallery pick can be PNG (screenshots)
+    // or another format, which it would reject after the upload.
+    final jpeg = isJpeg(bytes) && bytes.length <= maxEvidencePhotoBytes ? bytes : await compute(toInvoiceJpeg, bytes);
+    if (jpeg == null) {
+      throw const ApiException(message: 'This photo\'s format is not supported. Take a photo or choose a JPEG or PNG.');
+    }
+    return _upload(projectId: projectId, mediaId: mediaId, bytes: jpeg);
+  }
+
+  Future<String> _upload({required String projectId, required String mediaId, required Uint8List bytes}) async {
     if (bytes.length > maxEvidencePhotoBytes) {
       throw const ApiException(message: 'The photo is larger than 5 MB. Take or choose a smaller one.');
     }
