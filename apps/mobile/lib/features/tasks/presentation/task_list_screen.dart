@@ -10,6 +10,7 @@ import 'widgets/status_filter_bar.dart';
 import 'widgets/task_card.dart';
 import '../../../shared/layout/main_scaffold.dart';
 import '../../tour/presentation/mobile_product_tour.dart';
+import '../../notifications/presentation/notification_bell.dart';
 
 class TaskListScreen extends ConsumerStatefulWidget {
   const TaskListScreen({super.key});
@@ -124,6 +125,8 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
                             ),
                           ),
                         ),
+                        const SizedBox(width: 8),
+                        const NotificationBell(),
                         const SizedBox(width: 8),
                         // Search Button on Right Side of Profile (Borderless)
                         IconButton.filledTonal(

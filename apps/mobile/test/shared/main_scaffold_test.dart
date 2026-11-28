@@ -6,7 +6,7 @@ import 'package:mobile/features/finance/presentation/finance_screen.dart';
 import 'package:mobile/features/profile/presentation/profile_screen.dart';
 import 'package:mobile/features/projects/presentation/project_list_screen.dart';
 import 'package:mobile/features/tasks/presentation/task_list_screen.dart';
-import 'package:mobile/features/notifications/presentation/notification_center_screen.dart';
+import 'package:mobile/features/notifications/presentation/notification_bell.dart';
 import 'package:mobile/shared/layout/main_scaffold.dart';
 
 import '../features/finance/finance_harness.dart';
@@ -101,7 +101,7 @@ void main() {
     expect(find.text('Security'), findsOneWidget);
   });
 
-  testWidgets('the Inbox button counts unread notifications on every tab and opens them all',
+  testWidgets('the bell counts unread notifications on every tab and opens them all',
       (WidgetTester tester) async {
     phoneScreen(tester);
     final server = FinanceServer()
@@ -112,21 +112,16 @@ void main() {
       ];
     final app = financeApp(
       server,
-      const MainScaffold(pages: [
-        Center(child: Text('tasks page')),
-        Center(child: Text('projects page')),
-        Center(child: Text('finance page')),
-        Center(child: Text('profile page')),
-        NotificationCenterScreen(),
-      ]),
+      const MainScaffold(pages: [_Page('tasks'), _Page('projects'), _Page('finance'), _Page('profile')]),
     );
-    // Already toured, so the guide does not cover the dock.
+    // Already toured, so the guide does not cover the screen.
     FlutterSecureStorage.setMockInitialValues({'ipms_has_seen_guide_v1': 'true'});
     await tester.pumpWidget(app);
     await settleNetwork(tester);
 
     Finder badge() => find.descendant(of: find.byKey(const ValueKey('unread-badge')), matching: find.text('2'));
-    expect(badge(), findsOneWidget);
+    expect(badge(), findsOneWidget); // Tasks
+    expect(find.text('Inbox'), findsNothing); // not in the bottom menu
     for (final icon in [Icons.business_outlined, Icons.account_balance_wallet_outlined, Icons.person_outline_rounded]) {
       await tester.tap(find.byIcon(icon));
       await tester.pump();
@@ -134,10 +129,23 @@ void main() {
       expect(badge(), findsOneWidget);
     }
 
-    await tester.tap(find.byIcon(Icons.notifications_none_rounded));
+    await tester.tap(find.byKey(const ValueKey('notification-bell')));
     await settleNetwork(tester);
+    await tester.pumpAndSettle();
     expect(find.text('Notifications'), findsOneWidget);
     expect(find.text('Rework required'), findsOneWidget);
     expect(find.text('Advance paid'), findsOneWidget);
+    expect(find.byTooltip('Back'), findsOneWidget);
   });
+}
+
+/// A tab page with its header bell, as every real tab has.
+class _Page extends StatelessWidget {
+  const _Page(this.name);
+  final String name;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        body: SafeArea(child: Row(children: [Expanded(child: Text(name)), const NotificationBell()])),
+      );
 }

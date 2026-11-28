@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile/features/notifications/providers/notification_providers.dart';
 import 'package:mobile/features/tasks/domain/models/task_item.dart';
 import 'package:mobile/features/tasks/presentation/task_list_screen.dart';
 import 'package:mobile/features/tasks/presentation/widgets/task_card.dart';
@@ -59,6 +60,7 @@ void main() {
       ProviderScope(
         overrides: [
           assignedTasksProvider.overrideWith((ref) async => [demoTask]),
+          unreadNotificationCountProvider.overrideWith((ref) async => 0),
         ],
         child: const MaterialApp(
           home: TaskListScreen(),
