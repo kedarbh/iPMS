@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../features/auth/presentation/widgets/biometric_enrollment_sheet.dart';
 import '../../features/auth/providers/auth_provider.dart';
 import '../../features/auth/providers/biometric_provider.dart';
+import '../../features/notifications/providers/notification_providers.dart';
 import '../../features/tour/presentation/mobile_product_tour.dart';
 import 'floating_nav_bar.dart';
 
@@ -39,16 +41,39 @@ class MainScaffold extends ConsumerStatefulWidget {
   ConsumerState<MainScaffold> createState() => _MainScaffoldState();
 }
 
-class _MainScaffoldState extends ConsumerState<MainScaffold> {
+class _MainScaffoldState extends ConsumerState<MainScaffold> with WidgetsBindingObserver {
+  /// How often the Inbox badge re-checks while the app is open. A push refreshes it at once.
+  static const _pollEvery = Duration(seconds: 60);
+
+  Timer? _poll;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _poll = Timer.periodic(_pollEvery, (_) => ref.invalidate(unreadNotificationCountProvider));
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _offerBiometricSignIn();
       if (mounted) {
         await _checkFirstTimeTour();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Back from the background: whatever arrived meanwhile shows on the badge and in the inbox.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.invalidate(unreadNotificationCountProvider);
+      ref.invalidate(notificationFeedProvider);
+    }
   }
 
   /// Displays the interactive product tour spotlight once on initial installation / first login.
@@ -78,6 +103,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     // A shortcut to a tab this user does not have (a guide button) lands on the
     // first tab instead of a blank page.
     final currentIndex = widget.hiddenTabs.contains(requested) ? 0 : requested;
+    final unread = ref.watch(unreadNotificationCountProvider).value ?? 0;
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
@@ -99,7 +125,13 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
                 key: TourTargetRegistry.navigationDockKey,
                 currentIndex: currentIndex,
                 hiddenTabs: widget.hiddenTabs,
+                unreadNotifications: unread,
                 onTap: (index) {
+                  if (index == notificationsTabIndex) {
+                    // Opening the inbox always shows what is new, not what was there last time.
+                    ref.invalidate(notificationFeedProvider);
+                    ref.invalidate(unreadNotificationCountProvider);
+                  }
                   ref.read(navigationIndexProvider.notifier).setIndex(index);
                 },
                 onQuickAction: () {

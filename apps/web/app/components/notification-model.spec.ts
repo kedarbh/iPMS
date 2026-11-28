@@ -9,6 +9,7 @@ describe('categoryOf', () => {
   it('groups by the type prefix', () => {
     expect(categoryOf('QC_SUBMISSION_APPROVED')).toBe('qc');
     expect(categoryOf('WORK_ORDER_ASSIGNED')).toBe('work-order');
+    expect(categoryOf('FINANCE_REQUEST_RETURNED')).toBe('finance');
     expect(categoryOf('SOMETHING_ELSE')).toBe('system');
   });
 });

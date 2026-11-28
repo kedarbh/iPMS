@@ -1261,19 +1261,13 @@ a.link { color: var(--blue); }
   margin-top: 5px;
 }
 
-.notif-dot.qc {
-  background: #3b82f6;
-  box-shadow: 0 0 6px rgba(59, 130, 246, 0.5);
+/* One accent: the dot marks unread, whatever the kind (see .interface-design/system.md). */
+.notif-dot {
+  background: transparent;
 }
 
-.notif-dot.work-order {
-  background: #f59e0b;
-  box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
-}
-
-.notif-dot.system {
-  background: #10b981;
-  box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+.notif-item.unread .notif-dot {
+  background: var(--blue, #2f64e8);
 }
 
 .notif-item-content {

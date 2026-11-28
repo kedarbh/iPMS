@@ -8,6 +8,7 @@ import 'features/auth/domain/models/auth_user.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/finance/presentation/finance_screen.dart';
+import 'features/notifications/presentation/notification_center_screen.dart';
 import 'features/profile/presentation/profile_screen.dart';
 import 'features/projects/presentation/project_list_screen.dart';
 import 'features/tasks/presentation/task_list_screen.dart';
@@ -80,6 +81,7 @@ class SignedInHome extends StatelessWidget {
         const ProjectListScreen(),
         if (showsFinance) const FinanceScreen() else const SizedBox.shrink(),
         const ProfileScreen(),
+        const NotificationCenterScreen(), // notificationsTabIndex
       ],
     );
   }

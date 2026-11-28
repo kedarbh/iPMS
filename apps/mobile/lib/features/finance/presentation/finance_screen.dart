@@ -11,7 +11,6 @@ import 'advance_form_screen.dart';
 import 'approver_finance.dart';
 import 'expenses_form_screen.dart';
 import 'finance_widgets.dart';
-import 'notifications_screen.dart';
 import 'overview_tab.dart';
 import 'records_tab.dart';
 import 'request_detail_screen.dart';
@@ -123,7 +122,6 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     final canView = viewer.can('finance_request.view');
     final canCreate = viewer.raisesRequests;
     final mine = ref.watch(myFinanceRequestsProvider);
-    final unread = (ref.watch(financeNotificationsProvider).value ?? const []).where((n) => !n.isRead).length;
     final approver = viewer.hasApprovals && canView;
     final segment = _segment;
     final roleLine = [if ((user?.displayName ?? '').isNotEmpty) user!.displayName!, approverRoleOf(viewer).label].join(' · ');
@@ -133,7 +131,6 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       ref.invalidate(awaitingFinanceRequestsProvider);
       ref.invalidate(scopeFinanceRequestsProvider);
       ref.invalidate(handledFinanceRequestsProvider);
-      ref.invalidate(financeNotificationsProvider);
       await ref.refresh(myFinanceRequestsProvider.future).then((_) {}, onError: (_) {});
     }
 
@@ -164,10 +161,8 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                           ],
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      _Bell(unread: unread, onTap: () => _go(const NotificationsScreen())),
                       if (canCreate && !approver) ...[
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 12),
                         SizedBox(
                           height: 44,
                           child: ElevatedButton.icon(
@@ -275,44 +270,6 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         ),
       ),
       data: data,
-    );
-  }
-}
-
-class _Bell extends StatelessWidget {
-  const _Bell({required this.unread, required this.onTap});
-
-  final int unread;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      customBorder: const CircleBorder(),
-      onTap: onTap,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: FC.field)),
-            child: const Icon(Icons.notifications_none_rounded, size: 22, color: FC.ink),
-          ),
-          if (unread > 0)
-            Positioned(
-              top: 4,
-              right: 4,
-              child: Container(
-                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                decoration: BoxDecoration(color: const Color(0xFFC8372D), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white, width: 2)),
-                alignment: Alignment.center,
-                child: Text(unread > 9 ? '9+' : '$unread', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
-              ),
-            ),
-        ],
-      ),
     );
   }
 }

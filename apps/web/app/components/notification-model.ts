@@ -1,6 +1,6 @@
 import type { NotificationDto } from '@ipms/contracts';
 
-export type Category = 'work-order' | 'qc' | 'system';
+export type Category = 'work-order' | 'qc' | 'finance' | 'system';
 
 export interface NotificationItem {
   id: string;
@@ -15,6 +15,7 @@ export interface NotificationItem {
 export function categoryOf(type: string): Category {
   if (type.startsWith('QC_')) return 'qc';
   if (type.startsWith('WORK_ORDER_')) return 'work-order';
+  if (type.startsWith('FINANCE_')) return 'finance';
   return 'system';
 }
 

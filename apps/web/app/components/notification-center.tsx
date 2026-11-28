@@ -183,6 +183,13 @@ export function NotificationCenter() {
               >
                 Work Orders
               </button>
+              <button
+                type="button"
+                className={`notif-tab${filter === 'finance' ? ' active' : ''}`}
+                onClick={() => setFilter('finance')}
+              >
+                Finance
+              </button>
             </div>
 
             {failure ? (

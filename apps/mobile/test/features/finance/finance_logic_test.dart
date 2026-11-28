@@ -5,7 +5,6 @@ import 'package:mobile/features/finance/domain/finance_overview.dart';
 import 'package:mobile/features/finance/domain/finance_rules.dart';
 import 'package:mobile/features/finance/domain/finance_statement.dart';
 import 'package:mobile/features/finance/domain/finance_view.dart';
-import 'package:mobile/features/finance/presentation/notifications_screen.dart';
 import 'package:mobile/features/finance/presentation/request_detail_screen.dart';
 
 import 'finance_harness.dart';
@@ -347,32 +346,4 @@ void main() {
     });
   });
 
-  group('notifications', () {
-    test('link to the request they are about', () {
-      final n = FinanceNotification.fromJson({
-        'id': 'n1', 'type': 'FINANCE_REQUEST_RETURNED', 'title': 'Changes requested', 'body': 'x',
-        'actionUrl': '/finance/requests/0192f7a0-0000-7000-8000-000000000003', 'isRead': false, 'createdAt': '2026-10-09T05:00:00Z',
-      });
-      expect(n.requestId, '0192f7a0-0000-7000-8000-000000000003');
-      expect(n.isFinance, isTrue);
-      expect(n.tone, 'warn');
-    });
-
-    test('colour their dot by what happened, and tell finance ones from the rest', () {
-      String tone(String type) => FinanceNotification.fromJson({'type': type, 'createdAt': '2026-10-09T05:00:00Z'}).tone;
-      expect(tone('FINANCE_REQUEST_REJECTED'), 'err');
-      expect(tone('FINANCE_REQUEST_PAID'), 'ok');
-      expect(FinanceNotification.fromJson({'type': 'QC_SUBMISSION_APPROVED', 'createdAt': '2026-10-09T05:00:00Z'}).isFinance, isFalse);
-    });
-
-    test('say when in plain words', () {
-      final at = DateTime(2026, 10, 10, 9, 0);
-      expect(whenText(DateTime(2026, 10, 10, 8, 59, 40), at), 'Just now');
-      expect(whenText(DateTime(2026, 10, 10, 8, 30), at), '30 min ago');
-      expect(whenText(DateTime(2026, 10, 10, 7, 0), at), '2h ago');
-      expect(whenText(DateTime(2026, 10, 9, 20, 0), at), 'Yesterday');
-      expect(whenText(DateTime(2026, 10, 7, 12, 0), at), '3 days ago');
-      expect(whenText(DateTime(2026, 9, 20, 12, 0), at), '20 Sep');
-    });
-  });
 }
